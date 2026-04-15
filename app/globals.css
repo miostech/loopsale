@@ -1,0 +1,298 @@
+@import "tailwindcss";
+
+/* LoopSale — tokens alinhados ao gradiente do logo (magenta → violeta) */
+:root {
+  --loop-primary: #6d28d9;
+  --loop-primary-hover: #5b21b6;
+  --loop-primary-muted: #ede9fe;
+  --loop-text: #1F2430;
+  --loop-text-muted: #5c6370;
+  --loop-cta: #d946ef;
+  --loop-cta-hover: #c026d3;
+  --loop-cta-muted: #fdf4ff;
+  --loop-accent-mid: #a855f7;
+  --loop-bg: #ffffff;
+  --loop-bg-alt: #faf5ff;
+  --loop-border: #e9d5ff;
+  --loop-success: #10b981;
+  --loop-warning: #f59e0b;
+  --loop-error: #ef4444;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --loop-text: #f1f5f9;
+    --loop-text-muted: #94a3b8;
+    --loop-bg: #0f172a;
+    --loop-bg-alt: #1e293b;
+    --loop-border: #334155;
+    --loop-primary-muted: #3b0764;
+    --loop-cta-muted: #500724;
+  }
+}
+
+body {
+  color: var(--loop-text);
+  background: var(--loop-bg);
+  font-family: var(--font-dm-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* —— Marketing: fundo e movimento (referência visual Martz) —— */
+@keyframes marketing-mesh-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(2%, -3%) scale(1.03);
+  }
+  66% {
+    transform: translate(-3%, 2%) scale(0.98);
+  }
+}
+
+@keyframes marketing-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+@keyframes marketing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes marketing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.marketing-hero-mesh {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.marketing-hero-mesh::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background:
+    radial-gradient(
+      ellipse 55% 45% at 15% 20%,
+      color-mix(in srgb, var(--loop-primary) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 40% at 85% 15%,
+      color-mix(in srgb, var(--loop-cta) 14%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 45% 50% at 70% 85%,
+      color-mix(in srgb, var(--loop-primary) 12%, transparent),
+      transparent 55%
+    );
+  animation: marketing-mesh-drift 22s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-hero-mesh::before {
+    animation: none;
+  }
+}
+
+.marketing-hero-grid {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--loop-border) 35%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--loop-border) 35%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black, transparent);
+  opacity: 0.45;
+}
+
+.marketing-gradient-text {
+  background: linear-gradient(
+    105deg,
+    var(--loop-cta) 0%,
+    var(--loop-accent-mid) 45%,
+    var(--loop-primary) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: marketing-shimmer 8s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-gradient-text {
+    animation: none;
+    background: var(--loop-primary);
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: var(--loop-primary);
+  }
+}
+
+.marketing-float {
+  animation: marketing-float 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-float {
+    animation: none;
+  }
+}
+
+.marketing-card-lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+}
+
+.marketing-card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 18px 40px -16px color-mix(in srgb, var(--loop-primary) 18%, transparent),
+    0 8px 16px -8px color-mix(in srgb, var(--loop-text) 12%, transparent);
+  border-color: color-mix(in srgb, var(--loop-primary) 28%, var(--loop-border));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-card-lift:hover {
+    transform: none;
+  }
+}
+
+.reveal-on-scroll {
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.reveal-on-scroll--out {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+.reveal-on-scroll--in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll,
+  .reveal-on-scroll--out,
+  .reveal-on-scroll--in {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+.marketing-hero-enter > * {
+  opacity: 0;
+  animation: marketing-fade-up 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.marketing-hero-enter > *:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.marketing-hero-enter > *:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.marketing-hero-enter > *:nth-child(3) {
+  animation-delay: 0.19s;
+}
+.marketing-hero-enter > *:nth-child(4) {
+  animation-delay: 0.26s;
+}
+.marketing-hero-enter > *:nth-child(5) {
+  animation-delay: 0.33s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-hero-enter > * {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-ping-dot .animate-ping {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes marketing-mock-swap {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.marketing-mock-swap {
+  animation: marketing-mock-swap 0.28s ease-out;
+}
+
+/* Ícone mark: mesmo PNG com fundo preto — máscara por luminância corta o preto (sem exigir alpha no arquivo) */
+.loopsale-mark-icon {
+  display: inline-block;
+  width: 7rem;
+  height: 7rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+  background-image: url(/brand/loopsale-mark.png);
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+  mask-image: url(/brand/loopsale-mark.png);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-type: luminance;
+  -webkit-mask-image: url(/brand/loopsale-mark.png);
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-source-type: luminance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing-mock-swap {
+    animation: none;
+  }
+}
