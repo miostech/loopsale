@@ -106,6 +106,7 @@ export interface Lead {
   source: string;
   status: string;
   tags: string[];
+  lastContactedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

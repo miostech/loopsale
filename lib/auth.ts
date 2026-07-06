@@ -16,11 +16,22 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!process.env.NEXTAUTH_SECRET) {
+          console.error(
+            "[auth] NEXTAUTH_SECRET não definido — o login vai falhar. Configure a variável no ambiente."
+          );
+        }
+
+        if (!credentials?.email || !credentials?.password) {
+          console.warn("[auth] credenciais ausentes (email/senha vazios).");
+          return null;
+        }
+
+        const email = String(credentials.email).trim();
 
         if (isDatabaseDisabled()) {
           if (
-            String(credentials.email) === DEMO_EMAIL &&
+            email === DEMO_EMAIL &&
             String(credentials.password) === DEMO_PASSWORD
           ) {
             return {
@@ -31,22 +42,43 @@ export const authOptions: NextAuthOptions = {
               role: "admin",
             };
           }
+          console.warn(
+            "[auth] DATABASE_DISABLED ativo: só o login demo funciona e as credenciais não conferem."
+          );
           return null;
         }
 
-        const users = await getCollection("users");
-        const user = await users.findOne({ email: String(credentials.email) });
-        if (!user || !(await bcrypt.compare(String(credentials.password), (user as User).passwordHash)))
+        try {
+          const users = await getCollection("users");
+          const user = await users.findOne({ email });
+          if (!user) {
+            console.warn(`[auth] usuário não encontrado para email="${email}".`);
+            return null;
+          }
+          const passwordOk = await bcrypt.compare(
+            String(credentials.password),
+            (user as User).passwordHash ?? ""
+          );
+          if (!passwordOk) {
+            console.warn(`[auth] senha incorreta para email="${email}".`);
+            return null;
+          }
+          const mapped = mapDoc(user as User & { _id: unknown });
+          if (!mapped) return null;
+          return {
+            id: mapped.id,
+            email: mapped.email,
+            name: mapped.name,
+            accountId: mapped.accountId,
+            role: mapped.role,
+          };
+        } catch (err) {
+          console.error(
+            "[auth] erro ao consultar o banco no login (verifique MONGODB_URI e o IP allowlist do Atlas):",
+            err
+          );
           return null;
-        const mapped = mapDoc(user as User & { _id: unknown });
-        if (!mapped) return null;
-        return {
-          id: mapped.id,
-          email: mapped.email,
-          name: mapped.name,
-          accountId: mapped.accountId,
-          role: mapped.role,
-        };
+        }
       },
     }),
   ],

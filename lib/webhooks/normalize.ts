@@ -7,7 +7,8 @@ export type NormalizedEventType =
   | "pagamento_aprovado"
   | "pagamento_recusado"
   | "pedido_cancelado"
-  | "reembolso";
+  | "reembolso"
+  | "whatsapp_enviado";
 
 export interface NormalizedCheckoutEvent {
   eventType: NormalizedEventType;
@@ -141,6 +142,11 @@ export function normalizeN8nPayload(
     reembolso: "reembolso",
     refund: "reembolso",
     refunded: "reembolso",
+    whatsapp_enviado: "whatsapp_enviado",
+    whatsapp_sent: "whatsapp_enviado",
+    mensagem_enviada: "whatsapp_enviado",
+    message_sent: "whatsapp_enviado",
+    whatsapp: "whatsapp_enviado",
   };
   const eventType = mapping[rawEvent];
   if (!eventType) return null;

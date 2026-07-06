@@ -12,7 +12,17 @@ import type {
 
 async function upsertLeadFromEvent(
   accountId: string,
-  data: { email: string | null; phone: string | null; status: string }
+  data: {
+    email: string | null;
+    phone: string | null;
+    status: string;
+    /** Quando true, não sobrescreve o status de um lead já existente. */
+    preserveStatus?: boolean;
+    /** Origem do lead ao criar um novo registro. */
+    source?: string;
+    /** Registra data/hora do último contato (ex.: WhatsApp enviado). */
+    contactedAt?: Date;
+  }
 ) {
   if (!data.email && !data.phone) return;
   const leadsCol = await getCollection("leads");
@@ -27,9 +37,12 @@ async function upsertLeadFromEvent(
   const existing = await leadsCol.findOne(filter);
   const now = new Date();
   if (existing) {
+    const update: Record<string, unknown> = { updatedAt: now };
+    if (!data.preserveStatus) update.status = data.status;
+    if (data.contactedAt) update.lastContactedAt = data.contactedAt;
     await leadsCol.updateOne(
       { _id: existing._id as ObjectId },
-      { $set: { status: data.status, updatedAt: now } }
+      { $set: update }
     );
   } else {
     await leadsCol.insertOne({
@@ -37,9 +50,10 @@ async function upsertLeadFromEvent(
       email: data.email,
       phone: data.phone,
       name: null,
-      source: "checkout",
+      source: data.source ?? "checkout",
       status: data.status,
       tags: [],
+      ...(data.contactedAt ? { lastContactedAt: data.contactedAt } : {}),
       createdAt: now,
       updatedAt: now,
     } as Lead & { _id?: unknown });
@@ -73,13 +87,20 @@ export async function processIncomingEvent(
   const insertResult = await checkoutEventsCol.insertOne(eventDoc as CheckoutEvent & { _id?: unknown });
   const insertedId = insertResult.insertedId.toString();
 
+  const isContactEvent = normalized.eventType === "whatsapp_enviado";
+
   if (normalized.customerEmail || normalized.customerPhone) {
     await upsertLeadFromEvent(accountId, {
       email: normalized.customerEmail ?? null,
       phone: normalized.customerPhone ?? null,
       status: normalized.eventType === "pagamento_aprovado" ? "purchased" : "lead",
+      preserveStatus: isContactEvent,
+      source: isContactEvent ? "whatsapp" : "checkout",
+      contactedAt: isContactEvent ? now : undefined,
     });
   }
+
+  if (isContactEvent) return;
 
   if (
     normalized.eventType === "pagamento_aprovado" &&
