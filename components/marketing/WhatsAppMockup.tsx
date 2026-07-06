@@ -101,16 +101,18 @@ export function WhatsAppMockup() {
   }, [autoPaused]);
 
   useEffect(() => {
-    const el = tablistRef.current?.querySelector<HTMLElement>(
+    const container = tablistRef.current;
+    const el = container?.querySelector<HTMLElement>(
       '[role="tab"][aria-selected="true"]'
     );
-    if (!el) return;
+    if (!container || !el) return;
     const reduce =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({
-      inline: "center",
-      block: "nearest",
+    const target =
+      el.offsetLeft - container.clientWidth / 2 + el.offsetWidth / 2;
+    container.scrollTo({
+      left: target,
       behavior: reduce ? "instant" : "smooth",
     });
   }, [activeId]);
