@@ -24,6 +24,7 @@ interface Metrics {
   vendasRecuperadas: number;
   valorRecuperado: string;
   taxaRecuperacao: number;
+  mensagensEnviadas: number;
   periodoDias: number;
   daily?: DailyRow[];
 }
@@ -119,6 +120,11 @@ export default function DashboardPage() {
         {
           title: "Vendas recuperadas",
           value: metrics.vendasRecuperadas.toLocaleString("pt-BR"),
+          change: null,
+        },
+        {
+          title: "Mensagens enviadas",
+          value: metrics.mensagensEnviadas.toLocaleString("pt-BR"),
           change: null,
         },
         {

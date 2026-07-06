@@ -16,6 +16,8 @@ export interface NormalizedCheckoutEvent {
   platformOrderId?: string;
   customerEmail?: string;
   customerPhone?: string;
+  customerName?: string;
+  affiliate?: string;
   productId?: string;
   productName?: string;
   amount?: string;
@@ -54,6 +56,7 @@ export function normalizeKiwifyPayload(
     platformOrderId: String(order.id ?? data.order_id ?? "").trim() || undefined,
     customerEmail: String(customer.email ?? order.email ?? "").trim() || undefined,
     customerPhone: String(customer.phone ?? customer.phone_number ?? order.phone ?? "").trim() || undefined,
+    customerName: String(customer.name ?? customer.full_name ?? order.name ?? "").trim() || undefined,
     productId: String(product.id ?? data.product_id ?? "").trim() || undefined,
     productName: String(product.name ?? product.title ?? "").trim() || undefined,
     amount: String(order.value ?? data.value ?? order.amount ?? "").trim() || undefined,
@@ -167,6 +170,21 @@ export function normalizeN8nPayload(
     platformOrderId: pick("orderId", "order_id", "transactionId", "transaction_id"),
     customerEmail: pick("email", "customerEmail", "customer_email"),
     customerPhone: pick("phone", "customerPhone", "customer_phone", "whatsapp"),
+    customerName: pick(
+      "name",
+      "customerName",
+      "customer_name",
+      "nome",
+      "fullName",
+      "full_name"
+    ),
+    affiliate: pick(
+      "afiliado",
+      "affiliate",
+      "affiliateName",
+      "affiliate_name",
+      "nome_afiliado"
+    ),
     productId: pick("productId", "product_id"),
     productName: pick("productName", "product_name", "product"),
     amount: pick("amount", "value", "price", "total"),
@@ -213,6 +231,7 @@ export function normalizeHotmartPayload(
     platformOrderId: String(p.transaction ?? p.order_id ?? "").trim() || undefined,
     customerEmail: String(buyer.email ?? p.buyer_email ?? "").trim() || undefined,
     customerPhone: String(buyer.phone ?? buyer.phone_number ?? "").trim() || undefined,
+    customerName: String(buyer.name ?? buyer.full_name ?? "").trim() || undefined,
     productId: String(product.id ?? p.product_id ?? "").trim() || undefined,
     productName: String(product.name ?? product.title ?? "").trim() || undefined,
     amount: String(p.price ?? p.value ?? "").trim() || undefined,

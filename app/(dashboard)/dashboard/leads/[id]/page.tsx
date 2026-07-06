@@ -9,7 +9,13 @@ import { Badge } from "@/components/ui";
 interface TimelineItem {
   type: string;
   date: string;
-  data?: { product?: string; amount?: string; platform?: string; recoveredAt?: string };
+  data?: {
+    product?: string;
+    amount?: string;
+    platform?: string;
+    recoveredAt?: string;
+    affiliate?: string | null;
+  };
 }
 
 interface LeadDetail {
@@ -49,6 +55,13 @@ export default function LeadDetailPage() {
     );
   }
 
+  const PURCHASE_TYPES: Record<string, string> = {
+    pagamento_aprovado: "Compra aprovada",
+    recuperado: "Recuperada",
+    pagamento_recusado: "Pagamento recusado",
+  };
+  const purchases = lead.timeline.filter((item) => item.type in PURCHASE_TYPES);
+
   return (
     <div>
       <Link href="/dashboard/leads" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
@@ -79,6 +92,68 @@ export default function LeadDetailPage() {
           </div>
         </CardHeader>
       </Card>
+      {purchases.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <h2 className="font-semibold text-[var(--loop-text)]">
+              Compras e transações
+            </h2>
+            <p className="text-sm text-[var(--loop-text-muted)]">
+              Produtos, situação e o afiliado de cada transação
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--loop-border)] text-left text-[var(--loop-text-muted)]">
+                    <th className="pb-2 pr-4">Produto</th>
+                    <th className="pb-2 pr-4">Situação</th>
+                    <th className="pb-2 pr-4">Valor</th>
+                    <th className="pb-2 pr-4">Afiliado</th>
+                    <th className="pb-2">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchases.map((item, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-[var(--loop-border)]"
+                    >
+                      <td className="py-3 pr-4 text-[var(--loop-text)]">
+                        {item.data?.product ?? "—"}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <Badge
+                          variant={
+                            item.type === "pagamento_aprovado" ||
+                            item.type === "recuperado"
+                              ? "success"
+                              : item.type === "pagamento_recusado"
+                                ? "cta"
+                                : "default"
+                          }
+                        >
+                          {PURCHASE_TYPES[item.type]}
+                        </Badge>
+                      </td>
+                      <td className="py-3 pr-4 text-[var(--loop-text)]">
+                        {item.data?.amount ? `R$ ${item.data.amount}` : "—"}
+                      </td>
+                      <td className="py-3 pr-4 text-[var(--loop-text)]">
+                        {item.data?.affiliate ?? "—"}
+                      </td>
+                      <td className="py-3 text-[var(--loop-text-muted)]">
+                        {new Date(item.date).toLocaleString("pt-BR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <h2 className="font-semibold text-[var(--loop-text)]">
@@ -108,6 +183,11 @@ export default function LeadDetailPage() {
                       <p className="text-sm text-[var(--loop-text-muted)] mt-1">
                         Produto: {item.data.product}
                         {item.data.amount && ` • R$ ${item.data.amount}`}
+                      </p>
+                    )}
+                    {item.data?.affiliate && (
+                      <p className="text-sm text-[var(--loop-text-muted)] mt-1">
+                        Afiliado: {item.data.affiliate}
                       </p>
                     )}
                   </div>

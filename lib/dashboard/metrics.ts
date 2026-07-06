@@ -6,6 +6,7 @@ export type DashboardMetrics = {
   vendasRecuperadas: number;
   valorRecuperado: string;
   taxaRecuperacao: number;
+  mensagensEnviadas: number;
   periodoDias: number;
 };
 
@@ -30,6 +31,7 @@ export async function getDashboardMetrics(
     let carrinhosAbandonados = 0;
     let vendasRecuperadas = 0;
     let valorRecuperadoTotal = 0;
+    let mensagensEnviadas = 0;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const _seed = accountId; // reservado para futuras variações por tenant
@@ -50,6 +52,7 @@ export async function getDashboardMetrics(
       carrinhosAbandonados += abandoned;
       vendasRecuperadas += recovered;
       valorRecuperadoTotal += dayValue;
+      mensagensEnviadas += abandoned + ((i * 2) % 7); // ~mensagens de recuperação/dia
     }
 
     const recoveryRate =
@@ -63,6 +66,7 @@ export async function getDashboardMetrics(
       vendasRecuperadas,
       valorRecuperado: valorRecuperadoTotal.toFixed(2),
       taxaRecuperacao: recoveryRate,
+      mensagensEnviadas,
       periodoDias: periodDays,
     };
   }
@@ -89,6 +93,19 @@ export async function getDashboardMetrics(
   const [abandonedResult] = await abandonedCheckoutsCol
     .aggregate([
       { $match: { accountId, createdAt: { $gte: since } } },
+      { $count: "count" },
+    ])
+    .toArray();
+
+  const [messagesResult] = await checkoutEventsCol
+    .aggregate([
+      {
+        $match: {
+          accountId,
+          eventType: "whatsapp_enviado",
+          createdAt: { $gte: since },
+        },
+      },
       { $count: "count" },
     ])
     .toArray();
@@ -130,6 +147,7 @@ export async function getDashboardMetrics(
   const recoveryRate =
     abandoned > 0 ? Math.round((recovered / abandoned) * 100) : 0;
   const totalValue = recoveredValueResult?.total ?? 0;
+  const mensagensEnviadas = messagesResult?.count ?? 0;
 
   return {
     checkoutsIniciados: started,
@@ -137,6 +155,7 @@ export async function getDashboardMetrics(
     vendasRecuperadas: recovered,
     valorRecuperado: String(totalValue.toFixed(2)),
     taxaRecuperacao: recoveryRate,
+    mensagensEnviadas,
     periodoDias: periodDays,
   };
 }

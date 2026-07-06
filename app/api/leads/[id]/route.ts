@@ -59,6 +59,7 @@ export async function GET(
           product: e.productName,
           amount: e.amount,
           platform: e.platform,
+          affiliate: e.affiliate,
         },
       });
     }
@@ -75,6 +76,7 @@ export async function GET(
         data: {
           product: a.productName,
           amount: a.amount,
+          affiliate: a.affiliate,
           recoveredAt: a.recoveredAt?.toISOString(),
         },
       });

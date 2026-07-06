@@ -15,6 +15,7 @@ async function upsertLeadFromEvent(
   data: {
     email: string | null;
     phone: string | null;
+    name?: string | null;
     status: string;
     /** Quando true, não sobrescreve o status de um lead já existente. */
     preserveStatus?: boolean;
@@ -40,6 +41,10 @@ async function upsertLeadFromEvent(
     const update: Record<string, unknown> = { updatedAt: now };
     if (!data.preserveStatus) update.status = data.status;
     if (data.contactedAt) update.lastContactedAt = data.contactedAt;
+    // Só preenche o nome se veio no evento e o lead ainda não tem nome.
+    if (data.name && !(existing as { name?: string | null }).name) {
+      update.name = data.name;
+    }
     await leadsCol.updateOne(
       { _id: existing._id as ObjectId },
       { $set: update }
@@ -49,7 +54,7 @@ async function upsertLeadFromEvent(
       accountId,
       email: data.email,
       phone: data.phone,
-      name: null,
+      name: data.name ?? null,
       source: data.source ?? "checkout",
       status: data.status,
       tags: [],
@@ -81,6 +86,7 @@ export async function processIncomingEvent(
     productId: normalized.productId ?? null,
     productName: normalized.productName ?? null,
     amount: normalized.amount ?? null,
+    affiliate: normalized.affiliate ?? null,
     payload: (normalized.payload ?? {}) as Record<string, unknown>,
     createdAt: now,
   };
@@ -93,6 +99,7 @@ export async function processIncomingEvent(
     await upsertLeadFromEvent(accountId, {
       email: normalized.customerEmail ?? null,
       phone: normalized.customerPhone ?? null,
+      name: normalized.customerName ?? null,
       status: normalized.eventType === "pagamento_aprovado" ? "purchased" : "lead",
       preserveStatus: isContactEvent,
       source: isContactEvent ? "whatsapp" : "checkout",
@@ -131,6 +138,7 @@ export async function processIncomingEvent(
         productId: normalized.productId,
         productName: normalized.productName,
         amount: normalized.amount,
+        affiliate: normalized.affiliate,
       }
     );
   }
@@ -147,6 +155,7 @@ export async function createAbandonedAndScheduleRecovery(
     productId?: string;
     productName?: string;
     amount?: string;
+    affiliate?: string;
   }
 ) {
   if (isDatabaseDisabled()) return;
@@ -165,6 +174,7 @@ export async function createAbandonedAndScheduleRecovery(
     customerPhone: data.customerPhone ?? null,
     productId: data.productId ?? null,
     productName: data.productName ?? null,
+    affiliate: data.affiliate ?? null,
     amount: data.amount ?? null,
     recoveredAt: null,
     createdAt: now,
@@ -253,6 +263,7 @@ export async function processAbandonmentForAccount(accountId: string) {
           productId: ev.productId ?? undefined,
           productName: ev.productName ?? undefined,
           amount: ev.amount ?? undefined,
+          affiliate: ev.affiliate ?? undefined,
         }
       );
     }

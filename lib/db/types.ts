@@ -45,6 +45,7 @@ export interface CheckoutEvent {
   productId?: string | null;
   productName?: string | null;
   amount?: string | null;
+  affiliate?: string | null;
   createdAt: Date;
 }
 
@@ -59,6 +60,7 @@ export interface AbandonedCheckout {
   productId?: string | null;
   productName?: string | null;
   amount?: string | null;
+  affiliate?: string | null;
   recoveredAt?: Date | null;
   createdAt: Date;
 }
