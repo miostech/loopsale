@@ -48,7 +48,7 @@ async function upsertLeadFromEvent(
 
 export async function processIncomingEvent(
   accountId: string,
-  platform: "kiwify" | "hotmart",
+  platform: "kiwify" | "hotmart" | "n8n",
   normalized: NormalizedCheckoutEvent
 ) {
   if (isDatabaseDisabled()) return;

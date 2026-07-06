@@ -92,6 +92,83 @@ export function normalizeKiwifyPayloadWithStarted(
 }
 
 /**
+ * Mapeia o payload enviado por um fluxo do n8n para o formato normalizado.
+ *
+ * Contrato esperado (campos tolerantes a variações de nome):
+ * {
+ *   "event": "checkout_iniciado" | "checkout_abandonado" | "pagamento_aprovado"
+ *            | "pagamento_recusado" | "pedido_cancelado" | "reembolso",
+ *   "checkoutId": "abc123",        // ou checkout_id / cartId / cart_id / id
+ *   "orderId": "ped_1",            // ou order_id / transactionId / transaction_id
+ *   "email": "cliente@x.com",      // ou customerEmail / customer_email
+ *   "phone": "5511999999999",      // ou customerPhone / customer_phone / whatsapp
+ *   "productId": "p1",             // ou product_id
+ *   "productName": "Curso X",      // ou product_name / product
+ *   "amount": "197.00"             // ou value / price / total
+ * }
+ */
+export function normalizeN8nPayload(
+  body: Record<string, unknown>
+): NormalizedCheckoutEvent | null {
+  const rawEvent = String(
+    body.event ?? body.eventType ?? body.type ?? body.status ?? ""
+  )
+    .toLowerCase()
+    .trim();
+  if (!rawEvent) return null;
+
+  const mapping: Record<string, NormalizedEventType> = {
+    checkout_iniciado: "checkout_iniciado",
+    checkout_started: "checkout_iniciado",
+    carrinho_iniciado: "checkout_iniciado",
+    cart_started: "checkout_iniciado",
+    checkout_abandonado: "checkout_abandonado",
+    carrinho_abandonado: "checkout_abandonado",
+    cart_abandoned: "checkout_abandonado",
+    abandoned: "checkout_abandonado",
+    pagamento_aprovado: "pagamento_aprovado",
+    compra_aprovada: "pagamento_aprovado",
+    payment_approved: "pagamento_aprovado",
+    approved: "pagamento_aprovado",
+    venda: "pagamento_aprovado",
+    sale: "pagamento_aprovado",
+    pagamento_recusado: "pagamento_recusado",
+    payment_refused: "pagamento_recusado",
+    refused: "pagamento_recusado",
+    pedido_cancelado: "pedido_cancelado",
+    canceled: "pedido_cancelado",
+    cancelled: "pedido_cancelado",
+    reembolso: "reembolso",
+    refund: "reembolso",
+    refunded: "reembolso",
+  };
+  const eventType = mapping[rawEvent];
+  if (!eventType) return null;
+
+  const pick = (...keys: string[]): string | undefined => {
+    for (const k of keys) {
+      const v = body[k];
+      if (v !== undefined && v !== null && String(v).trim() !== "") {
+        return String(v).trim();
+      }
+    }
+    return undefined;
+  };
+
+  return {
+    eventType,
+    platformCheckoutId: pick("checkoutId", "checkout_id", "cartId", "cart_id", "id"),
+    platformOrderId: pick("orderId", "order_id", "transactionId", "transaction_id"),
+    customerEmail: pick("email", "customerEmail", "customer_email"),
+    customerPhone: pick("phone", "customerPhone", "customer_phone", "whatsapp"),
+    productId: pick("productId", "product_id"),
+    productName: pick("productName", "product_name", "product"),
+    amount: pick("amount", "value", "price", "total"),
+    payload: body,
+  };
+}
+
+/**
  * Mapeia eventos Hotmart para o formato normalizado.
  * Ref: Hotmart postback - purchase.approved, purchase.refunded, etc.
  */

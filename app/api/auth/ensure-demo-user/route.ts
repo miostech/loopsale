@@ -3,8 +3,8 @@ import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import { hashPassword } from "@/lib/auth-server";
 import type { Account, User } from "@/lib/db/types";
 
-const DEMO_EMAIL = "demo@loopsale.com";
-const DEMO_PASSWORD = "demo123";
+const DEMO_EMAIL = process.env.DEMO_LOGIN_EMAIL ?? "demo@loopsale.com";
+const DEMO_PASSWORD = process.env.DEMO_LOGIN_PASSWORD ?? "demo123";
 const DEMO_NAME = "Usuário Demo";
 
 export async function GET() {

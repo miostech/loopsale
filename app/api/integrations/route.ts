@@ -26,18 +26,64 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const platform = String(body.platform ?? "").toLowerCase();
-  if (platform !== "kiwify" && platform !== "hotmart") {
+  if (platform !== "kiwify" && platform !== "hotmart" && platform !== "n8n") {
     return NextResponse.json(
-      { error: "Plataforma inválida. Use kiwify ou hotmart." },
+      { error: "Plataforma inválida. Use kiwify, hotmart ou n8n." },
       { status: 400 }
     );
   }
 
+  const regenerate = body.regenerate === true;
+  const integrationsCol = await getCollection("integrations");
+  const now = new Date();
+  const baseUrl = process.env.NEXTAUTH_URL ?? "https://seusite.com";
+
+  const existing = await integrationsCol.findOne({
+    accountId: session.user.accountId,
+    platform,
+  });
+
   const crypto = await import("crypto");
+
+  if (existing && !regenerate) {
+    const token =
+      (existing.config as Record<string, unknown>)?.webhookToken ??
+      crypto.randomBytes(24).toString("base64url");
+    if (!(existing.config as Record<string, unknown>)?.webhookToken) {
+      await integrationsCol.updateOne(
+        { _id: existing._id },
+        { $set: { "config.webhookToken": token, active: true, updatedAt: now } }
+      );
+    }
+    return NextResponse.json({
+      ...mapDoc(existing),
+      webhookUrl: `${baseUrl}/api/webhooks/${platform}?token=${token}`,
+      message:
+        "Integração já existente. Use esta URL como webhook. Não compartilhe o token.",
+    });
+  }
+
   const webhookToken =
     body.webhookToken ?? crypto.randomBytes(24).toString("base64url");
 
-  const now = new Date();
+  if (existing && regenerate) {
+    await integrationsCol.updateOne(
+      { _id: existing._id },
+      { $set: { "config.webhookToken": webhookToken, active: true, updatedAt: now } }
+    );
+    const updated = {
+      ...existing,
+      config: { ...(existing.config as Record<string, unknown>), webhookToken },
+      updatedAt: now,
+    };
+    return NextResponse.json({
+      ...mapDoc(updated),
+      webhookUrl: `${baseUrl}/api/webhooks/${platform}?token=${webhookToken}`,
+      message:
+        "Novo token gerado. Atualize a URL do webhook. O token anterior deixou de funcionar.",
+    });
+  }
+
   const doc: Integration = {
     accountId: session.user.accountId,
     platform,
@@ -46,15 +92,10 @@ export async function POST(request: Request) {
     createdAt: now,
     updatedAt: now,
   };
-  const integrationsCol = await getCollection("integrations");
   const result = await integrationsCol.insertOne(doc as Integration & { _id?: unknown });
   const inserted = { _id: result.insertedId, ...doc };
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? "https://seusite.com";
-  const webhookUrl =
-    platform === "kiwify"
-      ? `${baseUrl}/api/webhooks/kiwify?token=${webhookToken}`
-      : `${baseUrl}/api/webhooks/hotmart?token=${webhookToken}`;
+  const webhookUrl = `${baseUrl}/api/webhooks/${platform}?token=${webhookToken}`;
 
   return NextResponse.json({
     ...mapDoc(inserted),

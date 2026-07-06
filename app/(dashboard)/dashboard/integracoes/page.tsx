@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/components/ui";
+import { N8nCard } from "./N8nCard";
 
 export default function IntegracoesPage() {
   return (
@@ -7,6 +8,7 @@ export default function IntegracoesPage() {
         Integrações
       </h1>
       <div className="grid gap-4 md:grid-cols-2">
+        <N8nCard />
         <Card>
           <CardHeader>
             <h2 className="font-semibold text-[var(--loop-text)]">Kiwify</h2>
