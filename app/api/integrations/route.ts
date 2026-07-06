@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { ObjectId } from "mongodb";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, mapDoc, mapDocs } from "@/lib/db";
@@ -47,11 +48,12 @@ export async function POST(request: Request) {
 
   if (existing && !regenerate) {
     const token =
-      (existing.config as Record<string, unknown>)?.webhookToken ??
-      crypto.randomBytes(24).toString("base64url");
+      ((existing.config as Record<string, unknown>)?.webhookToken as
+        | string
+        | undefined) ?? crypto.randomBytes(24).toString("base64url");
     if (!(existing.config as Record<string, unknown>)?.webhookToken) {
       await integrationsCol.updateOne(
-        { _id: existing._id },
+        { _id: existing._id as ObjectId },
         { $set: { "config.webhookToken": token, active: true, updatedAt: now } }
       );
     }
@@ -68,16 +70,13 @@ export async function POST(request: Request) {
 
   if (existing && regenerate) {
     await integrationsCol.updateOne(
-      { _id: existing._id },
+      { _id: existing._id as ObjectId },
       { $set: { "config.webhookToken": webhookToken, active: true, updatedAt: now } }
     );
-    const updated = {
-      ...existing,
+    return NextResponse.json({
+      ...mapDoc(existing),
       config: { ...(existing.config as Record<string, unknown>), webhookToken },
       updatedAt: now,
-    };
-    return NextResponse.json({
-      ...mapDoc(updated),
       webhookUrl: `${baseUrl}/api/webhooks/${platform}?token=${webhookToken}`,
       message:
         "Novo token gerado. Atualize a URL do webhook. O token anterior deixou de funcionar.",
