@@ -3,6 +3,9 @@ node_modules
 .pnp
 .pnp.js
 
+# usamos yarn como gerenciador padrão; ignorar lockfile do npm
+package-lock.json
+
 # build
 .next
 out
