@@ -112,8 +112,34 @@ export function normalizeKiwifyPayloadWithStarted(
  * }
  */
 export function normalizeN8nPayload(
-  body: Record<string, unknown>
+  input: Record<string, unknown>
 ): NormalizedCheckoutEvent | null {
+  let body: Record<string, unknown> = input;
+
+  // n8n pode enviar como array de itens — usa o primeiro.
+  const raw = input as unknown;
+  if (Array.isArray(raw)) {
+    body = (raw[0] ?? {}) as Record<string, unknown>;
+  }
+
+  // Desembrulha wrappers comuns do n8n (body/data/json/payload) quando o
+  // conteúdo real do evento está aninhado.
+  for (const key of ["body", "data", "json", "payload"]) {
+    const inner = body[key];
+    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+      const innerObj = inner as Record<string, unknown>;
+      if (
+        innerObj.event !== undefined ||
+        innerObj.eventType !== undefined ||
+        innerObj.type !== undefined ||
+        innerObj.status !== undefined
+      ) {
+        body = innerObj;
+        break;
+      }
+    }
+  }
+
   const rawEvent = String(
     body.event ?? body.eventType ?? body.type ?? body.status ?? ""
   )
@@ -176,17 +202,21 @@ export function normalizeN8nPayload(
       "customer_name",
       "nome",
       "fullName",
-      "full_name"
+      "full_name",
+      "first_name",
+      "firstName"
     ),
     affiliate: pick(
       "afiliado",
       "affiliate",
       "affiliateName",
       "affiliate_name",
-      "nome_afiliado"
+      "nome_afiliado",
+      "affiliate_id",
+      "affiliateId"
     ),
     productId: pick("productId", "product_id"),
-    productName: pick("productName", "product_name", "product"),
+    productName: pick("productName", "product_name", "product", "offer_name"),
     amount: pick("amount", "value", "price", "total"),
     payload: body,
   };
