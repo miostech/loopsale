@@ -12,7 +12,21 @@ interface Lead {
   name: string | null;
   status: string;
   source: string;
+  lastContactedAt: string | null;
   updatedAt: string;
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function LeadsPage() {
@@ -68,6 +82,7 @@ export default function LeadsPage() {
                     <th className="pb-2 pr-4">Nome</th>
                     <th className="pb-2 pr-4">Status</th>
                     <th className="pb-2 pr-4">Origem</th>
+                    <th className="pb-2 pr-4">Último contato</th>
                     <th className="pb-2">Ações</th>
                   </tr>
                 </thead>
@@ -95,6 +110,9 @@ export default function LeadsPage() {
                         </Badge>
                       </td>
                       <td className="py-3 pr-4">{lead.source}</td>
+                      <td className="py-3 pr-4 text-[var(--loop-text-muted)]">
+                        {formatDateTime(lead.lastContactedAt)}
+                      </td>
                       <td className="py-3">
                         <Link
                           href={`/dashboard/leads/${lead.id}`}
