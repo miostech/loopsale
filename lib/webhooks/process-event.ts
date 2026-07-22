@@ -86,6 +86,8 @@ export async function processIncomingEvent(
     productId: normalized.productId ?? null,
     productName: normalized.productName ?? null,
     amount: normalized.amount ?? null,
+    currency: normalized.currency ?? null,
+    fees: normalized.fees ?? null,
     affiliate: normalized.affiliate ?? null,
     payload: (normalized.payload ?? {}) as Record<string, unknown>,
     createdAt: now,

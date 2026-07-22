@@ -3,157 +3,314 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader } from "@/components/ui";
-import { Badge } from "@/components/ui";
+import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
+
+interface Summary {
+  compras: number;
+  abandonos: number;
+  recuperados: number;
+  recusados: number;
+  mensagens: number;
+  totalGastoBrl: number;
+  totalGastoUsd: number;
+  primeiroContato: string | null;
+  ultimoContato: string | null;
+}
+
+interface Produto {
+  produto: string;
+  iniciados: number;
+  abandonos: number;
+  compras: number;
+  recuperados: number;
+  valorBrl: number;
+  valorUsd: number;
+  ultimaData: string | null;
+}
 
 interface TimelineItem {
   type: string;
   date: string;
-  data?: {
-    product?: string;
-    amount?: string;
-    platform?: string;
-    recoveredAt?: string;
+  data: {
+    product?: string | null;
+    amount?: string | null;
+    currency?: string | null;
+    platform?: string | null;
     affiliate?: string | null;
+    recoveryType?: string | null;
+    recoveredAt?: string | null;
   };
 }
 
-interface LeadDetail {
+interface ClienteDetail {
   id: string;
   email: string | null;
   phone: string | null;
   name: string | null;
   status: string;
   source: string;
+  createdAt?: string;
+  summary: Summary;
+  produtos: Produto[];
   timeline: TimelineItem[];
 }
 
-export default function LeadDetailPage() {
+const STATUS_LABEL: Record<string, string> = {
+  lead: "Lead",
+  hot: "Quente",
+  purchased: "Comprou",
+};
+const STATUS_VARIANT: Record<string, "default" | "cta" | "success"> = {
+  purchased: "success",
+  hot: "cta",
+  lead: "default",
+};
+const SOURCE_LABEL: Record<string, string> = {
+  checkout: "Checkout",
+  whatsapp: "WhatsApp",
+  manual: "Manual",
+};
+
+const EVENT_LABEL: Record<string, string> = {
+  checkout_iniciado: "Checkout iniciado",
+  checkout_abandonado: "Carrinho abandonado",
+  abandono: "Carrinho abandonado",
+  recuperado: "Venda recuperada",
+  pagamento_aprovado: "Pagamento aprovado",
+  pagamento_recusado: "Pagamento recusado",
+  whatsapp_enviado: "WhatsApp enviado",
+  whatsapp_status: "Status do WhatsApp",
+  reembolso: "Reembolso",
+  pedido_cancelado: "Pedido cancelado",
+};
+const EVENT_COLOR: Record<string, string> = {
+  recuperado: "var(--loop-success)",
+  pagamento_aprovado: "var(--loop-success)",
+  pagamento_recusado: "var(--loop-error)",
+  checkout_abandonado: "var(--loop-warning)",
+  abandono: "var(--loop-warning)",
+  whatsapp_enviado: "var(--loop-cta)",
+  checkout_iniciado: "var(--loop-primary)",
+};
+
+function formatBRL(v: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(v || 0);
+}
+function formatUSD(v: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(v || 0);
+}
+function formatMoney(amount?: string | null, currency?: string | null): string {
+  const n = parseFloat(amount ?? "0") || 0;
+  if (!amount) return "—";
+  return String(currency ?? "BRL").toUpperCase() === "USD"
+    ? formatUSD(n)
+    : formatBRL(n);
+}
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default function ClienteDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const [lead, setLead] = useState<LeadDetail | null>(null);
+  const [c, setC] = useState<ClienteDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
+    setLoading(true);
     fetch(`/api/leads/${id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Not found");
         return res.json();
       })
-      .then(setLead)
-      .catch(() => setLead(null));
+      .then(setC)
+      .catch(() => setC(null))
+      .finally(() => setLoading(false));
   }, [id]);
 
-  if (!lead) {
+  const back = (
+    <Link
+      href="/dashboard/clientes"
+      className="mb-4 inline-block text-[var(--loop-primary)] hover:underline"
+    >
+      ← Voltar aos clientes
+    </Link>
+  );
+
+  if (loading) {
     return (
       <div>
-        <Link href="/dashboard/clientes" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
-          ← Voltar aos clientes
-        </Link>
-        <p className="text-[var(--loop-text-muted)]">Lead não encontrado.</p>
+        {back}
+        <p className="text-[var(--loop-text-muted)]">Carregando…</p>
+      </div>
+    );
+  }
+  if (!c) {
+    return (
+      <div>
+        {back}
+        <p className="text-[var(--loop-text-muted)]">Cliente não encontrado.</p>
       </div>
     );
   }
 
-  const PURCHASE_TYPES: Record<string, string> = {
-    pagamento_aprovado: "Compra aprovada",
-    recuperado: "Recuperada",
-    pagamento_recusado: "Pagamento recusado",
-  };
-  const purchases = lead.timeline.filter((item) => item.type in PURCHASE_TYPES);
+  const s = c.summary;
+  const cards = [
+    { label: "Compras", value: s.compras, accent: "var(--loop-success)" },
+    { label: "Abandonos", value: s.abandonos, accent: "var(--loop-warning)" },
+    { label: "Recuperados", value: s.recuperados, accent: "var(--loop-success)" },
+    { label: "Mensagens", value: s.mensagens, accent: "var(--loop-cta)" },
+  ];
 
   return (
-    <div>
-      <Link href="/dashboard/clientes" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
-        ← Voltar aos clientes
-      </Link>
-      <Card className="mb-6">
+    <div className="space-y-6">
+      {back}
+
+      {/* Cabeçalho */}
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-xl font-bold text-[var(--loop-text)]">
-                {lead.name ?? lead.email ?? lead.phone ?? "Lead"}
+                {c.name && c.name !== "sem_nome"
+                  ? c.name
+                  : c.email ?? c.phone ?? "Cliente"}
               </h1>
-              <p className="text-sm text-[var(--loop-text-muted)] mt-1">
-                {lead.email ?? "—"} {lead.phone ? ` • ${lead.phone}` : ""}
+              <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
+                {c.email ?? "—"}
+                {c.phone ? ` • ${c.phone}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
+                Origem: {SOURCE_LABEL[c.source] ?? c.source} · Cliente desde{" "}
+                {formatDate(c.createdAt)} · Últ. contato{" "}
+                {formatDate(s.ultimoContato)}
               </p>
             </div>
-            <Badge
-              variant={
-                lead.status === "purchased"
-                  ? "success"
-                  : lead.status === "hot"
-                    ? "cta"
-                    : "default"
-              }
-            >
-              {lead.status}
+            <Badge variant={STATUS_VARIANT[c.status] ?? "default"}>
+              {STATUS_LABEL[c.status] ?? c.status}
             </Badge>
           </div>
         </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <p className="text-xs text-[var(--loop-text-muted)]">
+                Total gasto (R$)
+              </p>
+              <p className="text-xl font-bold text-[var(--loop-success)]">
+                {formatBRL(s.totalGastoBrl)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--loop-text-muted)]">
+                Total gasto (US$)
+              </p>
+              <p className="text-xl font-bold text-[var(--loop-success)]">
+                {formatUSD(s.totalGastoUsd)}
+              </p>
+            </div>
+          </div>
+        </CardContent>
       </Card>
-      {purchases.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <h2 className="font-semibold text-[var(--loop-text)]">
-              Compras e transações
-            </h2>
-            <p className="text-sm text-[var(--loop-text-muted)]">
-              Produtos, situação e o afiliado de cada transação
+
+      {/* Resumo */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((k) => (
+          <Card key={k.label}>
+            <CardContent className="py-4">
+              <p className="text-sm text-[var(--loop-text-muted)]">{k.label}</p>
+              <p
+                className="mt-1 text-2xl font-bold"
+                style={{ color: k.accent }}
+              >
+                {k.value.toLocaleString("pt-BR")}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Produtos */}
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-[var(--loop-text)]">
+            Produtos do cliente
+          </h2>
+          <p className="text-sm text-[var(--loop-text-muted)]">
+            O que ele iniciou, abandonou, recuperou e comprou por produto
+          </p>
+        </CardHeader>
+        <CardContent>
+          {c.produtos.length === 0 ? (
+            <p className="py-4 text-sm text-[var(--loop-text-muted)]">
+              Nenhum produto associado ainda.
             </p>
-          </CardHeader>
-          <CardContent>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--loop-border)] text-left text-[var(--loop-text-muted)]">
-                    <th className="pb-2 pr-4">Produto</th>
-                    <th className="pb-2 pr-4">Situação</th>
-                    <th className="pb-2 pr-4">Valor</th>
-                    <th className="pb-2 pr-4">Afiliado</th>
-                    <th className="pb-2">Data</th>
+                    <th className="pb-2 pr-4 font-medium">Produto</th>
+                    <th className="pb-2 pr-4 font-medium">Iniciados</th>
+                    <th className="pb-2 pr-4 font-medium">Abandonos</th>
+                    <th className="pb-2 pr-4 font-medium">Recuperados</th>
+                    <th className="pb-2 pr-4 font-medium">Compras</th>
+                    <th className="pb-2 font-medium">Valor comprado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {purchases.map((item, i) => (
+                  {c.produtos.map((p) => (
                     <tr
-                      key={i}
+                      key={p.produto}
                       className="border-b border-[var(--loop-border)]"
                     >
-                      <td className="py-3 pr-4 text-[var(--loop-text)]">
-                        {item.data?.product ?? "—"}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Badge
-                          variant={
-                            item.type === "pagamento_aprovado" ||
-                            item.type === "recuperado"
-                              ? "success"
-                              : item.type === "pagamento_recusado"
-                                ? "cta"
-                                : "default"
-                          }
-                        >
-                          {PURCHASE_TYPES[item.type]}
-                        </Badge>
+                      <td className="py-3 pr-4 font-medium text-[var(--loop-text)]">
+                        {p.produto}
                       </td>
                       <td className="py-3 pr-4 text-[var(--loop-text)]">
-                        {item.data?.amount ? `R$ ${item.data.amount}` : "—"}
+                        {p.iniciados}
                       </td>
                       <td className="py-3 pr-4 text-[var(--loop-text)]">
-                        {item.data?.affiliate ?? "—"}
+                        {p.abandonos}
                       </td>
-                      <td className="py-3 text-[var(--loop-text-muted)]">
-                        {new Date(item.date).toLocaleString("pt-BR")}
+                      <td className="py-3 pr-4 text-[var(--loop-text)]">
+                        {p.recuperados}
+                      </td>
+                      <td className="py-3 pr-4 text-[var(--loop-text)]">
+                        {p.compras}
+                      </td>
+                      <td className="py-3 text-[var(--loop-text)]">
+                        {p.valorBrl > 0 && formatBRL(p.valorBrl)}
+                        {p.valorBrl > 0 && p.valorUsd > 0 && " · "}
+                        {p.valorUsd > 0 && formatUSD(p.valorUsd)}
+                        {p.valorBrl === 0 && p.valorUsd === 0 && "—"}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Histórico */}
       <Card>
         <CardHeader>
           <h2 className="font-semibold text-[var(--loop-text)]">
@@ -161,35 +318,43 @@ export default function LeadDetailPage() {
           </h2>
         </CardHeader>
         <CardContent>
-          {lead.timeline.length === 0 ? (
+          {c.timeline.length === 0 ? (
             <p className="text-[var(--loop-text-muted)]">
               Nenhum evento registrado.
             </p>
           ) : (
             <ul className="space-y-3">
-              {lead.timeline.map((item, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-3 border-l-2 border-[var(--loop-border)] pl-4 py-1"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[var(--loop-text)] capitalize">
-                      {item.type.replace(/_/g, " ")}
-                    </p>
-                    <p className="text-xs text-[var(--loop-text-muted)]">
-                      {new Date(item.date).toLocaleString("pt-BR")}
-                    </p>
-                    {item.data?.product && (
-                      <p className="text-sm text-[var(--loop-text-muted)] mt-1">
-                        Produto: {item.data.product}
-                        {item.data.amount && ` • R$ ${item.data.amount}`}
+              {c.timeline.map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span
+                    className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{
+                      background:
+                        EVENT_COLOR[item.type] ?? "var(--loop-text-muted)",
+                    }}
+                  />
+                  <div className="min-w-0 flex-1 border-b border-[var(--loop-border)] pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium text-[var(--loop-text)]">
+                        {EVENT_LABEL[item.type] ??
+                          item.type.replace(/_/g, " ")}
                       </p>
-                    )}
-                    {item.data?.affiliate && (
-                      <p className="text-sm text-[var(--loop-text-muted)] mt-1">
-                        Afiliado: {item.data.affiliate}
+                      <p className="text-xs text-[var(--loop-text-muted)]">
+                        {formatDate(item.date)}
                       </p>
-                    )}
+                    </div>
+                    <div className="mt-0.5 text-sm text-[var(--loop-text-muted)]">
+                      {item.data.product && <span>{item.data.product}</span>}
+                      {item.data.amount && (
+                        <span>
+                          {" • "}
+                          {formatMoney(item.data.amount, item.data.currency)}
+                        </span>
+                      )}
+                      {item.data.affiliate && (
+                        <span>{` • afiliado: ${item.data.affiliate}`}</span>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}

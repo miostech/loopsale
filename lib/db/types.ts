@@ -45,6 +45,10 @@ export interface CheckoutEvent {
   productId?: string | null;
   productName?: string | null;
   amount?: string | null;
+  /** Moeda do evento (ex: BRL, USD), quando informada. */
+  currency?: string | null;
+  /** Taxas do evento (na moeda), quando informadas. */
+  fees?: string | null;
   affiliate?: string | null;
   createdAt: Date;
 }
