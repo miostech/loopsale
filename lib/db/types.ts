@@ -70,6 +70,8 @@ export interface AbandonedCheckout {
   amount?: string | null;
   /** Moeda do carrinho em risco (ex: BRL, USD). Define o balde do valor em risco. */
   currency?: string | null;
+  /** Taxas informadas no evento de abandono (na moeda do carrinho). */
+  fees?: string | null;
   affiliate?: string | null;
   recoveredAt?: Date | null;
   /** Valor líquido efetivamente pago quando recuperado (na moeda da venda). */
