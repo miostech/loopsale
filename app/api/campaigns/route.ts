@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     name,
     type,
     segmentId: body.segmentId ?? null,
+    templateId: body.templateId ?? null,
     startAt: body.startAt ? new Date(body.startAt) : null,
     endAt: body.endAt ? new Date(body.endAt) : null,
     active: false,

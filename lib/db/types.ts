@@ -128,6 +128,12 @@ export interface MessageTemplate {
   name: string;
   body: string;
   subject?: string | null;
+  /** Nome do template aprovado na Meta (WhatsApp Cloud API), ex: "mim1". */
+  metaTemplateName?: string | null;
+  /** Idioma do template na Meta, ex: "pt_BR". */
+  language?: string | null;
+  /** Rótulos das variáveis posicionais do template ({{1}}, {{2}}...). */
+  variables?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,6 +153,8 @@ export interface Campaign {
   name: string;
   type: string;
   segmentId?: string | null;
+  /** Template de mensagem que a campanha envia (referencia MessageTemplate). */
+  templateId?: string | null;
   startAt?: Date | null;
   endAt?: Date | null;
   active: boolean;

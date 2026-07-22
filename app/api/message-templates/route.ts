@@ -38,6 +38,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const variables = Array.isArray(body.variables)
+    ? body.variables.map((v: unknown) => String(v).trim()).filter(Boolean)
+    : [];
+
   const now = new Date();
   const doc: MessageTemplate = {
     accountId: session.user.accountId,
@@ -45,6 +49,15 @@ export async function POST(request: Request) {
     name,
     body: bodyText,
     subject: channel === "email" ? String(body.subject ?? "Recuperação de carrinho").trim() : null,
+    metaTemplateName:
+      channel === "whatsapp" && body.metaTemplateName
+        ? String(body.metaTemplateName).trim()
+        : null,
+    language:
+      channel === "whatsapp"
+        ? String(body.language ?? "pt_BR").trim() || "pt_BR"
+        : null,
+    variables,
     createdAt: now,
     updatedAt: now,
   };

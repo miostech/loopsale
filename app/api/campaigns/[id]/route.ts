@@ -64,6 +64,7 @@ export async function PATCH(
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof body.name === "string") updates.name = body.name;
   if (typeof body.active === "boolean") updates.active = body.active;
+  if (body.templateId !== undefined) updates.templateId = body.templateId || null;
   if (body.startAt !== undefined) updates.startAt = body.startAt ? new Date(body.startAt) : null;
   if (body.endAt !== undefined) updates.endAt = body.endAt ? new Date(body.endAt) : null;
 

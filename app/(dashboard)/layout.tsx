@@ -12,6 +12,7 @@ const nav = [
   { href: "/dashboard/fluxos", label: "Fluxos" },
   { href: "/dashboard/leads", label: "Leads" },
   { href: "/dashboard/campanhas", label: "Campanhas" },
+  { href: "/dashboard/templates", label: "Templates" },
   { href: "/dashboard/configuracoes", label: "Configurações" },
 ];
 
