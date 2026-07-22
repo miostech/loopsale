@@ -8,6 +8,7 @@ export type NormalizedEventType =
   | "pagamento_recusado"
   | "pedido_cancelado"
   | "reembolso"
+  | "whatsapp_status"
   | "whatsapp_enviado";
 
 export interface NormalizedCheckoutEvent {
@@ -40,6 +41,7 @@ export function normalizeKiwifyPayload(
     compra_recusada: "pagamento_recusado",
     compra_reembolsada: "reembolso",
     chargeback: "pedido_cancelado",
+    whatsapp_status: "whatsapp_status",
   };
 
   const eventType = mapping[event] ?? null;
@@ -160,6 +162,9 @@ export function normalizeN8nPayload(
     compra_aprovada: "pagamento_aprovado",
     payment_approved: "pagamento_aprovado",
     approved: "pagamento_aprovado",
+    paid: "pagamento_aprovado",
+    pago: "pagamento_aprovado",
+    aprovado: "pagamento_aprovado",
     venda: "pagamento_aprovado",
     sale: "pagamento_aprovado",
     pagamento_recusado: "pagamento_recusado",
@@ -176,26 +181,62 @@ export function normalizeN8nPayload(
     mensagem_enviada: "whatsapp_enviado",
     message_sent: "whatsapp_enviado",
     whatsapp: "whatsapp_enviado",
+    whatsapp_status: "whatsapp_status",
   };
   const eventType = mapping[rawEvent];
   if (!eventType) return null;
 
-  const pick = (...keys: string[]): string | undefined => {
-    for (const k of keys) {
-      const v = body[k];
-      if (v !== undefined && v !== null && String(v).trim() !== "") {
-        return String(v).trim();
+  const asObject = (v: unknown): Record<string, unknown> =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : {};
+
+  // Objetos aninhados comuns (Kiwify/Hotmart/etc.).
+  const customer = {
+    ...asObject(body.buyer),
+    ...asObject(body.customer),
+    ...asObject(body.Customer),
+  };
+  const product = {
+    ...asObject(body.Product),
+    ...asObject(typeof body.product === "object" ? body.product : undefined),
+  };
+
+  // Procura a chave no nível principal e depois nos objetos aninhados,
+  // ignorando valores que sejam objetos (evita "[object Object]").
+  const pickFrom = (
+    sources: Record<string, unknown>[],
+    ...keys: string[]
+  ): string | undefined => {
+    for (const src of sources) {
+      for (const k of keys) {
+        const v = src[k];
+        if (
+          v !== undefined &&
+          v !== null &&
+          typeof v !== "object" &&
+          String(v).trim() !== ""
+        ) {
+          return String(v).trim();
+        }
       }
     }
     return undefined;
   };
+  const pick = (...keys: string[]) => pickFrom([body, customer], ...keys);
 
   return {
     eventType,
     platformCheckoutId: pick("checkoutId", "checkout_id", "cartId", "cart_id", "id"),
     platformOrderId: pick("orderId", "order_id", "transactionId", "transaction_id"),
-    customerEmail: pick("email", "customerEmail", "customer_email"),
-    customerPhone: pick("phone", "customerPhone", "customer_phone", "whatsapp"),
+    customerEmail: pick("email", "customerEmail", "customer_email", "mail"),
+    customerPhone: pick(
+      "phone",
+      "customerPhone",
+      "customer_phone",
+      "whatsapp",
+      "mobile"
+    ),
     customerName: pick(
       "name",
       "customerName",
@@ -216,8 +257,12 @@ export function normalizeN8nPayload(
       "affiliateId"
     ),
     productId: pick("productId", "product_id"),
-    productName: pick("productName", "product_name", "product", "offer_name"),
-    amount: pick("amount", "value", "price", "total"),
+    productName:
+      pickFrom([body], "productName", "product_name", "product", "offer_name") ??
+      pickFrom([product], "product_name", "name", "title"),
+    amount:
+      pickFrom([body], "amount", "value", "price", "total") ??
+      pickFrom([product], "price", "value"),
     payload: body,
   };
 }

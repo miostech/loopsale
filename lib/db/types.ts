@@ -49,12 +49,20 @@ export interface CheckoutEvent {
   createdAt: Date;
 }
 
+/** Origem de um checkout recuperável: carrinho abandonado ou pagamento recusado. */
+export type RecoveryType = "abandoned" | "refused";
+
 export interface AbandonedCheckout {
   _id?: ObjectId;
   accountId: string;
   checkoutEventId: string;
   platform: string;
   platformCheckoutId: string;
+  /**
+   * Tipo de recuperação. Documentos antigos não têm este campo e devem ser
+   * tratados como "abandoned" (ver metrics.ts, que usa $ifNull).
+   */
+  recoveryType?: RecoveryType;
   customerEmail?: string | null;
   customerPhone?: string | null;
   productId?: string | null;

@@ -2,8 +2,57 @@ import { NextResponse } from "next/server";
 import type { ObjectId } from "mongodb";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getCollection, mapDoc, mapDocs } from "@/lib/db";
+import { getCollection } from "@/lib/db";
 import type { Integration } from "@/lib/db/types";
+
+type Platform = "kiwify" | "hotmart" | "n8n";
+
+/** Campos de credencial aceitos por plataforma. `secret` mascara na leitura. */
+const CRED_FIELDS: Record<Platform, { key: string; secret: boolean }[]> = {
+  kiwify: [
+    { key: "accountId", secret: false },
+    { key: "clientId", secret: false },
+    { key: "clientSecret", secret: true },
+  ],
+  hotmart: [
+    { key: "clientId", secret: false },
+    { key: "clientSecret", secret: true },
+    { key: "hottok", secret: true },
+  ],
+  n8n: [],
+};
+
+function baseUrl(): string {
+  return process.env.NEXTAUTH_URL ?? "https://seusite.com";
+}
+
+function maskSecret(value: string): string {
+  if (!value) return "";
+  const last = value.slice(-4);
+  return `••••${last}`;
+}
+
+/** Monta a visão segura da config para enviar ao cliente. */
+function safeConfig(platform: Platform, config: Record<string, unknown>) {
+  const out: Record<string, { value: string; secret: boolean; set: boolean }> =
+    {};
+  for (const field of CRED_FIELDS[platform]) {
+    const raw = String(config[field.key] ?? "");
+    out[field.key] = {
+      value: field.secret ? maskSecret(raw) : raw,
+      secret: field.secret,
+      set: raw.length > 0,
+    };
+  }
+  return out;
+}
+
+function webhookUrlFor(platform: Platform, config: Record<string, unknown>) {
+  const token = config.webhookToken as string | undefined;
+  return token
+    ? `${baseUrl()}/api/webhooks/${platform}?token=${token}`
+    : null;
+}
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -12,11 +61,25 @@ export async function GET() {
   }
 
   const integrationsCol = await getCollection("integrations");
-  const list = await integrationsCol
+  const list = (await integrationsCol
     .find({ accountId: session.user.accountId })
-    .project({ platform: 1, active: 1, createdAt: 1 })
-    .toArray();
-  return NextResponse.json(mapDocs(list));
+    .toArray()) as (Integration & { _id: ObjectId })[];
+
+  const result = list
+    .filter((i) => i.platform in CRED_FIELDS)
+    .map((i) => {
+      const platform = i.platform as Platform;
+      const config = (i.config ?? {}) as Record<string, unknown>;
+      return {
+        id: String(i._id),
+        platform,
+        active: i.active,
+        webhookUrl: webhookUrlFor(platform, config),
+        credentials: safeConfig(platform, config),
+      };
+    });
+
+  return NextResponse.json(result);
 }
 
 export async function POST(request: Request) {
@@ -26,8 +89,8 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const platform = String(body.platform ?? "").toLowerCase();
-  if (platform !== "kiwify" && platform !== "hotmart" && platform !== "n8n") {
+  const platform = String(body.platform ?? "").toLowerCase() as Platform;
+  if (!(platform in CRED_FIELDS)) {
     return NextResponse.json(
       { error: "Plataforma inválida. Use kiwify, hotmart ou n8n." },
       { status: 400 }
@@ -35,71 +98,67 @@ export async function POST(request: Request) {
   }
 
   const regenerate = body.regenerate === true;
+  const rawCredentials = (body.credentials ?? {}) as Record<string, unknown>;
   const integrationsCol = await getCollection("integrations");
   const now = new Date();
-  const baseUrl = process.env.NEXTAUTH_URL ?? "https://seusite.com";
-
-  const existing = await integrationsCol.findOne({
-    accountId: session.user.accountId,
-    platform,
-  });
-
   const crypto = await import("crypto");
+  const accountId = session.user.accountId;
 
-  if (existing && !regenerate) {
-    const token =
-      ((existing.config as Record<string, unknown>)?.webhookToken as
-        | string
-        | undefined) ?? crypto.randomBytes(24).toString("base64url");
-    if (!(existing.config as Record<string, unknown>)?.webhookToken) {
-      await integrationsCol.updateOne(
-        { _id: existing._id as ObjectId },
-        { $set: { "config.webhookToken": token, active: true, updatedAt: now } }
-      );
-    }
-    return NextResponse.json({
-      ...mapDoc(existing),
-      webhookUrl: `${baseUrl}/api/webhooks/${platform}?token=${token}`,
-      message:
-        "Integração já existente. Use esta URL como webhook. Não compartilhe o token.",
-    });
-  }
+  const existing = await integrationsCol.findOne({ accountId, platform });
 
-  const webhookToken =
-    body.webhookToken ?? crypto.randomBytes(24).toString("base64url");
-
-  if (existing && regenerate) {
-    await integrationsCol.updateOne(
-      { _id: existing._id as ObjectId },
-      { $set: { "config.webhookToken": webhookToken, active: true, updatedAt: now } }
-    );
-    return NextResponse.json({
-      ...mapDoc(existing),
-      config: { ...(existing.config as Record<string, unknown>), webhookToken },
+  // Garante um integration com webhookToken.
+  let integrationId: ObjectId;
+  let config: Record<string, unknown>;
+  if (!existing) {
+    const doc: Integration = {
+      accountId,
+      platform,
+      config: { webhookToken: crypto.randomBytes(24).toString("base64url") },
+      active: true,
+      createdAt: now,
       updatedAt: now,
-      webhookUrl: `${baseUrl}/api/webhooks/${platform}?token=${webhookToken}`,
-      message:
-        "Novo token gerado. Atualize a URL do webhook. O token anterior deixou de funcionar.",
-    });
+    };
+    const res = await integrationsCol.insertOne(
+      doc as Integration & { _id?: unknown }
+    );
+    integrationId = res.insertedId as ObjectId;
+    config = doc.config as Record<string, unknown>;
+  } else {
+    integrationId = existing._id as ObjectId;
+    config = { ...((existing.config as Record<string, unknown>) ?? {}) };
+    if (!config.webhookToken) {
+      config.webhookToken = crypto.randomBytes(24).toString("base64url");
+    }
   }
 
-  const doc: Integration = {
-    accountId: session.user.accountId,
-    platform,
-    config: { webhookToken },
-    active: true,
-    createdAt: now,
-    updatedAt: now,
-  };
-  const result = await integrationsCol.insertOne(doc as Integration & { _id?: unknown });
-  const inserted = { _id: result.insertedId, ...doc };
+  const set: Record<string, unknown> = { active: true, updatedAt: now };
 
-  const webhookUrl = `${baseUrl}/api/webhooks/${platform}?token=${webhookToken}`;
+  if (regenerate) {
+    config.webhookToken = crypto.randomBytes(24).toString("base64url");
+    set["config.webhookToken"] = config.webhookToken;
+  } else if (!existing?.config || !(existing.config as Record<string, unknown>).webhookToken) {
+    set["config.webhookToken"] = config.webhookToken;
+  }
+
+  // Salva apenas os campos de credencial permitidos e não-vazios.
+  for (const field of CRED_FIELDS[platform]) {
+    const value = rawCredentials[field.key];
+    if (typeof value === "string" && value.trim() !== "") {
+      config[field.key] = value.trim();
+      set[`config.${field.key}`] = value.trim();
+    }
+  }
+
+  await integrationsCol.updateOne({ _id: integrationId }, { $set: set });
 
   return NextResponse.json({
-    ...mapDoc(inserted),
-    webhookUrl,
-    message:
-      "Configure esta URL no painel da plataforma como URL de webhook. Não compartilhe o token.",
+    id: String(integrationId),
+    platform,
+    active: true,
+    webhookUrl: webhookUrlFor(platform, config),
+    credentials: safeConfig(platform, config),
+    message: regenerate
+      ? "Novo token gerado. Atualize a URL do webhook onde ela é usada."
+      : "Integração salva. Não compartilhe as chaves.",
   });
 }

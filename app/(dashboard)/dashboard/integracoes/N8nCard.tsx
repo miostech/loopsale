@@ -1,17 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { useCallback, useEffect, useState } from "react";
+import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
+
+interface IntegrationData {
+  platform: string;
+  webhookUrl: string | null;
+}
 
 export function N8nCard() {
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/integrations");
+      const list = (await res.json().catch(() => [])) as IntegrationData[];
+      const n8n = Array.isArray(list)
+        ? list.find((i) => i.platform === "n8n")
+        : undefined;
+      setWebhookUrl(n8n?.webhookUrl ?? null);
+    } catch {
+      setError("Erro ao carregar a integração.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
   async function connect(regenerate = false) {
     setError("");
-    setLoading(true);
+    setWorking(true);
     try {
       const res = await fetch("/api/integrations", {
         method: "POST",
@@ -27,7 +53,7 @@ export function N8nCard() {
     } catch {
       setError("Erro de rede ao conectar o n8n.");
     } finally {
-      setLoading(false);
+      setWorking(false);
     }
   }
 
@@ -44,31 +70,38 @@ export function N8nCard() {
 
   return (
     <Card>
-      <CardHeader>
-        <h2 className="font-semibold text-[var(--loop-text)]">n8n</h2>
-        <p className="text-sm text-[var(--loop-text-muted)]">
-          Envie eventos do seu fluxo do n8n (carrinhos, vendas etc.) para o
-          LoopSale rastrear nas métricas.
-        </p>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+        <div>
+          <h2 className="font-semibold text-[var(--loop-text)]">n8n</h2>
+          <p className="text-sm text-[var(--loop-text-muted)]">
+            Envie os eventos do seu fluxo (carrinhos, vendas, WhatsApp) para o
+            LoopSale medir a recuperação.
+          </p>
+        </div>
+        <Badge variant={webhookUrl ? "success" : "default"}>
+          {webhookUrl ? "Conectado" : "Não conectado"}
+        </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
-        {!webhookUrl ? (
+        {loading ? (
+          <p className="text-sm text-[var(--loop-text-muted)]">Carregando…</p>
+        ) : !webhookUrl ? (
           <Button
             variant="cta"
             size="sm"
-            disabled={loading}
+            disabled={working}
             onClick={() => connect(false)}
           >
-            {loading ? "Conectando…" : "Conectar n8n"}
+            {working ? "Conectando…" : "Conectar n8n"}
           </Button>
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-[var(--loop-text-muted)]">
-              Cole esta URL num nó <strong>HTTP Request</strong> (método POST) no
-              seu fluxo do n8n:
+              Use esta URL em <strong>todos</strong> os nós HTTP Request (POST) do
+              seu fluxo — inclusive o de pagamento aprovado:
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 truncate rounded-md bg-[var(--loop-bg-alt)] border border-[var(--loop-border)] px-3 py-2 text-xs text-[var(--loop-text)]">
+              <code className="flex-1 truncate rounded-md border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] px-3 py-2 text-xs text-[var(--loop-text)]">
                 {webhookUrl}
               </code>
               <Button variant="secondary" size="sm" onClick={copy}>
@@ -78,10 +111,10 @@ export function N8nCard() {
             <Button
               variant="ghost"
               size="sm"
-              disabled={loading}
+              disabled={working}
               onClick={() => connect(true)}
             >
-              {loading ? "Gerando…" : "Gerar novo token"}
+              {working ? "Gerando…" : "Gerar novo token"}
             </Button>
           </div>
         )}
@@ -90,18 +123,21 @@ export function N8nCard() {
 
         <details className="text-xs text-[var(--loop-text-muted)]">
           <summary className="cursor-pointer select-none">
-            Formato do payload esperado
+            Exemplo de payload
           </summary>
-          <pre className="mt-2 overflow-x-auto rounded-md bg-[var(--loop-bg-alt)] border border-[var(--loop-border)] p-3">
+          <pre className="mt-2 overflow-x-auto rounded-md border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
 {`{
-  "event": "checkout_iniciado",   // ou checkout_abandonado, pagamento_aprovado...
-  "checkoutId": "abc123",
-  "email": "cliente@exemplo.com",
+  "event": "pagamento_aprovado",   // ou checkout_abandonado, pagamento_recusado…
+  "email": "cliente@exemplo.com",  // usado p/ casar a recuperação
   "phone": "5511999999999",
   "productName": "Curso X",
   "amount": "197.00"
 }`}
           </pre>
+          <p className="mt-2">
+            A recuperação é casada por <strong>email + produto</strong>, então o
+            <code> checkoutId</code> pode ir vazio nos eventos de venda.
+          </p>
         </details>
       </CardContent>
     </Card>

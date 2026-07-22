@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const search = url.searchParams.get("search") ?? "";
   const status = url.searchParams.get("status") ?? "";
+  const source = url.searchParams.get("source") ?? "";
   const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit")) || 20));
   const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     ];
   }
   if (status) filter.status = status;
+  if (source) filter.source = source;
 
   const list = await leadsCol
     .find(filter)
@@ -33,11 +35,29 @@ export async function GET(request: Request) {
     .limit(limit)
     .toArray();
 
-  const total = await leadsCol.countDocuments({ accountId: session.user.accountId });
+  // Total considerando os filtros aplicados (para paginação correta).
+  const total = await leadsCol.countDocuments(filter);
+
+  // Contagens por status sobre toda a base (para os cards de resumo),
+  // independentes dos filtros de busca/status/origem.
+  const statusRows = (await leadsCol
+    .aggregate([
+      { $match: { accountId: session.user.accountId } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ])
+    .toArray()) as { _id: string; count: number }[];
+  const statusCounts: Record<string, number> = {};
+  let baseTotal = 0;
+  for (const row of statusRows) {
+    statusCounts[row._id ?? "lead"] = row.count;
+    baseTotal += row.count;
+  }
 
   return NextResponse.json({
     leads: mapDocs(list),
     total,
+    baseTotal,
+    statusCounts,
   });
 }
 

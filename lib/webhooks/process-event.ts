@@ -109,17 +109,8 @@ export async function processIncomingEvent(
 
   if (isContactEvent) return;
 
-  if (
-    normalized.eventType === "pagamento_aprovado" &&
-    normalized.platformCheckoutId
-  ) {
-    await abandonedCheckoutsCol.updateMany(
-      {
-        accountId,
-        platformCheckoutId: normalized.platformCheckoutId,
-      },
-      { $set: { recoveredAt: now } }
-    );
+  if (normalized.eventType === "pagamento_aprovado") {
+    await markRecovered(accountId, normalized, now);
   }
 
   if (
@@ -142,6 +133,175 @@ export async function processIncomingEvent(
       }
     );
   }
+
+  // Pagamento recusado é uma motion de recuperação distinta do abandono:
+  // o cliente tentou pagar e o cartão/pix falhou. Registramos como recuperável
+  // (recoveryType "refused") para o dashboard medir separadamente. O envio da
+  // mensagem em si é feito pelo n8n (WhatsApp Cloud API).
+  if (
+    normalized.eventType === "pagamento_recusado" &&
+    insertedId &&
+    normalized.platformCheckoutId
+  ) {
+    await createRefusedRecoverable(
+      accountId,
+      insertedId,
+      platform,
+      normalized.platformCheckoutId,
+      {
+        customerEmail: normalized.customerEmail,
+        customerPhone: normalized.customerPhone,
+        productId: normalized.productId,
+        productName: normalized.productName,
+        amount: normalized.amount,
+        affiliate: normalized.affiliate,
+      }
+    );
+  }
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function recoverMostRecent(
+  col: Awaited<ReturnType<typeof getCollection>>,
+  filter: Record<string, unknown>,
+  now: Date
+): Promise<boolean> {
+  const [doc] = (await col
+    .find(filter)
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .toArray()) as { _id: ObjectId }[];
+  if (!doc?._id) return false;
+  await col.updateOne({ _id: doc._id }, { $set: { recoveredAt: now } });
+  return true;
+}
+
+/**
+ * Marca um checkout recuperável como recuperado quando o cliente paga.
+ * Vínculo em ordem de prioridade:
+ *  1. Mesmo platformCheckoutId (quando o evento traz o checkout_id).
+ *  2. Fallback: mesmo cliente (email OU telefone) + mesmo produto.
+ *  3. Fallback final: mesmo cliente (email OU telefone), produto qualquer.
+ *
+ * Os fallbacks são necessários porque a API de vendas da Kiwify não devolve o
+ * checkout_id do carrinho abandonado — o evento de aprovado chega com
+ * checkoutId vazio, então casamos por "esse cliente pagou por esse produto".
+ * Credita 1 recuperação por pagamento (registro não-recuperado mais recente).
+ */
+export async function markRecovered(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent,
+  now: Date
+) {
+  if (isDatabaseDisabled()) return;
+  const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
+
+  // 1. Match direto por checkout, se o evento trouxer o id.
+  if (normalized.platformCheckoutId) {
+    const res = await abandonedCheckoutsCol.updateMany(
+      {
+        accountId,
+        platformCheckoutId: normalized.platformCheckoutId,
+        recoveredAt: null,
+      },
+      { $set: { recoveredAt: now } }
+    );
+    if (((res as { modifiedCount?: number }).modifiedCount ?? 0) > 0) return;
+  }
+
+  const email = normalized.customerEmail?.trim();
+  const phone = normalized.customerPhone?.trim();
+  if (!email && !phone) return;
+
+  const customerOr: Record<string, unknown>[] = [];
+  if (email) customerOr.push({ customerEmail: email });
+  if (phone) customerOr.push({ customerPhone: phone });
+  const baseFilter: Record<string, unknown> = {
+    accountId,
+    recoveredAt: null,
+    $or: customerOr,
+  };
+
+  // 2. Cliente + produto (case-insensitive). Sinal forte: creditamos.
+  const product = normalized.productName?.trim();
+  if (product) {
+    const recovered = await recoverMostRecent(
+      abandonedCheckoutsCol,
+      {
+        ...baseFilter,
+        productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
+      },
+      now
+    );
+    if (recovered) return;
+  }
+
+  // 3. Cliente sem match de produto: só credita se houver EXATAMENTE um
+  // carrinho pendente. Com vários produtos pendentes não dá pra saber qual
+  // foi pago, então não adivinhamos (evita inflar a taxa de recuperação).
+  const pendentes = (await abandonedCheckoutsCol
+    .find(baseFilter)
+    .limit(2)
+    .toArray()) as { _id: ObjectId }[];
+  if (pendentes.length === 1 && pendentes[0]?._id) {
+    await abandonedCheckoutsCol.updateOne(
+      { _id: pendentes[0]._id },
+      { $set: { recoveredAt: now } }
+    );
+  }
+}
+
+/**
+ * Registra um pagamento recusado como checkout recuperável, sem agendar
+ * mensagens internas (o disparo é feito pelo n8n). Faz dedupe por checkout
+ * para não duplicar quando a plataforma reenvia o evento de recusa.
+ */
+export async function createRefusedRecoverable(
+  accountId: string,
+  checkoutEventId: string,
+  platform: string,
+  platformCheckoutId: string,
+  data: {
+    customerEmail?: string;
+    customerPhone?: string;
+    productId?: string;
+    productName?: string;
+    amount?: string;
+    affiliate?: string;
+  }
+) {
+  if (isDatabaseDisabled()) return;
+  const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
+
+  const existing = await abandonedCheckoutsCol.findOne({
+    accountId,
+    platformCheckoutId,
+    recoveryType: "refused",
+  });
+  if (existing) return;
+
+  const now = new Date();
+  const doc: AbandonedCheckout = {
+    accountId,
+    checkoutEventId,
+    platform,
+    platformCheckoutId,
+    recoveryType: "refused",
+    customerEmail: data.customerEmail ?? null,
+    customerPhone: data.customerPhone ?? null,
+    productId: data.productId ?? null,
+    productName: data.productName ?? null,
+    affiliate: data.affiliate ?? null,
+    amount: data.amount ?? null,
+    recoveredAt: null,
+    createdAt: now,
+  };
+  await abandonedCheckoutsCol.insertOne(
+    doc as AbandonedCheckout & { _id?: unknown }
+  );
 }
 
 export async function createAbandonedAndScheduleRecovery(
@@ -170,6 +330,7 @@ export async function createAbandonedAndScheduleRecovery(
     checkoutEventId,
     platform,
     platformCheckoutId,
+    recoveryType: "abandoned",
     customerEmail: data.customerEmail ?? null,
     customerPhone: data.customerPhone ?? null,
     productId: data.productId ?? null,
