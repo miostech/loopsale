@@ -170,67 +170,37 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function recoverMostRecent(
-  col: Awaited<ReturnType<typeof getCollection>>,
-  filter: Record<string, unknown>,
-  recoverySet: Record<string, unknown>
-): Promise<boolean> {
-  const [doc] = (await col
-    .find(filter)
-    .sort({ createdAt: -1 })
-    .limit(1)
-    .toArray()) as { _id: ObjectId }[];
-  if (!doc?._id) return false;
-  await col.updateOne({ _id: doc._id }, { $set: recoverySet });
-  return true;
+/**
+ * Afiliado elegível para creditar recuperação à LoopSale: venda SEM afiliado
+ * ou com afiliado que contenha "mios tech". Se a venda saiu por outro afiliado,
+ * o crédito é dele — não é uma recuperação nossa.
+ */
+function affiliateElegivel(affiliate?: string | null): boolean {
+  const a = (affiliate ?? "").trim().toLowerCase();
+  if (!a) return true;
+  return a.includes("mios tech") || a.includes("miostech");
 }
 
-/**
- * Marca um checkout recuperável como recuperado quando o cliente paga.
- * Vínculo em ordem de prioridade:
- *  1. Mesmo platformCheckoutId (quando o evento traz o checkout_id).
- *  2. Fallback: mesmo cliente (email OU telefone) + mesmo produto.
- *  3. Fallback final: mesmo cliente (email OU telefone), produto qualquer.
- *
- * Os fallbacks são necessários porque a API de vendas da Kiwify não devolve o
- * checkout_id do carrinho abandonado — o evento de aprovado chega com
- * checkoutId vazio, então casamos por "esse cliente pagou por esse produto".
- * Credita 1 recuperação por pagamento (registro não-recuperado mais recente).
- */
-export async function markRecovered(
+/** Encontra o carrinho candidato (não recuperado) para este pagamento. */
+async function findRecoverableCandidate(
+  col: Awaited<ReturnType<typeof getCollection>>,
   accountId: string,
-  normalized: NormalizedCheckoutEvent,
-  now: Date
-) {
-  if (isDatabaseDisabled()) return;
-  const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
-
-  // Valor efetivamente pago (da venda aprovada), guardado no recuperado.
-  // A moeda define em qual balde (R$ ou US$) o dashboard soma o valor.
-  const recoverySet: Record<string, unknown> = {
-    recoveredAt: now,
-    recoveredAmount: normalized.amount ?? null,
-    recoveredCurrency: normalized.currency ?? null,
-    recoveredFees: normalized.fees ?? null,
-  };
+  normalized: NormalizedCheckoutEvent
+): Promise<{ _id: ObjectId; createdAt: Date } | null> {
+  const email = normalized.customerEmail?.trim();
+  const phone = normalized.customerPhone?.trim();
 
   // 1. Match direto por checkout, se o evento trouxer o id.
   if (normalized.platformCheckoutId) {
-    const res = await abandonedCheckoutsCol.updateMany(
-      {
-        accountId,
-        platformCheckoutId: normalized.platformCheckoutId,
-        recoveredAt: null,
-      },
-      { $set: recoverySet }
-    );
-    if (((res as { modifiedCount?: number }).modifiedCount ?? 0) > 0) return;
+    const doc = (await col.findOne({
+      accountId,
+      platformCheckoutId: normalized.platformCheckoutId,
+      recoveredAt: null,
+    })) as { _id: ObjectId; createdAt: Date } | null;
+    if (doc?._id) return doc;
   }
 
-  const email = normalized.customerEmail?.trim();
-  const phone = normalized.customerPhone?.trim();
-  if (!email && !phone) return;
-
+  if (!email && !phone) return null;
   const customerOr: Record<string, unknown>[] = [];
   if (email) customerOr.push({ customerEmail: email });
   if (phone) customerOr.push({ customerPhone: phone });
@@ -240,33 +210,87 @@ export async function markRecovered(
     $or: customerOr,
   };
 
-  // 2. Cliente + produto (case-insensitive). Sinal forte: creditamos.
+  // 2. Cliente + mesmo produto (case-insensitive) — mais recente.
   const product = normalized.productName?.trim();
   if (product) {
-    const recovered = await recoverMostRecent(
-      abandonedCheckoutsCol,
-      {
+    const [doc] = (await col
+      .find({
         ...baseFilter,
         productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
-      },
-      recoverySet
-    );
-    if (recovered) return;
+      })
+      .sort({ createdAt: -1 })
+      .limit(1)
+      .toArray()) as { _id: ObjectId; createdAt: Date }[];
+    if (doc?._id) return doc;
   }
 
-  // 3. Cliente sem match de produto: só credita se houver EXATAMENTE um
-  // carrinho pendente. Com vários produtos pendentes não dá pra saber qual
-  // foi pago, então não adivinhamos (evita inflar a taxa de recuperação).
-  const pendentes = (await abandonedCheckoutsCol
-    .find(baseFilter)
-    .limit(2)
-    .toArray()) as { _id: ObjectId }[];
-  if (pendentes.length === 1 && pendentes[0]?._id) {
-    await abandonedCheckoutsCol.updateOne(
-      { _id: pendentes[0]._id },
-      { $set: recoverySet }
-    );
-  }
+  // 3. Cliente com EXATAMENTE um carrinho pendente (evita adivinhar produto).
+  const pendentes = (await col.find(baseFilter).limit(2).toArray()) as {
+    _id: ObjectId;
+    createdAt: Date;
+  }[];
+  if (pendentes.length === 1 && pendentes[0]?._id) return pendentes[0];
+  return null;
+}
+
+/**
+ * Marca um checkout como recuperado quando o cliente paga — mas SÓ se for uma
+ * recuperação de fato da LoopSale, exigindo os 3 critérios:
+ *  1. Afiliado elegível: sem afiliado ou "mios tech" (senão é venda de outro).
+ *  2. Existe carrinho abandonado/recusado desse cliente para o produto.
+ *  3. Veio do fluxo: houve WhatsApp enviado a esse cliente ENTRE o abandono e
+ *     o pagamento (a mensagem precede a compra).
+ * Só então grava recoveredAt + valores pagos.
+ */
+export async function markRecovered(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent,
+  now: Date
+) {
+  if (isDatabaseDisabled()) return;
+
+  // 1. Regra de afiliado.
+  if (!affiliateElegivel(normalized.affiliate)) return;
+
+  const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
+  const checkoutEventsCol = await getCollection("checkoutEvents");
+
+  // 2. Carrinho candidato.
+  const candidate = await findRecoverableCandidate(
+    abandonedCheckoutsCol,
+    accountId,
+    normalized
+  );
+  if (!candidate?._id) return;
+
+  // 3. Veio do fluxo: WhatsApp enviado ao cliente entre o abandono e o pagamento.
+  const email = normalized.customerEmail?.trim();
+  const phone = normalized.customerPhone?.trim();
+  const msgOr: Record<string, unknown>[] = [];
+  if (email) msgOr.push({ customerEmail: email });
+  if (phone) msgOr.push({ customerPhone: phone });
+  if (msgOr.length === 0) return;
+
+  const messaged = await checkoutEventsCol.findOne({
+    accountId,
+    eventType: "whatsapp_enviado",
+    $or: msgOr,
+    createdAt: { $gte: candidate.createdAt, $lte: now },
+  });
+  if (!messaged) return; // pagou, mas não veio do nosso fluxo de recuperação
+
+  // Valor efetivamente pago (da venda aprovada), guardado no recuperado.
+  await abandonedCheckoutsCol.updateOne(
+    { _id: candidate._id },
+    {
+      $set: {
+        recoveredAt: now,
+        recoveredAmount: normalized.amount ?? null,
+        recoveredCurrency: normalized.currency ?? null,
+        recoveredFees: normalized.fees ?? null,
+      },
+    }
+  );
 }
 
 /**

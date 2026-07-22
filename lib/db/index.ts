@@ -24,6 +24,7 @@ const COLLECTIONS = {
   campaignVariants: "campaign_variants",
   scheduledCampaignMessages: "scheduled_campaign_messages",
   products: "products",
+  commissions: "commissions",
 } as const;
 
 /** Converte documento MongoDB para formato da API: id (string) em vez de _id. */

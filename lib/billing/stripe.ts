@@ -129,6 +129,81 @@ export async function getSubscription(
   return stripeGet(`/subscriptions/${encodeURIComponent(id)}`);
 }
 
+/** Checkout no modo "setup" para salvar um cartão (sem cobrar). */
+export async function createSetupCheckoutSession(params: {
+  customer: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ url: string }> {
+  const doc = await stripePost("/checkout/sessions", {
+    mode: "setup",
+    customer: params.customer,
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+  });
+  return { url: String(doc.url) };
+}
+
+export async function getCheckoutSession(
+  id: string
+): Promise<Record<string, unknown>> {
+  return stripeGet(`/checkout/sessions/${encodeURIComponent(id)}`);
+}
+
+export async function getSetupIntent(
+  id: string
+): Promise<Record<string, unknown>> {
+  return stripeGet(`/setup_intents/${encodeURIComponent(id)}`);
+}
+
+/** Define o cartão padrão do cliente (para cobranças automáticas). */
+export async function setDefaultPaymentMethod(
+  customer: string,
+  paymentMethod: string
+): Promise<void> {
+  await stripePost(`/customers/${encodeURIComponent(customer)}`, {
+    "invoice_settings[default_payment_method]": paymentMethod,
+  });
+}
+
+export async function getCustomerDefaultPaymentMethod(
+  customer: string
+): Promise<string | null> {
+  const doc = await stripeGet(`/customers/${encodeURIComponent(customer)}`);
+  const inv = doc.invoice_settings as
+    | { default_payment_method?: string | null }
+    | undefined;
+  return (inv?.default_payment_method as string) ?? null;
+}
+
+/**
+ * Cobra um valor avulso (ex.: comissão) no cartão padrão do cliente.
+ * Cria um invoice item e uma fatura com cobrança automática.
+ * Retorna o id da fatura. Lança se não houver cartão / falhar.
+ */
+export async function chargeInvoice(params: {
+  customer: string;
+  amountBrl: number;
+  description: string;
+}): Promise<{ invoiceId: string; status: string }> {
+  const cents = Math.round(params.amountBrl * 100);
+  await stripePost("/invoiceitems", {
+    customer: params.customer,
+    amount: String(cents),
+    currency: "brl",
+    description: params.description,
+  });
+  const invoice = await stripePost("/invoices", {
+    customer: params.customer,
+    collection_method: "charge_automatically",
+    auto_advance: "true",
+  });
+  return {
+    invoiceId: String(invoice.id),
+    status: String(invoice.status ?? "open"),
+  };
+}
+
 /** Verifica a assinatura do webhook (Stripe-Signature: t=..,v1=..). */
 export function verifyStripeSignature(
   rawBody: string,

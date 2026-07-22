@@ -11,6 +11,29 @@ export interface AccountSubscription {
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   currentPeriodEnd?: Date | null;
+  /** Cartão padrão salvo no Stripe (para cobrar a comissão do Free). */
+  defaultPaymentMethod?: string | null;
+}
+
+/** Cobrança de comissão do plano Free (40% sobre vendas recuperadas). */
+export interface CommissionRecord {
+  _id?: ObjectId;
+  accountId: string;
+  /** Competência, ex: "2026-06". Único por conta+período. */
+  periodKey: string;
+  periodStart: Date;
+  periodEnd: Date;
+  recuperadoBrl: number;
+  recuperadoUsd: number;
+  usdRate: number;
+  baseBrl: number;
+  rate: number;
+  comissaoBrl: number;
+  /** pending | invoiced | paid | failed | zero */
+  status: string;
+  stripeInvoiceId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /** Add-on de atendimento gerenciado (assinatura Stripe separada do plano). */

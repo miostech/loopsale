@@ -50,6 +50,38 @@ interface Invoice {
   hostedUrl: string | null;
 }
 
+interface CommissionRow {
+  id: string;
+  periodKey: string;
+  baseBrl: number;
+  comissaoBrl: number;
+  status: string;
+}
+
+interface Commission {
+  plano: string;
+  cardOnFile: boolean;
+  configured: boolean;
+  isAdmin: boolean;
+  periodoAtual: {
+    periodKey: string;
+    recuperadoBrl: number;
+    recuperadoUsd: number;
+    baseBrl: number;
+    comissaoBrl: number;
+  };
+  historico: CommissionRow[];
+}
+
+const COMMISSION_STATUS: Record<string, string> = {
+  paid: "Pago",
+  invoiced: "Faturado",
+  pending: "Pendente",
+  no_card: "Sem cartão",
+  failed: "Falhou",
+  zero: "Sem cobrança",
+};
+
 const STATUS_LABEL: Record<string, string> = {
   active: "Ativa",
   trialing: "Em teste",
@@ -79,6 +111,7 @@ export default function PlanosPage() {
   const statusParam = searchParams.get("status");
   const [billing, setBilling] = useState<Billing | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [commission, setCommission] = useState<Commission | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -86,13 +119,15 @@ export default function PlanosPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [bRes, iRes] = await Promise.all([
+      const [bRes, iRes, cRes] = await Promise.all([
         fetch("/api/billing"),
         fetch("/api/billing/invoices"),
+        fetch("/api/billing/commission"),
       ]);
       setBilling(await bRes.json());
       const iData = await iRes.json();
       setInvoices(iData.invoices ?? []);
+      setCommission(await cRes.json());
     } finally {
       setLoading(false);
     }
@@ -132,6 +167,21 @@ export default function PlanosPage() {
       const data = await res.json();
       if (res.ok && data.url) window.location.href = data.url;
       else setError(data.error ?? "Não foi possível abrir o portal.");
+    } catch {
+      setError("Erro de rede.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function adicionarCartao() {
+    setError("");
+    setBusy("card");
+    try {
+      const res = await fetch("/api/billing/card", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) window.location.href = data.url;
+      else setError(data.error ?? "Não foi possível cadastrar o cartão.");
     } catch {
       setError("Erro de rede.");
     } finally {
@@ -258,6 +308,121 @@ export default function PlanosPage() {
           </Card>
 
           {error && <p className="text-sm text-[var(--loop-error)]">{error}</p>}
+
+          {/* Comissão do Free (40%) */}
+          {commission && commission.plano === "free" && (
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold text-[var(--loop-text)]">
+                  Comissão do plano Free
+                </h2>
+                <p className="text-sm text-[var(--loop-text-muted)]">
+                  40% sobre as vendas recuperadas, cobrado mensalmente no cartão.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Cartão */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--loop-border)] p-3">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--loop-text)]">
+                      Cartão de cobrança
+                    </p>
+                    <p className="text-xs text-[var(--loop-text-muted)]">
+                      {commission.cardOnFile
+                        ? "Cartão cadastrado."
+                        : "Cadastre um cartão para a cobrança da comissão."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {commission.cardOnFile && (
+                      <Badge variant="success">Ativo</Badge>
+                    )}
+                    {isAdmin && (
+                      <Button
+                        variant={commission.cardOnFile ? "secondary" : "cta"}
+                        size="sm"
+                        disabled={busy === "card"}
+                        onClick={adicionarCartao}
+                      >
+                        {busy === "card"
+                          ? "Redirecionando…"
+                          : commission.cardOnFile
+                            ? "Trocar cartão"
+                            : "Adicionar cartão"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Apuração do mês */}
+                <div className="flex flex-wrap gap-6">
+                  <div>
+                    <p className="text-xs text-[var(--loop-text-muted)]">
+                      Comissão deste mês (parcial)
+                    </p>
+                    <p className="text-2xl font-bold text-[var(--loop-text)]">
+                      {formatMoney(commission.periodoAtual.comissaoBrl)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--loop-text-muted)]">
+                      Base recuperada no mês
+                    </p>
+                    <p className="text-2xl font-bold text-[var(--loop-text)]">
+                      {formatMoney(commission.periodoAtual.baseBrl)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Histórico */}
+                {commission.historico.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[var(--loop-border)] text-left text-[var(--loop-text-muted)]">
+                          <th className="pb-2 pr-4 font-medium">Competência</th>
+                          <th className="pb-2 pr-4 font-medium">Base</th>
+                          <th className="pb-2 pr-4 font-medium">Comissão</th>
+                          <th className="pb-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {commission.historico.map((h) => (
+                          <tr
+                            key={h.id}
+                            className="border-b border-[var(--loop-border)]"
+                          >
+                            <td className="py-2 pr-4 text-[var(--loop-text)]">
+                              {h.periodKey}
+                            </td>
+                            <td className="py-2 pr-4 text-[var(--loop-text)]">
+                              {formatMoney(h.baseBrl)}
+                            </td>
+                            <td className="py-2 pr-4 text-[var(--loop-text)]">
+                              {formatMoney(h.comissaoBrl)}
+                            </td>
+                            <td className="py-2">
+                              <Badge
+                                variant={
+                                  h.status === "paid"
+                                    ? "success"
+                                    : h.status === "failed"
+                                      ? "error"
+                                      : "default"
+                                }
+                              >
+                                {COMMISSION_STATUS[h.status] ?? h.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Planos */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
-import { verifyStripeSignature } from "@/lib/billing/stripe";
+import {
+  verifyStripeSignature,
+  getSetupIntent,
+  setDefaultPaymentMethod,
+} from "@/lib/billing/stripe";
 import { planByPriceId } from "@/lib/billing/plans";
 
 export async function POST(request: Request) {
@@ -25,6 +29,36 @@ export async function POST(request: Request) {
   }
 
   const obj = event.data.object;
+
+  // Cartão salvo via checkout modo "setup": vira o cartão padrão da conta.
+  if (
+    event.type === "checkout.session.completed" &&
+    obj.mode === "setup" &&
+    obj.customer &&
+    obj.setup_intent
+  ) {
+    const customerId = String(obj.customer);
+    try {
+      const si = await getSetupIntent(String(obj.setup_intent));
+      const pm = si.payment_method ? String(si.payment_method) : null;
+      if (pm) {
+        await setDefaultPaymentMethod(customerId, pm);
+        const accountsCol = await getCollection("accounts");
+        await accountsCol.updateOne(
+          { "subscription.stripeCustomerId": customerId },
+          {
+            $set: {
+              "subscription.defaultPaymentMethod": pm,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      }
+    } catch {
+      /* não falha o webhook por causa disso */
+    }
+    return NextResponse.json({ received: true });
+  }
 
   if (event.type.startsWith("customer.subscription.")) {
     const customerId = String(obj.customer ?? "");
