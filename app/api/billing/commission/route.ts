@@ -5,7 +5,7 @@ import { getCollection, mapDocs, routeObjectId, isDatabaseDisabled } from "@/lib
 import type { Account } from "@/lib/db/types";
 import { getPlan, commissionRateOf } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
-import { computeCommission, periodKeyOf } from "@/lib/billing/commission";
+import { computeCommission, currentFortnight } from "@/lib/billing/commission";
 
 type SessionUser = { accountId?: string; role?: string };
 
@@ -44,12 +44,10 @@ export async function GET() {
   const rate = commissionRateOf(account?.subscription?.plan);
   const cardOnFile = !!account?.subscription?.defaultPaymentMethod;
 
-  // Apuração do mês corrente (parcial, até agora).
+  // Apuração da quinzena corrente (parcial, até agora).
   const now = new Date();
-  const monthStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-  );
-  const calc = await computeCommission(su.accountId, monthStart, now, rate);
+  const quinzena = currentFortnight(now);
+  const calc = await computeCommission(su.accountId, quinzena.from, now, rate);
 
   const commissionsCol = await getCollection("commissions");
   const historico = await commissionsCol
@@ -64,7 +62,7 @@ export async function GET() {
     cardOnFile,
     configured: stripeConfigured(),
     isAdmin: su.role === "admin",
-    periodoAtual: { periodKey: periodKeyOf(now), ...calc },
+    periodoAtual: { periodKey: quinzena.periodKey, ...calc },
     historico: mapDocs(historico),
   });
 }

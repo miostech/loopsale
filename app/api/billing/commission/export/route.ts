@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { AbandonedCheckout, Account } from "@/lib/db/types";
 import { commissionRateOf } from "@/lib/billing/plans";
-import { usdToBrlRate, monthRange } from "@/lib/billing/commission";
+import { usdToBrlRate, periodRange } from "@/lib/billing/commission";
 
 type SessionUser = { accountId?: string };
 
@@ -23,14 +23,14 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const period = url.searchParams.get("period"); // YYYY-MM opcional
+  const period = url.searchParams.get("period"); // YYYY-MM ou YYYY-MM-Q1/Q2
 
   const match: Record<string, unknown> = {
     accountId: su.accountId,
     recoveredAt: { $ne: null },
   };
-  if (period && /^\d{4}-\d{2}$/.test(period)) {
-    const { from, to } = monthRange(period);
+  if (period && /^\d{4}-\d{2}(-Q[12])?$/.test(period)) {
+    const { from, to } = periodRange(period);
     match.recoveredAt = { $ne: null, $gte: from, $lt: to };
   }
 

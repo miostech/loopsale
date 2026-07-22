@@ -6,8 +6,8 @@ import { stripeConfigured, chargeInvoice } from "@/lib/billing/stripe";
 import { commissionRateOf } from "@/lib/billing/plans";
 import {
   computeCommission,
-  monthRange,
-  periodKeyOf,
+  previousFortnight,
+  periodRange,
 } from "@/lib/billing/commission";
 
 /** Valor mínimo para gerar cobrança (evita faturas irrisórias). */
@@ -15,22 +15,22 @@ const MIN_COMMISSION_BRL = 5;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  if (url.searchParams.get("secret") !== process.env.CRON_SECRET) {
+  // Aceita ?secret= (manual) ou o header do Vercel Cron (Authorization Bearer).
+  const secretOk = url.searchParams.get("secret") === process.env.CRON_SECRET;
+  const headerOk =
+    request.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
+  if (!secretOk && !headerOk) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (isDatabaseDisabled()) {
     return NextResponse.json({ ok: true, skipped: "db disabled" });
   }
 
-  // Competência = mês anterior (permite override por ?period=YYYY-MM).
+  // Competência = quinzena que acabou de fechar (override por ?period=YYYY-MM-Q1).
   const now = new Date();
   const override = url.searchParams.get("period");
-  const periodKey =
-    override ??
-    periodKeyOf(
-      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-    );
-  const { from, to } = monthRange(periodKey);
+  const periodKey = override ?? previousFortnight(now).periodKey;
+  const { from, to } = periodRange(periodKey);
 
   const accountsCol = await getCollection("accounts");
   const commissionsCol = await getCollection("commissions");

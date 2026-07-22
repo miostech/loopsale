@@ -114,3 +114,65 @@ export function monthRange(periodKey: string): { from: Date; to: Date } {
   const to = new Date(Date.UTC(y, m, 1));
   return { from, to };
 }
+
+// ---------------------------------------------------------------------------
+// Quinzena (cobrança a cada 15 dias): Q1 = dias 1..15, Q2 = 16..fim do mês.
+// ---------------------------------------------------------------------------
+
+type Fortnight = { from: Date; to: Date; periodKey: string };
+
+function ym(d: Date): { y: number; m: number; mm: string } {
+  return {
+    y: d.getUTCFullYear(),
+    m: d.getUTCMonth(),
+    mm: String(d.getUTCMonth() + 1).padStart(2, "0"),
+  };
+}
+
+/** Quinzena que contém a data (parcial se ainda em curso). */
+export function currentFortnight(d: Date): Fortnight {
+  const { y, m, mm } = ym(d);
+  if (d.getUTCDate() <= 15) {
+    return {
+      from: new Date(Date.UTC(y, m, 1)),
+      to: new Date(Date.UTC(y, m, 16)),
+      periodKey: `${y}-${mm}-Q1`,
+    };
+  }
+  return {
+    from: new Date(Date.UTC(y, m, 16)),
+    to: new Date(Date.UTC(y, m + 1, 1)),
+    periodKey: `${y}-${mm}-Q2`,
+  };
+}
+
+/** Quinzena imediatamente anterior à data (a que já fechou), para cobrar. */
+export function previousFortnight(d: Date): Fortnight {
+  const { y, m, mm } = ym(d);
+  if (d.getUTCDate() >= 16) {
+    // Fechou a Q1 do mês atual (1..15).
+    return {
+      from: new Date(Date.UTC(y, m, 1)),
+      to: new Date(Date.UTC(y, m, 16)),
+      periodKey: `${y}-${mm}-Q1`,
+    };
+  }
+  // Fechou a Q2 do mês anterior (16..fim).
+  const from = new Date(Date.UTC(y, m - 1, 16));
+  const to = new Date(Date.UTC(y, m, 1));
+  const pmm = String(from.getUTCMonth() + 1).padStart(2, "0");
+  return { from, to, periodKey: `${from.getUTCFullYear()}-${pmm}-Q2` };
+}
+
+/** Intervalo de uma competência: YYYY-MM-Q1/Q2 (quinzena) ou YYYY-MM (mês). */
+export function periodRange(periodKey: string): { from: Date; to: Date } {
+  const q = periodKey.match(/^(\d{4})-(\d{2})-(Q1|Q2)$/);
+  if (q) {
+    const y = Number(q[1]);
+    const m = Number(q[2]) - 1;
+    return q[3] === "Q1"
+      ? { from: new Date(Date.UTC(y, m, 1)), to: new Date(Date.UTC(y, m, 16)) }
+      : { from: new Date(Date.UTC(y, m, 16)), to: new Date(Date.UTC(y, m + 1, 1)) };
+  }
+  return monthRange(periodKey);
+}

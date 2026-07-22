@@ -322,7 +322,7 @@ export default function PlanosPage() {
                 </h2>
                 <p className="text-sm text-[var(--loop-text-muted)]">
                   {Math.round(commission.rate * 100)}% sobre as vendas
-                  recuperadas, cobrado mensalmente no cartão.
+                  recuperadas, cobrado a cada 15 dias no cartão.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -363,7 +363,7 @@ export default function PlanosPage() {
                 <div className="flex flex-wrap gap-6">
                   <div>
                     <p className="text-xs text-[var(--loop-text-muted)]">
-                      Comissão a cobrar (mês, parcial)
+                      Comissão a cobrar (quinzena, parcial)
                     </p>
                     <p className="text-2xl font-bold text-[var(--loop-text)]">
                       {formatMoney(commission.periodoAtual.comissaoBrl)}
