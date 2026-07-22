@@ -21,6 +21,7 @@ interface SupportInfo {
   description: string;
   priceMonthly: number;
   features: string[];
+  scopeNote: string;
   disponivel: boolean;
   active: boolean;
   status: string;
@@ -400,6 +401,11 @@ export default function PlanosPage() {
                       </li>
                     ))}
                   </ul>
+                  {billing.support.scopeNote && (
+                    <p className="mt-2 rounded-md bg-[var(--loop-bg-alt)] p-2 text-xs text-[var(--loop-text-muted)]">
+                      {billing.support.scopeNote}
+                    </p>
+                  )}
                   <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
                     {formatMoney(billing.support.priceMonthly)}
                     <span className="text-sm font-normal text-[var(--loop-text-muted)]">

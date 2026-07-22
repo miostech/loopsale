@@ -31,6 +31,7 @@ export async function GET() {
     description: SUPPORT_ADDON.description,
     priceMonthly: SUPPORT_ADDON.priceMonthly,
     features: SUPPORT_ADDON.features,
+    scopeNote: SUPPORT_ADDON.scopeNote,
     disponivel: !!SUPPORT_ADDON.priceId,
   };
 

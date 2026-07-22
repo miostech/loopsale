@@ -90,14 +90,18 @@ export const PLANS: Plan[] = [
  */
 export const SUPPORT_ADDON = {
   name: "Atendimento gerenciado",
-  description: "O time da LoopSale responde e fecha as vendas por você.",
-  priceMonthly: 497,
+  description:
+    "O time da LoopSale responde e fecha as vendas do fluxo de recuperação por você.",
+  priceMonthly: 1997,
   priceId: process.env.STRIPE_PRICE_SUPPORT ?? null,
   features: [
-    "Nosso time atende as respostas no WhatsApp",
+    "Atende as respostas do fluxo de recuperação no WhatsApp",
     "Foco em fechar as vendas recuperadas",
     "Relatório de atendimentos",
   ],
+  /** Escopo do que NÃO está incluído (deixa claro na UI). */
+  scopeNote:
+    "Cobre apenas as conversas do fluxo de recuperação. Não inclui suporte ao curso, dúvidas do produto, pós-venda ou atendimento geral ao cliente.",
 };
 
 export function getPlan(id: string | null | undefined): Plan {
