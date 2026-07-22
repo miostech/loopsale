@@ -13,11 +13,21 @@ export interface AccountSubscription {
   currentPeriodEnd?: Date | null;
 }
 
+/** Add-on de atendimento gerenciado (assinatura Stripe separada do plano). */
+export interface AccountSupport {
+  /** true = LoopSale atende; false/ausente = o próprio cliente atende. */
+  active: boolean;
+  status?: string;
+  stripeSubscriptionId?: string | null;
+  currentPeriodEnd?: Date | null;
+}
+
 export interface Account {
   _id?: ObjectId;
   name: string;
   slug: string;
   subscription?: AccountSubscription | null;
+  support?: AccountSupport | null;
   createdAt: Date;
   updatedAt: Date;
 }

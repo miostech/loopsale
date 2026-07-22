@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { PLANS, getPlan } from "@/lib/billing/plans";
+import { PLANS, getPlan, SUPPORT_ADDON } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
 
 type SessionUser = { accountId?: string; role?: string };
@@ -26,6 +26,14 @@ export async function GET() {
     disponivel: p.id === "free" || !!p.priceId, // pagos só se houver priceId
   }));
 
+  const supportInfo = {
+    name: SUPPORT_ADDON.name,
+    description: SUPPORT_ADDON.description,
+    priceMonthly: SUPPORT_ADDON.priceMonthly,
+    features: SUPPORT_ADDON.features,
+    disponivel: !!SUPPORT_ADDON.priceId,
+  };
+
   if (isDatabaseDisabled()) {
     return NextResponse.json({
       planoAtual: "free",
@@ -35,6 +43,7 @@ export async function GET() {
       isAdmin: su.role === "admin",
       plans: publicPlans,
       temAssinatura: false,
+      support: { ...supportInfo, active: false, status: "none" },
     });
   }
 
@@ -44,6 +53,7 @@ export async function GET() {
     ? ((await accountsCol.findOne({ _id: oid })) as Account | null)
     : null;
   const sub = account?.subscription ?? null;
+  const support = account?.support ?? null;
 
   return NextResponse.json({
     planoAtual: getPlan(sub?.plan).id,
@@ -53,5 +63,10 @@ export async function GET() {
     isAdmin: su.role === "admin",
     temAssinatura: !!sub?.stripeSubscriptionId,
     plans: publicPlans,
+    support: {
+      ...supportInfo,
+      active: !!support?.active,
+      status: support?.status ?? "none",
+    },
   });
 }

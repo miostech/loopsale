@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { PLANS } from "@/lib/billing/plans";
+import { PLANS, SUPPORT_ADDON } from "@/lib/billing/plans";
 import {
   stripeConfigured,
   createCustomer,
@@ -47,10 +47,14 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const plan = PLANS.find((p) => p.id === body.plan);
-  if (!plan || !plan.priceId) {
+  // Aceita { plan } (assinatura do plano) ou { addon: "support" } (atendimento).
+  const priceId =
+    body.addon === "support"
+      ? SUPPORT_ADDON.priceId
+      : PLANS.find((p) => p.id === body.plan)?.priceId ?? null;
+  if (!priceId) {
     return NextResponse.json(
-      { error: "Plano inválido ou sem preço configurado." },
+      { error: "Plano/add-on inválido ou sem preço configurado." },
       { status: 400 }
     );
   }
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
     const returnBase = `${baseUrl()}/dashboard/configuracoes/planos`;
     const checkout = await createCheckoutSession({
       customer: customerId,
-      priceId: plan.priceId,
+      priceId,
       accountId: su.accountId,
       successUrl: `${returnBase}?status=sucesso`,
       cancelUrl: `${returnBase}?status=cancelado`,

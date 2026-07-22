@@ -83,6 +83,23 @@ export const PLANS: Plan[] = [
   },
 ];
 
+/**
+ * Add-on de atendimento gerenciado: mensalidade fixa para o time da LoopSale
+ * responder as conversas do WhatsApp e fechar as vendas pelo cliente.
+ * Sem o add-on, o próprio cliente atende (incluído em todos os planos).
+ */
+export const SUPPORT_ADDON = {
+  name: "Atendimento gerenciado",
+  description: "O time da LoopSale responde e fecha as vendas por você.",
+  priceMonthly: 497,
+  priceId: process.env.STRIPE_PRICE_SUPPORT ?? null,
+  features: [
+    "Nosso time atende as respostas no WhatsApp",
+    "Foco em fechar as vendas recuperadas",
+    "Relatório de atendimentos",
+  ],
+};
+
 export function getPlan(id: string | null | undefined): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }

@@ -16,6 +16,16 @@ interface PlanView {
   disponivel: boolean;
 }
 
+interface SupportInfo {
+  name: string;
+  description: string;
+  priceMonthly: number;
+  features: string[];
+  disponivel: boolean;
+  active: boolean;
+  status: string;
+}
+
 interface Billing {
   planoAtual: string;
   status: string;
@@ -24,6 +34,7 @@ interface Billing {
   isAdmin: boolean;
   temAssinatura: boolean;
   plans: PlanView[];
+  support: SupportInfo;
 }
 
 interface Invoice {
@@ -119,6 +130,25 @@ export default function PlanosPage() {
       const data = await res.json();
       if (res.ok && data.url) window.location.href = data.url;
       else setError(data.error ?? "Não foi possível abrir o portal.");
+    } catch {
+      setError("Erro de rede.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function ativarAtendimento() {
+    setError("");
+    setBusy("support");
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addon: "support" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) window.location.href = data.url;
+      else setError(data.error ?? "Não foi possível ativar o atendimento.");
     } catch {
       setError("Erro de rede.");
     } finally {
@@ -305,6 +335,103 @@ export default function PlanosPage() {
               Apenas administradores podem contratar ou alterar o plano.
             </p>
           )}
+
+          {/* Atendimento */}
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-[var(--loop-text)]">
+                Atendimento
+              </h2>
+              <p className="text-sm text-[var(--loop-text-muted)]">
+                Quem responde os clientes que reagem no WhatsApp.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Você atende */}
+                <div
+                  className={`rounded-lg border p-4 ${
+                    billing.support.active
+                      ? "border-[var(--loop-border)]"
+                      : "border-2 border-[var(--loop-primary)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-[var(--loop-text)]">
+                      Você atende
+                    </p>
+                    {!billing.support.active && (
+                      <Badge variant="success">Ativo</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
+                    Incluído em todos os planos. As respostas vão para o seu
+                    WhatsApp/time.
+                  </p>
+                  <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
+                    Grátis
+                  </p>
+                </div>
+
+                {/* LoopSale atende */}
+                <div
+                  className={`rounded-lg border p-4 ${
+                    billing.support.active
+                      ? "border-2 border-[var(--loop-primary)]"
+                      : "border-[var(--loop-border)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-[var(--loop-text)]">
+                      {billing.support.name}
+                    </p>
+                    {billing.support.active && (
+                      <Badge variant="success">Ativo</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
+                    {billing.support.description}
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-[var(--loop-text)]">
+                    {billing.support.features.map((f) => (
+                      <li key={f} className="flex gap-2">
+                        <span className="text-[var(--loop-success)]">✓</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
+                    {formatMoney(billing.support.priceMonthly)}
+                    <span className="text-sm font-normal text-[var(--loop-text-muted)]">
+                      /mês
+                    </span>
+                  </p>
+                  {billing.support.active ? (
+                    <p className="mt-2 text-sm text-[var(--loop-text-muted)]">
+                      Gerencie ou cancele em “Gerenciar assinatura”.
+                    </p>
+                  ) : (
+                    <Button
+                      variant="cta"
+                      size="sm"
+                      className="mt-3 w-full justify-center"
+                      disabled={
+                        !isAdmin ||
+                        !billing.support.disponivel ||
+                        !billing.configured ||
+                        busy === "support"
+                      }
+                      onClick={ativarAtendimento}
+                    >
+                      {busy === "support"
+                        ? "Redirecionando…"
+                        : "Ativar atendimento"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Faturas */}
           <Card>
