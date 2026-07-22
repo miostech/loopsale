@@ -3,10 +3,21 @@ import type { ObjectId } from "mongodb";
 /** Documento com _id do MongoDB; ao retornar para API use id (string). */
 export type WithId<T> = T & { _id: ObjectId };
 
+export interface AccountSubscription {
+  /** id do plano (free/pro/escala). */
+  plan: string;
+  /** status do Stripe (active, trialing, past_due, canceled, incomplete...). */
+  status: string;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  currentPeriodEnd?: Date | null;
+}
+
 export interface Account {
   _id?: ObjectId;
   name: string;
   slug: string;
+  subscription?: AccountSubscription | null;
   createdAt: Date;
   updatedAt: Date;
 }
