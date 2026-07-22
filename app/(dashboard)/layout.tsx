@@ -10,7 +10,7 @@ const nav = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/dashboard/integracoes", label: "Integrações" },
   { href: "/dashboard/fluxos", label: "Fluxos" },
-  { href: "/dashboard/leads", label: "Leads" },
+  { href: "/dashboard/clientes", label: "Clientes" },
   { href: "/dashboard/vendas", label: "Vendas" },
   { href: "/dashboard/campanhas", label: "Campanhas" },
   { href: "/dashboard/templates", label: "Templates" },

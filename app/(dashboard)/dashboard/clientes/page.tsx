@@ -114,7 +114,7 @@ export default function LeadsPage() {
   const rangeEnd = Math.min(total, (page + 1) * PAGE_SIZE);
 
   const summary = [
-    { label: "Total de leads", value: baseTotal, accent: "var(--loop-text)" },
+    { label: "Total de clientes", value: baseTotal, accent: "var(--loop-text)" },
     {
       label: "Compraram",
       value: statusCounts.purchased ?? 0,
@@ -135,7 +135,7 @@ export default function LeadsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[var(--loop-text)]">Leads</h1>
+        <h1 className="text-2xl font-bold text-[var(--loop-text)]">Clientes</h1>
         <p className="text-sm text-[var(--loop-text-muted)]">
           Contatos capturados via checkout e WhatsApp, com status e origem.
         </p>
@@ -161,7 +161,7 @@ export default function LeadsPage() {
       <Card>
         <CardHeader className="space-y-3">
           <h2 className="font-semibold text-[var(--loop-text)]">
-            Base de leads
+            Base de clientes
           </h2>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <input
@@ -203,8 +203,8 @@ export default function LeadsPage() {
           ) : leads.length === 0 ? (
             <p className="py-8 text-center text-[var(--loop-text-muted)]">
               {search || status || source
-                ? "Nenhum lead encontrado com esses filtros."
-                : "Nenhum lead ainda. Os leads aparecerão aqui após eventos de checkout e mensagens enviadas."}
+                ? "Nenhum cliente encontrado com esses filtros."
+                : "Nenhum cliente ainda. Os contatos aparecerão aqui após eventos de checkout e mensagens enviadas."}
             </p>
           ) : (
             <>
@@ -252,7 +252,7 @@ export default function LeadsPage() {
                         </td>
                         <td className="py-3">
                           <Link
-                            href={`/dashboard/leads/${lead.id}`}
+                            href={`/dashboard/clientes/${lead.id}`}
                             className="text-[var(--loop-primary)] hover:underline"
                           >
                             Ver

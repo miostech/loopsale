@@ -47,8 +47,8 @@ export default function LeadDetailPage() {
   if (!lead) {
     return (
       <div>
-        <Link href="/dashboard/leads" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
-          ← Voltar aos leads
+        <Link href="/dashboard/clientes" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
+          ← Voltar aos clientes
         </Link>
         <p className="text-[var(--loop-text-muted)]">Lead não encontrado.</p>
       </div>
@@ -64,8 +64,8 @@ export default function LeadDetailPage() {
 
   return (
     <div>
-      <Link href="/dashboard/leads" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
-        ← Voltar aos leads
+      <Link href="/dashboard/clientes" className="text-[var(--loop-primary)] hover:underline mb-4 inline-block">
+        ← Voltar aos clientes
       </Link>
       <Card className="mb-6">
         <CardHeader>
