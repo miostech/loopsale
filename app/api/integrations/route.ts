@@ -23,8 +23,21 @@ const CRED_FIELDS: Record<Platform, { key: string; secret: boolean }[]> = {
 };
 
 function baseUrl(): string {
-  return process.env.NEXTAUTH_URL ?? "https://seusite.com";
+  // URL pública do webhook (nunca localhost, mesmo em dev). Configurável via
+  // PUBLIC_WEBHOOK_BASE_URL; padrão é o domínio de produção.
+  return process.env.PUBLIC_WEBHOOK_BASE_URL ?? "https://loopsale.com.br";
 }
+
+/**
+ * Caminho público do webhook por plataforma. O n8n é exposto como "loop"
+ * (Loop API) para não revelar a ferramenta ao cliente; o path /api/webhooks/n8n
+ * continua funcionando por baixo para não quebrar fluxos já configurados.
+ */
+const WEBHOOK_PATH: Record<Platform, string> = {
+  n8n: "loop",
+  kiwify: "kiwify",
+  hotmart: "hotmart",
+};
 
 function maskSecret(value: string): string {
   if (!value) return "";
@@ -50,7 +63,7 @@ function safeConfig(platform: Platform, config: Record<string, unknown>) {
 function webhookUrlFor(platform: Platform, config: Record<string, unknown>) {
   const token = config.webhookToken as string | undefined;
   return token
-    ? `${baseUrl()}/api/webhooks/${platform}?token=${token}`
+    ? `${baseUrl()}/api/webhooks/${WEBHOOK_PATH[platform]}?token=${token}`
     : null;
 }
 

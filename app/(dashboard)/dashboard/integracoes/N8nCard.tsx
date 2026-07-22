@@ -46,12 +46,12 @@ export function N8nCard() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Não foi possível conectar o n8n.");
+        setError(data.error ?? "Não foi possível conectar a Loop API.");
         return;
       }
       setWebhookUrl(data.webhookUrl ?? null);
     } catch {
-      setError("Erro de rede ao conectar o n8n.");
+      setError("Erro de rede ao conectar a Loop API.");
     } finally {
       setWorking(false);
     }
@@ -72,7 +72,7 @@ export function N8nCard() {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div>
-          <h2 className="font-semibold text-[var(--loop-text)]">n8n</h2>
+          <h2 className="font-semibold text-[var(--loop-text)]">Loop API</h2>
           <p className="text-sm text-[var(--loop-text-muted)]">
             Envie os eventos do seu fluxo (carrinhos, vendas, WhatsApp) para o
             LoopSale medir a recuperação.
@@ -92,7 +92,7 @@ export function N8nCard() {
             disabled={working}
             onClick={() => connect(false)}
           >
-            {working ? "Conectando…" : "Conectar n8n"}
+            {working ? "Conectando…" : "Conectar Loop API"}
           </Button>
         ) : (
           <div className="space-y-2">
