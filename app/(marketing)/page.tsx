@@ -3,6 +3,7 @@ import { Button, Accordion } from "@/components/ui";
 import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 import { WhatsAppMockup } from "@/components/marketing/WhatsAppMockup";
 import { DemoDashboardButton } from "@/components/marketing/DemoDashboardButton";
+import { MarketingMobileMenu } from "@/components/marketing/MarketingMobileMenu";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 
 const RECURSOS_GRID = [
@@ -97,7 +98,7 @@ export default function MarketingHome() {
   return (
     <div className="min-h-screen bg-[var(--loop-bg)]">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[var(--loop-border)] bg-[color-mix(in_srgb,var(--loop-bg)_92%,transparent)] backdrop-blur-md supports-[backdrop-filter]:bg-[color-mix(in_srgb,var(--loop-bg)_85%,transparent)] transition-shadow duration-300">
+      <header className="sticky top-0 z-50 border-b border-[var(--loop-border)] bg-[color-mix(in_srgb,var(--loop-bg)_92%,transparent)] backdrop-blur-md supports-[backdrop-filter]:bg-[color-mix(in_srgb,var(--loop-bg)_85%,transparent)] transition-shadow duration-300 relative">
         <div className="mx-auto flex min-h-32 max-w-6xl items-center justify-between gap-4 px-6 py-4">
           <LoopSaleLogo href="/" variant="full" />
           <nav className="hidden items-center gap-8 md:flex">
@@ -120,7 +121,7 @@ export default function MarketingHome() {
               Cases
             </a>
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3 md:flex">
             <DemoDashboardButton />
             <Link href="/login">
               <Button variant="ghost" size="sm">
@@ -133,6 +134,7 @@ export default function MarketingHome() {
               </Button>
             </Link>
           </div>
+          <MarketingMobileMenu />
         </div>
       </header>
 

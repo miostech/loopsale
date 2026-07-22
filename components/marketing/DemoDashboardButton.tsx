@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
  * Botão que cria o usuário demo (se não existir) e faz login direto no dashboard.
  * Só funciona em desenvolvimento.
  */
-export function DemoDashboardButton() {
+export function DemoDashboardButton({ className }: { className?: string }) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
@@ -44,6 +44,7 @@ export function DemoDashboardButton() {
       size="sm"
       onClick={handleClick}
       disabled={loading}
+      className={className}
     >
       {loading ? "Entrando…" : "Ver dashboard"}
     </Button>

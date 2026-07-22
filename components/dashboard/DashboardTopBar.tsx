@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
+import { useSidebar } from "./SidebarContext";
 
 export function DashboardTopBar() {
+  const { setOpen: setSidebarOpen } = useSidebar();
   const { data: session, status } = useSession();
   const name = session?.user?.name ?? session?.user?.email ?? "Usuário";
   const email = session?.user?.email ?? "";
@@ -34,8 +36,28 @@ export function DashboardTopBar() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-[var(--loop-border)] bg-[var(--loop-bg)] px-6">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-[var(--loop-border)] bg-[var(--loop-bg)] px-4 md:px-6">
+      <div className="flex items-center gap-2 md:gap-4">
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="-ml-1 rounded-lg p-2 text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)] hover:text-[var(--loop-text)] md:hidden"
+          aria-label="Abrir menu"
+        >
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
         <span className="text-sm font-medium text-[var(--loop-text-muted)]">
           Visão geral
         </span>
