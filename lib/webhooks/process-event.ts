@@ -129,6 +129,7 @@ export async function processIncomingEvent(
         productId: normalized.productId,
         productName: normalized.productName,
         amount: normalized.amount,
+        currency: normalized.currency,
         affiliate: normalized.affiliate,
       }
     );
@@ -154,6 +155,7 @@ export async function processIncomingEvent(
         productId: normalized.productId,
         productName: normalized.productName,
         amount: normalized.amount,
+        currency: normalized.currency,
         affiliate: normalized.affiliate,
       }
     );
@@ -279,6 +281,7 @@ export async function createRefusedRecoverable(
     productId?: string;
     productName?: string;
     amount?: string;
+    currency?: string;
     affiliate?: string;
   }
 ) {
@@ -305,6 +308,7 @@ export async function createRefusedRecoverable(
     productName: data.productName ?? null,
     affiliate: data.affiliate ?? null,
     amount: data.amount ?? null,
+    currency: data.currency ?? null,
     recoveredAt: null,
     createdAt: now,
   };
@@ -324,6 +328,7 @@ export async function createAbandonedAndScheduleRecovery(
     productId?: string;
     productName?: string;
     amount?: string;
+    currency?: string;
     affiliate?: string;
   }
 ) {
@@ -346,6 +351,7 @@ export async function createAbandonedAndScheduleRecovery(
     productName: data.productName ?? null,
     affiliate: data.affiliate ?? null,
     amount: data.amount ?? null,
+    currency: data.currency ?? null,
     recoveredAt: null,
     createdAt: now,
   };

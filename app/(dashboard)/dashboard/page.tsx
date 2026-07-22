@@ -16,7 +16,10 @@ import {
 interface Segment {
   total: number;
   recuperados: number;
+  recuperadosBrl: number;
+  recuperadosUsd: number;
   valorEmRisco: string;
+  valorEmRiscoDolar: string;
   valorRecuperado: string;
   valorRecuperadoDolar: string;
   taxa: number;
@@ -116,12 +119,16 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [days]);
 
-  const valorRecuperadoNum = metrics
-    ? parseFloat(metrics.total.valorRecuperado) || 0
-    : 0;
-  const ticketMedio =
-    metrics && metrics.total.recuperados > 0
-      ? valorRecuperadoNum / metrics.total.recuperados
+  // Ticket médio por moeda: valor recuperado da moeda / recuperados da moeda.
+  const ticketMedioReais =
+    metrics && metrics.total.recuperadosBrl > 0
+      ? (parseFloat(metrics.total.valorRecuperado) || 0) /
+        metrics.total.recuperadosBrl
+      : 0;
+  const ticketMedioDolar =
+    metrics && metrics.total.recuperadosUsd > 0
+      ? (parseFloat(metrics.total.valorRecuperadoDolar) || 0) /
+        metrics.total.recuperadosUsd
       : 0;
 
   const lineData =
@@ -230,6 +237,9 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold text-[var(--loop-text)]">
                   {formatCurrency(metrics.total.valorEmRisco)}
                 </p>
+                <p className="mt-0.5 text-sm text-[var(--loop-text-muted)]">
+                  {formatUSD(metrics.total.valorEmRiscoDolar)}
+                </p>
                 <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
                   Total recuperável no período
                 </p>
@@ -266,7 +276,10 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-[var(--loop-text)]">
-                  {formatCurrency(ticketMedio)}
+                  {formatCurrency(ticketMedioReais)}
+                </p>
+                <p className="mt-0.5 text-sm text-[var(--loop-text-muted)]">
+                  {formatUSD(ticketMedioDolar)}
                 </p>
                 <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
                   {metrics.mensagensEnviadas.toLocaleString("pt-BR")} mensagens
@@ -456,7 +469,11 @@ function SegmentCard({
             label="Recuperados"
             value={seg.recuperados.toLocaleString("pt-BR")}
           />
-          <Stat label="Valor em risco" value={formatCurrency(seg.valorEmRisco)} />
+          <Stat
+            label="Valor em risco"
+            value={formatCurrency(seg.valorEmRisco)}
+            sub={formatUSD(seg.valorEmRiscoDolar)}
+          />
           <Stat
             label="Valor recuperado"
             value={formatCurrency(seg.valorRecuperado)}

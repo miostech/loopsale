@@ -6,8 +6,14 @@ export type RecoverySegment = {
   total: number;
   /** Quantos voltaram a comprar (recoveredAt != null). */
   recuperados: number;
-  /** Soma do valor de todos os recuperáveis (a oportunidade), em Reais. */
+  /** Recuperados cuja venda foi em BRL. */
+  recuperadosBrl: number;
+  /** Recuperados cuja venda foi em USD. */
+  recuperadosUsd: number;
+  /** Soma dos recuperáveis em moeda BRL (a oportunidade), em Reais. */
   valorEmRisco: string;
+  /** Soma dos recuperáveis em moeda USD, em Dólares. */
+  valorEmRiscoDolar: string;
   /** Soma do valor pago dos recuperados, em Reais. */
   valorRecuperado: string;
   /** Soma do valor pago dos recuperados, em Dólares. */
@@ -49,7 +55,10 @@ export type DailyMetric = {
 type CoreSegment = {
   total: number;
   recuperados: number;
+  recuperadosBrl: number;
+  recuperadosUsd: number;
   valorEmRisco: number;
+  valorEmRiscoDolar: number;
   valorRecuperado: number;
   valorRecuperadoDolar: number;
 };
@@ -65,7 +74,10 @@ type CoreMetrics = {
 const emptySegment = (): CoreSegment => ({
   total: 0,
   recuperados: 0,
+  recuperadosBrl: 0,
+  recuperadosUsd: 0,
   valorEmRisco: 0,
+  valorEmRiscoDolar: 0,
   valorRecuperado: 0,
   valorRecuperadoDolar: 0,
 });
@@ -79,7 +91,10 @@ function toSegment(core: CoreSegment): RecoverySegment {
   return {
     total: core.total,
     recuperados: core.recuperados,
+    recuperadosBrl: core.recuperadosBrl,
+    recuperadosUsd: core.recuperadosUsd,
     valorEmRisco: core.valorEmRisco.toFixed(2),
+    valorEmRiscoDolar: core.valorEmRiscoDolar.toFixed(2),
     valorRecuperado: core.valorRecuperado.toFixed(2),
     valorRecuperadoDolar: core.valorRecuperadoDolar.toFixed(2),
     taxa: core.total > 0 ? Math.round((core.recuperados / core.total) * 100) : 0,
@@ -90,7 +105,10 @@ function combineSegments(a: CoreSegment, b: CoreSegment): CoreSegment {
   return {
     total: a.total + b.total,
     recuperados: a.recuperados + b.recuperados,
+    recuperadosBrl: a.recuperadosBrl + b.recuperadosBrl,
+    recuperadosUsd: a.recuperadosUsd + b.recuperadosUsd,
     valorEmRisco: a.valorEmRisco + b.valorEmRisco,
+    valorEmRiscoDolar: a.valorEmRiscoDolar + b.valorEmRiscoDolar,
     valorRecuperado: a.valorRecuperado + b.valorRecuperado,
     valorRecuperadoDolar: a.valorRecuperadoDolar + b.valorRecuperadoDolar,
   };
@@ -118,19 +136,19 @@ function mockCore(periodDays: number, seedOffset: number): CoreMetrics {
     checkoutsIniciados += started;
     mensagensEnviadas += aband + refus + ((k * 2) % 7);
 
-    const usdRate = 5.4; // câmbio fictício p/ o mock (R$ -> US$)
-
+    // No mock, tratamos abandonados como vendas em BRL e recusados como USD,
+    // só para exercitar as duas moedas na UI de desenvolvimento.
     abandonados.total += aband;
     abandonados.recuperados += abandRecuperados;
+    abandonados.recuperadosBrl += abandRecuperados;
     abandonados.valorEmRisco += aband * ticket;
     abandonados.valorRecuperado += abandRecuperados * ticket;
-    abandonados.valorRecuperadoDolar += (abandRecuperados * ticket) / usdRate;
 
     recusados.total += refus;
     recusados.recuperados += refusRecuperados;
-    recusados.valorEmRisco += refus * ticket;
-    recusados.valorRecuperado += refusRecuperados * ticket;
-    recusados.valorRecuperadoDolar += (refusRecuperados * ticket) / usdRate;
+    recusados.recuperadosUsd += refusRecuperados;
+    recusados.valorEmRiscoDolar += refus * ticket;
+    recusados.valorRecuperadoDolar += refusRecuperados * ticket;
   }
 
   return { checkoutsIniciados, mensagensEnviadas, abandonados, recusados };
@@ -172,10 +190,73 @@ async function computeCoreMetrics(
           _id: { $ifNull: ["$recoveryType", "abandoned"] },
           total: { $sum: 1 },
           valorEmRisco: {
-            $sum: { $toDouble: { $ifNull: ["$amount", "0"] } },
+            $sum: {
+              $cond: [
+                {
+                  $ne: [
+                    { $toUpper: { $ifNull: ["$currency", "BRL"] } },
+                    "USD",
+                  ],
+                },
+                { $toDouble: { $ifNull: ["$amount", "0"] } },
+                0,
+              ],
+            },
+          },
+          valorEmRiscoDolar: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: [
+                    { $toUpper: { $ifNull: ["$currency", "BRL"] } },
+                    "USD",
+                  ],
+                },
+                { $toDouble: { $ifNull: ["$amount", "0"] } },
+                0,
+              ],
+            },
           },
           recuperados: {
             $sum: { $cond: [{ $ne: ["$recoveredAt", null] }, 1, 0] },
+          },
+          recuperadosBrl: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$recoveredAt", null] },
+                    {
+                      $ne: [
+                        { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
+                        "USD",
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          recuperadosUsd: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$recoveredAt", null] },
+                    {
+                      $eq: [
+                        { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
+                        "USD",
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
           },
           valorRecuperado: {
             $sum: {
@@ -226,7 +307,10 @@ async function computeCoreMetrics(
     _id: string;
     total: number;
     valorEmRisco: number;
+    valorEmRiscoDolar: number;
     recuperados: number;
+    recuperadosBrl: number;
+    recuperadosUsd: number;
     valorRecuperado: number;
     valorRecuperadoDolar: number;
   }[];
@@ -237,7 +321,10 @@ async function computeCoreMetrics(
     const seg = row._id === "refused" ? recusados : abandonados;
     seg.total = row.total;
     seg.recuperados = row.recuperados;
+    seg.recuperadosBrl = row.recuperadosBrl;
+    seg.recuperadosUsd = row.recuperadosUsd;
     seg.valorEmRisco = row.valorEmRisco;
+    seg.valorEmRiscoDolar = row.valorEmRiscoDolar;
     seg.valorRecuperado = row.valorRecuperado;
     seg.valorRecuperadoDolar = row.valorRecuperadoDolar;
   }
