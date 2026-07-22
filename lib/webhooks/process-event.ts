@@ -126,10 +126,12 @@ export async function processIncomingEvent(
   const isContactEvent = normalized.eventType === "whatsapp_enviado";
 
   if (normalized.customerEmail || normalized.customerPhone) {
-    // "Comprou" (recuperado) só se o cliente tem um carrinho rastreado por nós
-    // (abandono ou recusa). Sem carrinho = venda direta = "Pago" (finalizou
-    // sozinha). Usamos a existência do carrinho, não a origem do lead, porque
-    // esse sinal é estável e não depende da ordem dos eventos.
+    // "Comprou" (recuperado) se o cliente passou pelo NOSSO funil: existe um
+    // carrinho rastreado (abandono/recusa) OU já enviamos um WhatsApp de
+    // recuperação para ele. Qualquer um dos dois basta — o WhatsApp cobre o caso
+    // de um abandono que chegou sem checkoutId (sem carrinho gravado). Sem nenhum
+    // sinal = venda direta = "Pago" (finalizou sozinha). Usamos os eventos, não a
+    // origem do lead, porque esse sinal é estável e independe da ordem.
     let purchaseStatus: "purchased" | "paid" | undefined;
     if (normalized.eventType === "pagamento_aprovado") {
       const customerOr = [
@@ -144,7 +146,16 @@ export async function processIncomingEvent(
         accountId,
         $or: customerOr,
       });
-      purchaseStatus = carrinho ? "purchased" : "paid";
+      let veioDoFunil = !!carrinho;
+      if (!veioDoFunil) {
+        const whatsapp = await checkoutEventsCol.findOne({
+          accountId,
+          eventType: "whatsapp_enviado",
+          $or: customerOr,
+        });
+        veioDoFunil = !!whatsapp;
+      }
+      purchaseStatus = veioDoFunil ? "purchased" : "paid";
     }
 
     await upsertLeadFromEvent(accountId, {
