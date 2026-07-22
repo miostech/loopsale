@@ -2,9 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Button } from "@/components/ui";
 import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar";
+import { SignOutButton } from "@/components/dashboard/SignOutButton";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard" },
@@ -43,11 +43,7 @@ export default async function DashboardLayout({
           ))}
         </nav>
         <div className="p-4 border-t border-[var(--loop-border)]">
-          <form action="/api/auth/signout" method="POST">
-            <Button type="submit" variant="ghost" size="sm" className="w-full justify-center">
-              Sair
-            </Button>
-          </form>
+          <SignOutButton />
         </div>
       </aside>
       <div className="flex-1 flex flex-col min-w-0">

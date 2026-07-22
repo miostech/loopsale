@@ -135,7 +135,13 @@ export function DashboardTopBar() {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={async () => {
+                    setOpen(false);
+                    // redirect:false evita depender de NEXTAUTH_URL; navegamos
+                    // para /login no mesmo host atual.
+                    await signOut({ redirect: false });
+                    window.location.assign("/login");
+                  }}
                   className="block w-full border-t border-[var(--loop-border)] px-4 py-2 text-left text-sm text-[var(--loop-error)] hover:bg-[var(--loop-bg-alt)]"
                 >
                   Sair
