@@ -19,6 +19,7 @@ export async function GET() {
     id: p.id,
     name: p.name,
     priceMonthly: p.priceMonthly,
+    priceNote: p.priceNote ?? null,
     description: p.description,
     features: p.features,
     highlighted: p.highlighted ?? false,

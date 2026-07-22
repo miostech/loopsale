@@ -2,12 +2,17 @@
  * Planos da LoopSale. Os priceId vêm do Stripe (env) — cada plano pago mapeia
  * um Price recorrente criado no painel do Stripe. Ajuste preços/limites à
  * vontade; a UI e o checkout leem daqui.
+ *
+ * Modelo: Free é performance (sem mensalidade, 30% sobre vendas recuperadas);
+ * os planos pagos são mensalidade fixa e SEM comissão.
  */
 export type Plan = {
   id: string;
   name: string;
   /** Preço mensal em BRL (0 = grátis). Apenas exibição. */
   priceMonthly: number;
+  /** Nota abaixo do preço (ex: comissão do Free). */
+  priceNote?: string;
   description: string;
   features: string[];
   /** Stripe Price ID (recorrente). Null no Free. */
@@ -20,10 +25,13 @@ export const PLANS: Plan[] = [
     id: "free",
     name: "Free",
     priceMonthly: 0,
-    description: "Para começar a recuperar vendas.",
+    priceNote: "+ 30% sobre vendas recuperadas",
+    description: "Pague só quando recuperar. Sem mensalidade.",
     priceId: null,
     features: [
-      "Até 100 checkouts/mês",
+      "Sem mensalidade",
+      "30% de comissão sobre vendas recuperadas",
+      "Checkouts ilimitados",
       "1 fluxo de recuperação",
       "WhatsApp via Loop API",
       "Dashboard básico",
@@ -32,11 +40,12 @@ export const PLANS: Plan[] = [
   {
     id: "pro",
     name: "Pro",
-    priceMonthly: 97,
-    description: "Para escalar a recuperação.",
+    priceMonthly: 297,
+    description: "Mensalidade fixa, sem comissão.",
     priceId: process.env.STRIPE_PRICE_PRO ?? null,
     highlighted: true,
     features: [
+      "0% de comissão sobre vendas",
       "Até 2.000 checkouts/mês",
       "Fluxos e campanhas ilimitados",
       "Templates com variáveis",
@@ -47,15 +56,29 @@ export const PLANS: Plan[] = [
   {
     id: "escala",
     name: "Escala",
-    priceMonthly: 297,
-    description: "Para operações de alto volume.",
+    priceMonthly: 897,
+    description: "Para operações em crescimento.",
     priceId: process.env.STRIPE_PRICE_ESCALA ?? null,
     features: [
-      "Checkouts ilimitados",
+      "0% de comissão sobre vendas",
+      "Até 10.000 checkouts/mês",
       "Tudo do Pro",
       "Membros ilimitados",
       "Relatórios avançados",
-      "Suporte prioritário",
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    priceMonthly: 5697,
+    description: "Para alto volume, sem limites.",
+    priceId: process.env.STRIPE_PRICE_ENTERPRISE ?? null,
+    features: [
+      "0% de comissão sobre vendas",
+      "Checkouts ilimitados",
+      "Tudo do Escala",
+      "Suporte prioritário dedicado",
+      "SLA e onboarding assistido",
     ],
   },
 ];

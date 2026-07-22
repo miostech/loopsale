@@ -9,6 +9,7 @@ interface PlanView {
   id: string;
   name: string;
   priceMonthly: number;
+  priceNote: string | null;
   description: string;
   features: string[];
   highlighted: boolean;
@@ -223,7 +224,7 @@ export default function PlanosPage() {
           {error && <p className="text-sm text-[var(--loop-error)]">{error}</p>}
 
           {/* Planos */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {billing.plans.map((p) => {
               const atual = p.id === billing.planoAtual;
               return (
@@ -258,6 +259,11 @@ export default function PlanosPage() {
                         </span>
                       )}
                     </p>
+                    {p.priceNote && (
+                      <p className="text-xs font-medium text-[var(--loop-cta)]">
+                        {p.priceNote}
+                      </p>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <ul className="space-y-1.5 text-sm text-[var(--loop-text)]">
