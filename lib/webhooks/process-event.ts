@@ -167,7 +167,7 @@ function escapeRegex(s: string): string {
 async function recoverMostRecent(
   col: Awaited<ReturnType<typeof getCollection>>,
   filter: Record<string, unknown>,
-  now: Date
+  recoverySet: Record<string, unknown>
 ): Promise<boolean> {
   const [doc] = (await col
     .find(filter)
@@ -175,7 +175,7 @@ async function recoverMostRecent(
     .limit(1)
     .toArray()) as { _id: ObjectId }[];
   if (!doc?._id) return false;
-  await col.updateOne({ _id: doc._id }, { $set: { recoveredAt: now } });
+  await col.updateOne({ _id: doc._id }, { $set: recoverySet });
   return true;
 }
 
@@ -199,6 +199,15 @@ export async function markRecovered(
   if (isDatabaseDisabled()) return;
   const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
 
+  // Valor efetivamente pago (da venda aprovada), guardado no recuperado.
+  // A moeda define em qual balde (R$ ou US$) o dashboard soma o valor.
+  const recoverySet: Record<string, unknown> = {
+    recoveredAt: now,
+    recoveredAmount: normalized.amount ?? null,
+    recoveredCurrency: normalized.currency ?? null,
+    recoveredFees: normalized.fees ?? null,
+  };
+
   // 1. Match direto por checkout, se o evento trouxer o id.
   if (normalized.platformCheckoutId) {
     const res = await abandonedCheckoutsCol.updateMany(
@@ -207,7 +216,7 @@ export async function markRecovered(
         platformCheckoutId: normalized.platformCheckoutId,
         recoveredAt: null,
       },
-      { $set: { recoveredAt: now } }
+      { $set: recoverySet }
     );
     if (((res as { modifiedCount?: number }).modifiedCount ?? 0) > 0) return;
   }
@@ -234,7 +243,7 @@ export async function markRecovered(
         ...baseFilter,
         productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
       },
-      now
+      recoverySet
     );
     if (recovered) return;
   }
@@ -249,7 +258,7 @@ export async function markRecovered(
   if (pendentes.length === 1 && pendentes[0]?._id) {
     await abandonedCheckoutsCol.updateOne(
       { _id: pendentes[0]._id },
-      { $set: { recoveredAt: now } }
+      { $set: recoverySet }
     );
   }
 }

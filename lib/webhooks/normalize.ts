@@ -22,6 +22,10 @@ export interface NormalizedCheckoutEvent {
   productId?: string;
   productName?: string;
   amount?: string;
+  /** Moeda da venda (ex: BRL, USD). */
+  currency?: string;
+  /** Taxas da venda (na moeda da venda). */
+  fees?: string;
   payload: Record<string, unknown>;
 }
 
@@ -261,8 +265,19 @@ export function normalizeN8nPayload(
       pickFrom([body], "productName", "product_name", "product", "offer_name") ??
       pickFrom([product], "product_name", "name", "title"),
     amount:
-      pickFrom([body], "amount", "value", "price", "total") ??
-      pickFrom([product], "price", "value"),
+      pickFrom(
+        [body],
+        "valorLiquido",
+        "valor_liquido",
+        "netAmount",
+        "net_amount",
+        "amount",
+        "value",
+        "price",
+        "total"
+      ) ?? pickFrom([product], "price", "value"),
+    currency: pick("currency", "moeda"),
+    fees: pick("taxas", "fees", "taxa"),
     payload: body,
   };
 }

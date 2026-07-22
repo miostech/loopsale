@@ -70,6 +70,12 @@ export interface AbandonedCheckout {
   amount?: string | null;
   affiliate?: string | null;
   recoveredAt?: Date | null;
+  /** Valor líquido efetivamente pago quando recuperado (na moeda da venda). */
+  recoveredAmount?: string | null;
+  /** Moeda da venda que recuperou (ex: BRL, USD). Define o balde no dashboard. */
+  recoveredCurrency?: string | null;
+  /** Taxas da venda que recuperou. */
+  recoveredFees?: string | null;
   createdAt: Date;
 }
 

@@ -18,6 +18,7 @@ interface Segment {
   recuperados: number;
   valorEmRisco: string;
   valorRecuperado: string;
+  valorRecuperadoDolar: string;
   taxa: number;
 }
 
@@ -53,6 +54,16 @@ function formatCurrency(value: string | number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+function formatUSD(value: string | number): string {
+  const n = typeof value === "string" ? parseFloat(value) || 0 : value;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
@@ -201,6 +212,9 @@ export default function DashboardPage() {
               <CardContent>
                 <p className="text-2xl font-bold text-[var(--loop-text)]">
                   {formatCurrency(metrics.total.valorRecuperado)}
+                </p>
+                <p className="mt-0.5 text-sm text-[var(--loop-text-muted)]">
+                  {formatUSD(metrics.total.valorRecuperadoDolar)}
                 </p>
                 <ChangeBadge value={metrics.variacao.valorRecuperado} />
               </CardContent>
@@ -446,6 +460,7 @@ function SegmentCard({
           <Stat
             label="Valor recuperado"
             value={formatCurrency(seg.valorRecuperado)}
+            sub={formatUSD(seg.valorRecuperadoDolar)}
             highlight
           />
         </div>
@@ -457,10 +472,12 @@ function SegmentCard({
 function Stat({
   label,
   value,
+  sub,
   highlight = false,
 }: {
   label: string;
   value: string;
+  sub?: string;
   highlight?: boolean;
 }) {
   return (
@@ -475,6 +492,9 @@ function Stat({
       >
         {value}
       </p>
+      {sub && (
+        <p className="text-xs text-[var(--loop-text-muted)]">{sub}</p>
+      )}
     </div>
   );
 }

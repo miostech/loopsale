@@ -6,10 +6,12 @@ export type RecoverySegment = {
   total: number;
   /** Quantos voltaram a comprar (recoveredAt != null). */
   recuperados: number;
-  /** Soma do valor de todos os recuperáveis (a oportunidade). */
+  /** Soma do valor de todos os recuperáveis (a oportunidade), em Reais. */
   valorEmRisco: string;
-  /** Soma do valor dos que foram recuperados. */
+  /** Soma do valor pago dos recuperados, em Reais. */
   valorRecuperado: string;
+  /** Soma do valor pago dos recuperados, em Dólares. */
+  valorRecuperadoDolar: string;
   /** recuperados / total * 100 (arredondado). */
   taxa: number;
 };
@@ -49,6 +51,7 @@ type CoreSegment = {
   recuperados: number;
   valorEmRisco: number;
   valorRecuperado: number;
+  valorRecuperadoDolar: number;
 };
 
 /** Métricas cruas de uma janela [from, to), usadas p/ período atual e anterior. */
@@ -64,6 +67,7 @@ const emptySegment = (): CoreSegment => ({
   recuperados: 0,
   valorEmRisco: 0,
   valorRecuperado: 0,
+  valorRecuperadoDolar: 0,
 });
 
 function pctChange(current: number, previous: number): number | null {
@@ -77,6 +81,7 @@ function toSegment(core: CoreSegment): RecoverySegment {
     recuperados: core.recuperados,
     valorEmRisco: core.valorEmRisco.toFixed(2),
     valorRecuperado: core.valorRecuperado.toFixed(2),
+    valorRecuperadoDolar: core.valorRecuperadoDolar.toFixed(2),
     taxa: core.total > 0 ? Math.round((core.recuperados / core.total) * 100) : 0,
   };
 }
@@ -87,6 +92,7 @@ function combineSegments(a: CoreSegment, b: CoreSegment): CoreSegment {
     recuperados: a.recuperados + b.recuperados,
     valorEmRisco: a.valorEmRisco + b.valorEmRisco,
     valorRecuperado: a.valorRecuperado + b.valorRecuperado,
+    valorRecuperadoDolar: a.valorRecuperadoDolar + b.valorRecuperadoDolar,
   };
 }
 
@@ -112,15 +118,19 @@ function mockCore(periodDays: number, seedOffset: number): CoreMetrics {
     checkoutsIniciados += started;
     mensagensEnviadas += aband + refus + ((k * 2) % 7);
 
+    const usdRate = 5.4; // câmbio fictício p/ o mock (R$ -> US$)
+
     abandonados.total += aband;
     abandonados.recuperados += abandRecuperados;
     abandonados.valorEmRisco += aband * ticket;
     abandonados.valorRecuperado += abandRecuperados * ticket;
+    abandonados.valorRecuperadoDolar += (abandRecuperados * ticket) / usdRate;
 
     recusados.total += refus;
     recusados.recuperados += refusRecuperados;
     recusados.valorEmRisco += refus * ticket;
     recusados.valorRecuperado += refusRecuperados * ticket;
+    recusados.valorRecuperadoDolar += (refusRecuperados * ticket) / usdRate;
   }
 
   return { checkoutsIniciados, mensagensEnviadas, abandonados, recusados };
@@ -170,8 +180,41 @@ async function computeCoreMetrics(
           valorRecuperado: {
             $sum: {
               $cond: [
-                { $ne: ["$recoveredAt", null] },
-                { $toDouble: { $ifNull: ["$amount", "0"] } },
+                {
+                  $and: [
+                    { $ne: ["$recoveredAt", null] },
+                    {
+                      $ne: [
+                        { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
+                        "USD",
+                      ],
+                    },
+                  ],
+                },
+                {
+                  $toDouble: {
+                    $ifNull: ["$recoveredAmount", { $ifNull: ["$amount", "0"] }],
+                  },
+                },
+                0,
+              ],
+            },
+          },
+          valorRecuperadoDolar: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$recoveredAt", null] },
+                    {
+                      $eq: [
+                        { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
+                        "USD",
+                      ],
+                    },
+                  ],
+                },
+                { $toDouble: { $ifNull: ["$recoveredAmount", "0"] } },
                 0,
               ],
             },
@@ -185,6 +228,7 @@ async function computeCoreMetrics(
     valorEmRisco: number;
     recuperados: number;
     valorRecuperado: number;
+    valorRecuperadoDolar: number;
   }[];
 
   const abandonados = emptySegment();
@@ -195,6 +239,7 @@ async function computeCoreMetrics(
     seg.recuperados = row.recuperados;
     seg.valorEmRisco = row.valorEmRisco;
     seg.valorRecuperado = row.valorRecuperado;
+    seg.valorRecuperadoDolar = row.valorRecuperadoDolar;
   }
 
   return {
