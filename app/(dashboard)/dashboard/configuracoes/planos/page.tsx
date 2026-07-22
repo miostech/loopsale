@@ -69,6 +69,7 @@ interface Commission {
     recuperadoUsd: number;
     baseBrl: number;
     comissaoBrl: number;
+    pagaKiwifyBrl: number;
   };
   historico: CommissionRow[];
 }
@@ -358,7 +359,7 @@ export default function PlanosPage() {
                 <div className="flex flex-wrap gap-6">
                   <div>
                     <p className="text-xs text-[var(--loop-text-muted)]">
-                      Comissão deste mês (parcial)
+                      Comissão a cobrar (mês, parcial)
                     </p>
                     <p className="text-2xl font-bold text-[var(--loop-text)]">
                       {formatMoney(commission.periodoAtual.comissaoBrl)}
@@ -366,13 +367,28 @@ export default function PlanosPage() {
                   </div>
                   <div>
                     <p className="text-xs text-[var(--loop-text-muted)]">
-                      Base recuperada no mês
+                      Base cobrável (sem afiliado)
                     </p>
                     <p className="text-2xl font-bold text-[var(--loop-text)]">
                       {formatMoney(commission.periodoAtual.baseBrl)}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-[var(--loop-text-muted)]">
+                      Comissão já paga na Kiwify (afiliado)
+                    </p>
+                    <p className="text-2xl font-bold text-[var(--loop-text-muted)]">
+                      {formatMoney(commission.periodoAtual.pagaKiwifyBrl)}
+                    </p>
+                  </div>
                 </div>
+
+                <a
+                  href="/api/billing/commission/export"
+                  className="inline-block text-sm text-[var(--loop-primary)] hover:underline"
+                >
+                  ↓ Baixar extrato (CSV)
+                </a>
 
                 {/* Histórico */}
                 {commission.historico.length > 0 && (

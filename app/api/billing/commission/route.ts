@@ -28,6 +28,7 @@ export async function GET() {
         recuperadoUsd: 0,
         baseBrl: 0,
         comissaoBrl: 0,
+        pagaKiwifyBrl: 0,
       },
       historico: [],
     });

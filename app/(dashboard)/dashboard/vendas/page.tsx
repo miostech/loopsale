@@ -14,6 +14,7 @@ interface Sale {
   fees: string | null;
   affiliate: string | null;
   recoveryType: string;
+  commissionPaidKiwify: boolean;
 }
 
 interface DailyRow {
@@ -294,6 +295,7 @@ export default function VendasPage() {
                       <th className="pb-2 pr-4 font-medium">Produto</th>
                       <th className="pb-2 pr-4 font-medium">Valor</th>
                       <th className="pb-2 pr-4 font-medium">Afiliado</th>
+                      <th className="pb-2 pr-4 font-medium">Comissão</th>
                       <th className="pb-2 font-medium">Origem</th>
                     </tr>
                   </thead>
@@ -317,6 +319,17 @@ export default function VendasPage() {
                         </td>
                         <td className="py-3 pr-4 text-[var(--loop-text)]">
                           {s.affiliate || "—"}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <Badge
+                            variant={
+                              s.commissionPaidKiwify ? "default" : "success"
+                            }
+                          >
+                            {s.commissionPaidKiwify
+                              ? "Paga na Kiwify"
+                              : "LoopSale 40%"}
+                          </Badge>
                         </td>
                         <td className="py-3">
                           <Badge

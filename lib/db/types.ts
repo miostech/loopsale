@@ -128,6 +128,13 @@ export interface AbandonedCheckout {
   recoveredCurrency?: string | null;
   /** Taxas da venda que recuperou. */
   recoveredFees?: string | null;
+  /** Afiliado da venda que recuperou (para a regra de comissão). */
+  recoveredAffiliate?: string | null;
+  /**
+   * true = comissão já paga na Kiwify (afiliado Mios Tech): conta como venda
+   * recuperada mas NÃO entra na cobrança dos 40%.
+   */
+  commissionPaidKiwify?: boolean;
   createdAt: Date;
 }
 

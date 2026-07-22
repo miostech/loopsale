@@ -10,12 +10,16 @@ export function usdToBrlRate(): number {
 }
 
 export type CommissionCalc = {
+  /** Recuperado cobrável (sem afiliado), por moeda. */
   recuperadoBrl: number;
   recuperadoUsd: number;
   usdRate: number;
+  /** Base cobrável em R$ (recuperado sem afiliado, USD convertido). */
   baseBrl: number;
   rate: number;
   comissaoBrl: number;
+  /** Recuperado via afiliado Mios Tech (comissão já paga na Kiwify), em R$. */
+  pagaKiwifyBrl: number;
 };
 
 /** Chave de competência YYYY-MM a partir de uma data (mês da data). */
@@ -42,6 +46,9 @@ export async function computeCommission(
   const value = {
     $toDouble: { $ifNull: ["$recoveredAmount", { $ifNull: ["$amount", "0"] }] },
   };
+  // Cobrável = recuperação SEM comissão já paga na Kiwify (afiliado Mios Tech).
+  const cobravel = { $ne: ["$commissionPaidKiwify", true] };
+  const usdRate = usdToBrlRate();
 
   const [row] = (await col
     .aggregate([
@@ -54,16 +61,37 @@ export async function computeCommission(
       {
         $group: {
           _id: null,
-          recuperadoBrl: { $sum: { $cond: [isUsd, 0, value] } },
-          recuperadoUsd: { $sum: { $cond: [isUsd, value, 0] } },
+          recuperadoBrl: {
+            $sum: {
+              $cond: [{ $and: [cobravel, { $not: [isUsd] }] }, value, 0],
+            },
+          },
+          recuperadoUsd: {
+            $sum: { $cond: [{ $and: [cobravel, isUsd] }, value, 0] },
+          },
+          pagaKiwifyBrl: {
+            $sum: {
+              $cond: [
+                { $eq: ["$commissionPaidKiwify", true] },
+                {
+                  $cond: [isUsd, { $multiply: [value, usdRate] }, value],
+                },
+                0,
+              ],
+            },
+          },
         },
       },
     ])
-    .toArray()) as { recuperadoBrl: number; recuperadoUsd: number }[];
+    .toArray()) as {
+    recuperadoBrl: number;
+    recuperadoUsd: number;
+    pagaKiwifyBrl: number;
+  }[];
 
   const recuperadoBrl = row?.recuperadoBrl ?? 0;
   const recuperadoUsd = row?.recuperadoUsd ?? 0;
-  const usdRate = usdToBrlRate();
+  const pagaKiwifyBrl = row?.pagaKiwifyBrl ?? 0;
   const baseBrl = recuperadoBrl + recuperadoUsd * usdRate;
   const comissaoBrl = Math.round(baseBrl * FREE_COMMISSION_RATE * 100) / 100;
 
@@ -74,6 +102,7 @@ export async function computeCommission(
     baseBrl,
     rate: FREE_COMMISSION_RATE,
     comissaoBrl,
+    pagaKiwifyBrl,
   };
 }
 

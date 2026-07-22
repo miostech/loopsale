@@ -181,6 +181,16 @@ function affiliateElegivel(affiliate?: string | null): boolean {
   return a.includes("mios tech") || a.includes("miostech");
 }
 
+/**
+ * Venda com afiliado "mios tech": a comissão da LoopSale já foi paga na Kiwify
+ * (como afiliado) no momento da compra. Conta como venda recuperada, mas NÃO
+ * entra na cobrança dos 40% (senão seria dobrado).
+ */
+function comissaoJaPagaNaKiwify(affiliate?: string | null): boolean {
+  const a = (affiliate ?? "").trim().toLowerCase();
+  return a.includes("mios tech") || a.includes("miostech");
+}
+
 /** Encontra o carrinho candidato (não recuperado) para este pagamento. */
 async function findRecoverableCandidate(
   col: Awaited<ReturnType<typeof getCollection>>,
@@ -288,6 +298,10 @@ export async function markRecovered(
         recoveredAmount: normalized.amount ?? null,
         recoveredCurrency: normalized.currency ?? null,
         recoveredFees: normalized.fees ?? null,
+        recoveredAffiliate: normalized.affiliate ?? null,
+        // Se a venda saiu pelo afiliado Mios Tech, a comissão já foi paga na
+        // Kiwify; não entra na cobrança dos 40%.
+        commissionPaidKiwify: comissaoJaPagaNaKiwify(normalized.affiliate),
       },
     }
   );
