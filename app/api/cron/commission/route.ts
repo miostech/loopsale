@@ -3,6 +3,7 @@ import type { ObjectId } from "mongodb";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { Account, CommissionRecord } from "@/lib/db/types";
 import { stripeConfigured, chargeInvoice } from "@/lib/billing/stripe";
+import { commissionRateOf } from "@/lib/billing/plans";
 import {
   computeCommission,
   monthRange,
@@ -34,11 +35,12 @@ export async function GET(request: Request) {
   const accountsCol = await getCollection("accounts");
   const commissionsCol = await getCollection("commissions");
 
-  // Contas no plano Free (sem plano pago).
-  const freeAccounts = (await accountsCol
+  // Contas de planos que cobram comissão (Free e Pro; contas sem plano = Free).
+  const accountsList = (await accountsCol
     .find({
       $or: [
         { "subscription.plan": "free" },
+        { "subscription.plan": "pro" },
         { "subscription.plan": { $exists: false } },
         { subscription: null },
       ],
@@ -49,8 +51,10 @@ export async function GET(request: Request) {
   let charged = 0;
   const results: Record<string, string> = {};
 
-  for (const account of freeAccounts) {
+  for (const account of accountsList) {
     const accountId = String(account._id);
+    const rate = commissionRateOf(account.subscription?.plan);
+    if (rate <= 0) continue;
     processed++;
 
     const existing = (await commissionsCol.findOne({
@@ -62,7 +66,7 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const calc = await computeCommission(accountId, from, to);
+    const calc = await computeCommission(accountId, from, to, rate);
     const now2 = new Date();
     const base: Omit<CommissionRecord, "_id"> = {
       accountId,

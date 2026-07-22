@@ -1,12 +1,9 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getCollection, isDatabaseDisabled } from "@/lib/db";
-import type { AbandonedCheckout } from "@/lib/db/types";
-import {
-  FREE_COMMISSION_RATE,
-  usdToBrlRate,
-  monthRange,
-} from "@/lib/billing/commission";
+import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
+import type { AbandonedCheckout, Account } from "@/lib/db/types";
+import { commissionRateOf } from "@/lib/billing/plans";
+import { usdToBrlRate, monthRange } from "@/lib/billing/commission";
 
 type SessionUser = { accountId?: string };
 
@@ -43,6 +40,14 @@ export async function GET(request: Request) {
     .sort({ recoveredAt: -1 })
     .toArray()) as AbandonedCheckout[];
 
+  // Taxa de comissão do plano da conta.
+  const accountsCol = await getCollection("accounts");
+  const aoid = await routeObjectId(su.accountId);
+  const account = aoid
+    ? ((await accountsCol.findOne({ _id: aoid })) as Account | null)
+    : null;
+  const commissionRate = commissionRateOf(account?.subscription?.plan);
+
   const rate = usdToBrlRate();
   const header = [
     "Data",
@@ -64,7 +69,9 @@ export async function GET(request: Request) {
     const currency = (r.recoveredCurrency ?? "BRL").toUpperCase();
     const valorBrl = currency === "USD" ? amount * rate : amount;
     const paga = r.commissionPaidKiwify === true;
-    const comissao = paga ? 0 : Math.round(valorBrl * FREE_COMMISSION_RATE * 100) / 100;
+    const comissao = paga
+      ? 0
+      : Math.round(valorBrl * commissionRate * 100) / 100;
     const data = r.recoveredAt
       ? new Date(r.recoveredAt).toLocaleString("pt-BR")
       : "";
@@ -79,7 +86,9 @@ export async function GET(request: Request) {
         valorBrl.toFixed(2),
         r.recoveredAffiliate ?? "",
         r.recoveryType === "refused" ? "Recusado" : "Abandonado",
-        paga ? "Paga na Kiwify" : "Cobrada LoopSale (40%)",
+        paga
+          ? "Paga na Kiwify"
+          : `Cobrada LoopSale (${Math.round(commissionRate * 100)}%)`,
         comissao.toFixed(2),
       ]
         .map(csvCell)

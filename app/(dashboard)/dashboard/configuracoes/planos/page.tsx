@@ -60,6 +60,7 @@ interface CommissionRow {
 
 interface Commission {
   plano: string;
+  rate: number;
   cardOnFile: boolean;
   configured: boolean;
   isAdmin: boolean;
@@ -310,15 +311,18 @@ export default function PlanosPage() {
 
           {error && <p className="text-sm text-[var(--loop-error)]">{error}</p>}
 
-          {/* Comissão do Free (40%) */}
-          {commission && commission.plano === "free" && (
+          {/* Comissão (planos que cobram: Free 40% / Pro 10%) */}
+          {commission && commission.rate > 0 && (
             <Card>
               <CardHeader>
                 <h2 className="font-semibold text-[var(--loop-text)]">
-                  Comissão do plano Free
+                  Comissão do plano{" "}
+                  {billing.plans.find((p) => p.id === commission.plano)?.name ??
+                    commission.plano}
                 </h2>
                 <p className="text-sm text-[var(--loop-text-muted)]">
-                  40% sobre as vendas recuperadas, cobrado mensalmente no cartão.
+                  {Math.round(commission.rate * 100)}% sobre as vendas
+                  recuperadas, cobrado mensalmente no cartão.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">

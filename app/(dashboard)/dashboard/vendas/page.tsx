@@ -328,7 +328,7 @@ export default function VendasPage() {
                           >
                             {s.commissionPaidKiwify
                               ? "Paga na Kiwify"
-                              : "LoopSale 40%"}
+                              : "Cobrada LoopSale"}
                           </Badge>
                         </td>
                         <td className="py-3">

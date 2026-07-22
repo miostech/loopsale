@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, mapDocs, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { getPlan } from "@/lib/billing/plans";
+import { getPlan, commissionRateOf } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { computeCommission, periodKeyOf } from "@/lib/billing/commission";
 
@@ -19,6 +19,7 @@ export async function GET() {
   if (isDatabaseDisabled()) {
     return NextResponse.json({
       plano: "free",
+      rate: 0.4,
       cardOnFile: false,
       configured: stripeConfigured(),
       isAdmin: su.role === "admin",
@@ -40,6 +41,7 @@ export async function GET() {
     ? ((await accountsCol.findOne({ _id: oid })) as Account | null)
     : null;
   const plano = getPlan(account?.subscription?.plan).id;
+  const rate = commissionRateOf(account?.subscription?.plan);
   const cardOnFile = !!account?.subscription?.defaultPaymentMethod;
 
   // Apuração do mês corrente (parcial, até agora).
@@ -47,7 +49,7 @@ export async function GET() {
   const monthStart = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
   );
-  const calc = await computeCommission(su.accountId, monthStart, now);
+  const calc = await computeCommission(su.accountId, monthStart, now, rate);
 
   const commissionsCol = await getCollection("commissions");
   const historico = await commissionsCol
@@ -58,6 +60,7 @@ export async function GET() {
 
   return NextResponse.json({
     plano,
+    rate,
     cardOnFile,
     configured: stripeConfigured(),
     isAdmin: su.role === "admin",

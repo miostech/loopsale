@@ -20,6 +20,8 @@ export type Plan = {
   highlighted?: boolean;
   /** Se true, o atendimento gerenciado já está incluído no plano. */
   includesSupport?: boolean;
+  /** Comissão sobre vendas recuperadas (0..1). Ex: Free 0.4, Pro 0.1. */
+  commissionRate: number;
 };
 
 export const PLANS: Plan[] = [
@@ -30,6 +32,7 @@ export const PLANS: Plan[] = [
     priceNote: "+ 40% sobre vendas recuperadas",
     description: "Pague só quando recuperar. Sem mensalidade.",
     priceId: null,
+    commissionRate: 0.4,
     features: [
       "Sem mensalidade",
       "40% de comissão sobre vendas recuperadas",
@@ -43,11 +46,13 @@ export const PLANS: Plan[] = [
     id: "pro",
     name: "Pro",
     priceMonthly: 897,
-    description: "Mensalidade fixa, sem comissão.",
+    priceNote: "+ 10% sobre vendas recuperadas",
+    description: "Mensalidade fixa + 10% sobre recuperadas.",
     priceId: process.env.STRIPE_PRICE_PRO ?? null,
     highlighted: true,
+    commissionRate: 0.1,
     features: [
-      "0% de comissão sobre vendas",
+      "10% de comissão sobre vendas recuperadas",
       "Até 2.000 checkouts/mês",
       "Fluxos e campanhas ilimitados",
       "Templates com variáveis",
@@ -62,6 +67,7 @@ export const PLANS: Plan[] = [
     description: "Para operações em crescimento.",
     priceId: process.env.STRIPE_PRICE_ESCALA ?? null,
     includesSupport: true,
+    commissionRate: 0,
     features: [
       "0% de comissão sobre vendas",
       "Até 10.000 checkouts/mês",
@@ -78,6 +84,7 @@ export const PLANS: Plan[] = [
     description: "Para alto volume, sem limites.",
     priceId: process.env.STRIPE_PRICE_ENTERPRISE ?? null,
     includesSupport: true,
+    commissionRate: 0,
     features: [
       "0% de comissão sobre vendas",
       "Checkouts ilimitados",
@@ -112,6 +119,11 @@ export const SUPPORT_ADDON = {
 
 export function getPlan(id: string | null | undefined): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
+}
+
+/** Taxa de comissão sobre vendas recuperadas do plano (0 se não cobra). */
+export function commissionRateOf(id: string | null | undefined): number {
+  return getPlan(id).commissionRate ?? 0;
 }
 
 export function planByPriceId(priceId: string | null | undefined): Plan | null {

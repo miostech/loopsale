@@ -37,7 +37,8 @@ export function periodKeyOf(d: Date): string {
 export async function computeCommission(
   accountId: string,
   from: Date,
-  to: Date
+  to: Date,
+  rate: number
 ): Promise<CommissionCalc> {
   const col = await getCollection("abandonedCheckouts");
   const isUsd = {
@@ -93,14 +94,14 @@ export async function computeCommission(
   const recuperadoUsd = row?.recuperadoUsd ?? 0;
   const pagaKiwifyBrl = row?.pagaKiwifyBrl ?? 0;
   const baseBrl = recuperadoBrl + recuperadoUsd * usdRate;
-  const comissaoBrl = Math.round(baseBrl * FREE_COMMISSION_RATE * 100) / 100;
+  const comissaoBrl = Math.round(baseBrl * rate * 100) / 100;
 
   return {
     recuperadoBrl,
     recuperadoUsd,
     usdRate,
     baseBrl,
-    rate: FREE_COMMISSION_RATE,
+    rate,
     comissaoBrl,
     pagaKiwifyBrl,
   };
