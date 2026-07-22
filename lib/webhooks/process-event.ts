@@ -83,6 +83,25 @@ export async function processIncomingEvent(
   const checkoutEventsCol = await getCollection("checkoutEvents");
   const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
 
+  // Idempotência: o n8n re-envia periodicamente as listas (aprovados, recusados,
+  // etc.), então o MESMO checkout no MESMO tipo de evento chega várias vezes.
+  // Não podemos duplicar o registro — o histórico de interações e as métricas
+  // ficariam inflados. Uma nova compra teria um checkoutId diferente, aí sim
+  // vira um novo registro. Exceção: WhatsApp, onde cada envio é uma interação
+  // real e distinta.
+  if (
+    normalized.platformCheckoutId &&
+    normalized.eventType !== "whatsapp_enviado" &&
+    normalized.eventType !== "whatsapp_status"
+  ) {
+    const duplicate = await checkoutEventsCol.findOne({
+      accountId,
+      eventType: normalized.eventType,
+      platformCheckoutId: normalized.platformCheckoutId,
+    });
+    if (duplicate) return;
+  }
+
   const now = new Date();
   const eventDoc: CheckoutEvent = {
     accountId,
