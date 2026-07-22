@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Badge, Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
 
 interface Me {
@@ -248,23 +247,6 @@ export default function ConfiguracoesPage() {
               </CardContent>
             </Card>
           )}
-
-          {/* Planos e assinatura */}
-          <Link href="/dashboard/configuracoes/planos" className="block">
-            <Card className="transition hover:border-[var(--loop-primary)]">
-              <CardContent className="flex items-center justify-between py-4">
-                <div>
-                  <p className="font-semibold text-[var(--loop-text)]">
-                    Planos e assinatura
-                  </p>
-                  <p className="text-sm text-[var(--loop-text-muted)]">
-                    Contrate um plano, gerencie o pagamento e veja faturas.
-                  </p>
-                </div>
-                <span className="text-[var(--loop-primary)]">→</span>
-              </CardContent>
-            </Card>
-          </Link>
 
           {/* Perfil */}
           <Card>

@@ -173,6 +173,8 @@ export function normalizeN8nPayload(
     sale: "pagamento_aprovado",
     pagamento_recusado: "pagamento_recusado",
     payment_refused: "pagamento_recusado",
+    checkout_refused: "pagamento_recusado",
+    compra_recusada: "pagamento_recusado",
     refused: "pagamento_recusado",
     pedido_cancelado: "pedido_cancelado",
     canceled: "pedido_cancelado",

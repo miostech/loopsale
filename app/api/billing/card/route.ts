@@ -66,7 +66,7 @@ export async function POST() {
       );
     }
 
-    const returnBase = `${baseUrl()}/dashboard/configuracoes/planos`;
+    const returnBase = `${baseUrl()}/dashboard/planos`;
     const checkout = await createSetupCheckoutSession({
       customer: customerId,
       successUrl: `${returnBase}?cartao=ok`,

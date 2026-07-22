@@ -23,16 +23,20 @@ const STATUS_LABELS: Record<string, string> = {
   lead: "Lead",
   hot: "Quente",
   purchased: "Comprou",
+  paid: "Pago",
 };
 
 const STATUS_VARIANT: Record<string, "default" | "cta" | "success"> = {
   purchased: "success",
   hot: "cta",
   lead: "default",
+  // Pago (venda direta, sem passar pelo funil) fica cinza — já foi finalizado.
+  paid: "default",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
   checkout: "Checkout",
+  approved: "Aprovado",
   whatsapp: "WhatsApp",
   manual: "Manual",
 };
@@ -41,12 +45,14 @@ const STATUS_FILTERS = [
   { value: "", label: "Todos os status" },
   { value: "lead", label: "Lead" },
   { value: "purchased", label: "Comprou" },
+  { value: "paid", label: "Pago" },
   { value: "hot", label: "Quente" },
 ];
 
 const SOURCE_FILTERS = [
   { value: "", label: "Todas as origens" },
   { value: "checkout", label: "Checkout" },
+  { value: "approved", label: "Aprovado" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "manual", label: "Manual" },
 ];
@@ -116,14 +122,14 @@ export default function LeadsPage() {
   const summary = [
     { label: "Total de clientes", value: baseTotal, accent: "var(--loop-text)" },
     {
-      label: "Compraram",
+      label: "Recuperados",
       value: statusCounts.purchased ?? 0,
       accent: "var(--loop-success)",
     },
     {
-      label: "Quentes",
-      value: statusCounts.hot ?? 0,
-      accent: "var(--loop-cta)",
+      label: "Pagos (direto)",
+      value: statusCounts.paid ?? 0,
+      accent: "var(--loop-text-muted)",
     },
     {
       label: "Leads",

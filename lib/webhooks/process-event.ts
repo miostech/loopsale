@@ -19,6 +19,12 @@ async function upsertLeadFromEvent(
     status: string;
     /** Quando true, não sobrescreve o status de um lead já existente. */
     preserveStatus?: boolean;
+    /**
+     * Status final quando o evento é um pagamento aprovado, já resolvido pelo
+     * chamador: "purchased" (recuperado — tinha carrinho rastreado) ou "paid"
+     * (venda direta, finalizou sozinha). Quando presente, vence o `status`.
+     */
+    purchaseStatus?: "purchased" | "paid";
     /** Origem do lead ao criar um novo registro. */
     source?: string;
     /** Registra data/hora do último contato (ex.: WhatsApp enviado). */
@@ -37,9 +43,12 @@ async function upsertLeadFromEvent(
   }
   const existing = await leadsCol.findOne(filter);
   const now = new Date();
+
+  const effectiveStatus = data.purchaseStatus ?? data.status;
+
   if (existing) {
     const update: Record<string, unknown> = { updatedAt: now };
-    if (!data.preserveStatus) update.status = data.status;
+    if (!data.preserveStatus) update.status = effectiveStatus;
     if (data.contactedAt) update.lastContactedAt = data.contactedAt;
     // Só preenche o nome se veio no evento e o lead ainda não tem nome.
     if (data.name && !(existing as { name?: string | null }).name) {
@@ -56,7 +65,7 @@ async function upsertLeadFromEvent(
       phone: data.phone,
       name: data.name ?? null,
       source: data.source ?? "checkout",
-      status: data.status,
+      status: effectiveStatus,
       tags: [],
       ...(data.contactedAt ? { lastContactedAt: data.contactedAt } : {}),
       createdAt: now,
@@ -98,13 +107,40 @@ export async function processIncomingEvent(
   const isContactEvent = normalized.eventType === "whatsapp_enviado";
 
   if (normalized.customerEmail || normalized.customerPhone) {
+    // "Comprou" (recuperado) só se o cliente tem um carrinho rastreado por nós
+    // (abandono ou recusa). Sem carrinho = venda direta = "Pago" (finalizou
+    // sozinha). Usamos a existência do carrinho, não a origem do lead, porque
+    // esse sinal é estável e não depende da ordem dos eventos.
+    let purchaseStatus: "purchased" | "paid" | undefined;
+    if (normalized.eventType === "pagamento_aprovado") {
+      const customerOr = [
+        ...(normalized.customerEmail
+          ? [{ customerEmail: normalized.customerEmail }]
+          : []),
+        ...(normalized.customerPhone
+          ? [{ customerPhone: normalized.customerPhone }]
+          : []),
+      ];
+      const carrinho = await abandonedCheckoutsCol.findOne({
+        accountId,
+        $or: customerOr,
+      });
+      purchaseStatus = carrinho ? "purchased" : "paid";
+    }
+
     await upsertLeadFromEvent(accountId, {
       email: normalized.customerEmail ?? null,
       phone: normalized.customerPhone ?? null,
       name: normalized.customerName ?? null,
-      status: normalized.eventType === "pagamento_aprovado" ? "purchased" : "lead",
+      status: "lead",
       preserveStatus: isContactEvent,
-      source: isContactEvent ? "whatsapp" : "checkout",
+      purchaseStatus,
+      source:
+        normalized.eventType === "pagamento_aprovado"
+          ? "approved"
+          : isContactEvent
+          ? "whatsapp"
+          : "checkout",
       contactedAt: isContactEvent ? now : undefined,
     });
   }
@@ -142,27 +178,35 @@ export async function processIncomingEvent(
   // o cliente tentou pagar e o cartão/pix falhou. Registramos como recuperável
   // (recoveryType "refused") para o dashboard medir separadamente. O envio da
   // mensagem em si é feito pelo n8n (WhatsApp Cloud API).
-  if (
-    normalized.eventType === "pagamento_recusado" &&
-    insertedId &&
-    normalized.platformCheckoutId
-  ) {
-    await createRefusedRecoverable(
-      accountId,
-      insertedId,
-      platform,
-      normalized.platformCheckoutId,
-      {
-        customerEmail: normalized.customerEmail,
-        customerPhone: normalized.customerPhone,
-        productId: normalized.productId,
-        productName: normalized.productName,
-        amount: normalized.amount,
-        currency: normalized.currency,
-        fees: normalized.fees,
-        affiliate: normalized.affiliate,
-      }
-    );
+  if (normalized.eventType === "pagamento_recusado" && insertedId) {
+    // O checkoutId é o ideal para dedupe, mas se vier vazio (como já aconteceu
+    // no pagamento_aprovado) montamos uma chave por email+produto para o
+    // recusado nunca se perder.
+    const refusedKey =
+      normalized.platformCheckoutId ||
+      (normalized.customerEmail
+        ? `refused:${normalized.customerEmail}:${normalized.productName ?? ""}`
+        : normalized.customerPhone
+        ? `refused:${normalized.customerPhone}:${normalized.productName ?? ""}`
+        : null);
+    if (refusedKey) {
+      await createRefusedRecoverable(
+        accountId,
+        insertedId,
+        platform,
+        refusedKey,
+        {
+          customerEmail: normalized.customerEmail,
+          customerPhone: normalized.customerPhone,
+          productId: normalized.productId,
+          productName: normalized.productName,
+          amount: normalized.amount,
+          currency: normalized.currency,
+          fees: normalized.fees,
+          affiliate: normalized.affiliate,
+        }
+      );
+    }
   }
 }
 

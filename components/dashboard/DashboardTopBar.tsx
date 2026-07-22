@@ -125,7 +125,7 @@ export function DashboardTopBar() {
                   Configurações
                 </Link>
                 <Link
-                  href="/dashboard/configuracoes/planos"
+                  href="/dashboard/planos"
                   role="menuitem"
                   onClick={() => setOpen(false)}
                   className="block px-4 py-2 text-sm text-[var(--loop-text)] hover:bg-[var(--loop-bg-alt)]"

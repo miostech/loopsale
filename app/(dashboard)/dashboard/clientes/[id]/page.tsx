@@ -59,14 +59,18 @@ const STATUS_LABEL: Record<string, string> = {
   lead: "Lead",
   hot: "Quente",
   purchased: "Comprou",
+  paid: "Pago",
 };
 const STATUS_VARIANT: Record<string, "default" | "cta" | "success"> = {
   purchased: "success",
   hot: "cta",
   lead: "default",
+  // Pago (venda direta, fora do funil) fica cinza — já foi finalizado.
+  paid: "default",
 };
 const SOURCE_LABEL: Record<string, string> = {
   checkout: "Checkout",
+  approved: "Aprovado",
   whatsapp: "WhatsApp",
   manual: "Manual",
 };

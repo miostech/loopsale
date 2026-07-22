@@ -46,7 +46,7 @@ export async function POST() {
   try {
     const portal = await createPortalSession({
       customer: customerId,
-      returnUrl: `${baseUrl()}/dashboard/configuracoes/planos`,
+      returnUrl: `${baseUrl()}/dashboard/planos`,
     });
     return NextResponse.json({ url: portal.url });
   } catch (e) {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
 
@@ -219,12 +218,6 @@ export default function PlanosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href="/dashboard/configuracoes"
-          className="mb-2 inline-block text-sm text-[var(--loop-primary)] hover:underline"
-        >
-          ← Configurações
-        </Link>
         <h1 className="text-2xl font-bold text-[var(--loop-text)]">
           Planos e assinatura
         </h1>

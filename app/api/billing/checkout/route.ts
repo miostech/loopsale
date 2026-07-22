@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const returnBase = `${baseUrl()}/dashboard/configuracoes/planos`;
+    const returnBase = `${baseUrl()}/dashboard/planos`;
     const checkout = await createCheckoutSession({
       customer: customerId,
       priceId,
