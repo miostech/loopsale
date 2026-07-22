@@ -13,6 +13,7 @@ interface PlanView {
   description: string;
   features: string[];
   highlighted: boolean;
+  includesSupport: boolean;
   disponivel: boolean;
 }
 
@@ -158,6 +159,10 @@ export default function PlanosPage() {
   }
 
   const isAdmin = billing?.isAdmin;
+  const currentPlan = billing?.plans.find((p) => p.id === billing.planoAtual);
+  const planIncludesSupport = !!currentPlan?.includesSupport;
+  // Atendimento ativo = add-on contratado OU incluído no plano atual.
+  const supportActive = !!billing?.support.active || planIncludesSupport;
 
   return (
     <div className="space-y-6">
@@ -352,7 +357,7 @@ export default function PlanosPage() {
                 {/* Você atende */}
                 <div
                   className={`rounded-lg border p-4 ${
-                    billing.support.active
+                    supportActive
                       ? "border-[var(--loop-border)]"
                       : "border-2 border-[var(--loop-primary)]"
                   }`}
@@ -361,7 +366,7 @@ export default function PlanosPage() {
                     <p className="font-semibold text-[var(--loop-text)]">
                       Você atende
                     </p>
-                    {!billing.support.active && (
+                    {!supportActive && (
                       <Badge variant="success">Ativo</Badge>
                     )}
                   </div>
@@ -377,7 +382,7 @@ export default function PlanosPage() {
                 {/* LoopSale atende */}
                 <div
                   className={`rounded-lg border p-4 ${
-                    billing.support.active
+                    supportActive
                       ? "border-2 border-[var(--loop-primary)]"
                       : "border-[var(--loop-border)]"
                   }`}
@@ -386,7 +391,7 @@ export default function PlanosPage() {
                     <p className="font-semibold text-[var(--loop-text)]">
                       {billing.support.name}
                     </p>
-                    {billing.support.active && (
+                    {supportActive && (
                       <Badge variant="success">Ativo</Badge>
                     )}
                   </div>
@@ -406,33 +411,41 @@ export default function PlanosPage() {
                       {billing.support.scopeNote}
                     </p>
                   )}
-                  <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
-                    {formatMoney(billing.support.priceMonthly)}
-                    <span className="text-sm font-normal text-[var(--loop-text-muted)]">
-                      /mês
-                    </span>
-                  </p>
-                  {billing.support.active ? (
-                    <p className="mt-2 text-sm text-[var(--loop-text-muted)]">
-                      Gerencie ou cancele em “Gerenciar assinatura”.
+                  {planIncludesSupport ? (
+                    <p className="mt-3 text-sm font-medium text-[var(--loop-success)]">
+                      Incluído no seu plano {currentPlan?.name}.
                     </p>
                   ) : (
-                    <Button
-                      variant="cta"
-                      size="sm"
-                      className="mt-3 w-full justify-center"
-                      disabled={
-                        !isAdmin ||
-                        !billing.support.disponivel ||
-                        !billing.configured ||
-                        busy === "support"
-                      }
-                      onClick={ativarAtendimento}
-                    >
-                      {busy === "support"
-                        ? "Redirecionando…"
-                        : "Ativar atendimento"}
-                    </Button>
+                    <>
+                      <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
+                        {formatMoney(billing.support.priceMonthly)}
+                        <span className="text-sm font-normal text-[var(--loop-text-muted)]">
+                          /mês
+                        </span>
+                      </p>
+                      {billing.support.active ? (
+                        <p className="mt-2 text-sm text-[var(--loop-text-muted)]">
+                          Gerencie ou cancele em “Gerenciar assinatura”.
+                        </p>
+                      ) : (
+                        <Button
+                          variant="cta"
+                          size="sm"
+                          className="mt-3 w-full justify-center"
+                          disabled={
+                            !isAdmin ||
+                            !billing.support.disponivel ||
+                            !billing.configured ||
+                            busy === "support"
+                          }
+                          onClick={ativarAtendimento}
+                        >
+                          {busy === "support"
+                            ? "Redirecionando…"
+                            : "Ativar atendimento"}
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

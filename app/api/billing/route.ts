@@ -23,6 +23,7 @@ export async function GET() {
     description: p.description,
     features: p.features,
     highlighted: p.highlighted ?? false,
+    includesSupport: p.includesSupport ?? false,
     disponivel: p.id === "free" || !!p.priceId, // pagos só se houver priceId
   }));
 

@@ -18,6 +18,8 @@ export type Plan = {
   /** Stripe Price ID (recorrente). Null no Free. */
   priceId: string | null;
   highlighted?: boolean;
+  /** Se true, o atendimento gerenciado já está incluído no plano. */
+  includesSupport?: boolean;
 };
 
 export const PLANS: Plan[] = [
@@ -40,7 +42,7 @@ export const PLANS: Plan[] = [
   {
     id: "pro",
     name: "Pro",
-    priceMonthly: 297,
+    priceMonthly: 897,
     description: "Mensalidade fixa, sem comissão.",
     priceId: process.env.STRIPE_PRICE_PRO ?? null,
     highlighted: true,
@@ -56,12 +58,14 @@ export const PLANS: Plan[] = [
   {
     id: "escala",
     name: "Escala",
-    priceMonthly: 897,
+    priceMonthly: 5697,
     description: "Para operações em crescimento.",
     priceId: process.env.STRIPE_PRICE_ESCALA ?? null,
+    includesSupport: true,
     features: [
       "0% de comissão sobre vendas",
       "Até 10.000 checkouts/mês",
+      "Atendimento gerenciado incluído",
       "Tudo do Pro",
       "Membros ilimitados",
       "Relatórios avançados",
@@ -70,12 +74,14 @@ export const PLANS: Plan[] = [
   {
     id: "enterprise",
     name: "Enterprise",
-    priceMonthly: 5697,
+    priceMonthly: 12500,
     description: "Para alto volume, sem limites.",
     priceId: process.env.STRIPE_PRICE_ENTERPRISE ?? null,
+    includesSupport: true,
     features: [
       "0% de comissão sobre vendas",
       "Checkouts ilimitados",
+      "Atendimento gerenciado incluído",
       "Tudo do Escala",
       "Suporte prioritário dedicado",
       "SLA e onboarding assistido",
