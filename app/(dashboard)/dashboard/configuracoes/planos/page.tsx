@@ -315,12 +315,7 @@ export default function PlanosPage() {
                         variant={p.highlighted ? "cta" : "secondary"}
                         size="sm"
                         className="w-full justify-center"
-                        disabled={
-                          !isAdmin ||
-                          !p.disponivel ||
-                          !billing.configured ||
-                          busy === p.id
-                        }
+                        disabled={!isAdmin || busy === p.id}
                         onClick={() => contratar(p.id)}
                       >
                         {busy === p.id ? "Redirecionando…" : "Contratar"}
@@ -432,12 +427,7 @@ export default function PlanosPage() {
                           variant="cta"
                           size="sm"
                           className="mt-3 w-full justify-center"
-                          disabled={
-                            !isAdmin ||
-                            !billing.support.disponivel ||
-                            !billing.configured ||
-                            busy === "support"
-                          }
+                          disabled={!isAdmin || busy === "support"}
                           onClick={ativarAtendimento}
                         >
                           {busy === "support"
