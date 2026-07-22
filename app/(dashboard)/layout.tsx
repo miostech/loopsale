@@ -11,6 +11,7 @@ const nav = [
   { href: "/dashboard/integracoes", label: "Integrações" },
   { href: "/dashboard/fluxos", label: "Fluxos" },
   { href: "/dashboard/leads", label: "Leads" },
+  { href: "/dashboard/vendas", label: "Vendas" },
   { href: "/dashboard/campanhas", label: "Campanhas" },
   { href: "/dashboard/templates", label: "Templates" },
   { href: "/dashboard/configuracoes", label: "Configurações" },
