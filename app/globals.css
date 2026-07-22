@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
+/* Modo escuro desabilitado por enquanto: a variante `dark:` do Tailwind passa a
+   depender de uma classe `.dark` (que não usamos), em vez de prefers-color-scheme.
+   Para reativar, remova esta linha e reabilite o bloco @media abaixo. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* LoopSale — tokens alinhados ao gradiente do logo (magenta → violeta) */
 :root {
+  color-scheme: light;
   --loop-primary: #6d28d9;
   --loop-primary-hover: #5b21b6;
   --loop-primary-muted: #ede9fe;
@@ -19,6 +25,7 @@
   --loop-error: #ef4444;
 }
 
+/* Modo escuro desabilitado por enquanto — mantido comentado para reativar depois.
 @media (prefers-color-scheme: dark) {
   :root {
     --loop-text: #f1f5f9;
@@ -30,6 +37,7 @@
     --loop-cta-muted: #500724;
   }
 }
+*/
 
 body {
   color: var(--loop-text);
