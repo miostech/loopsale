@@ -233,12 +233,12 @@ export async function processIncomingEvent(
   const isContactEvent = normalized.eventType === "whatsapp_enviado";
 
   if (normalized.customerEmail || normalized.customerPhone) {
-    // "Comprou" (recuperado) se o cliente passou pelo NOSSO funil: existe um
-    // carrinho rastreado (abandono/recusa) OU já enviamos um WhatsApp de
-    // recuperação para ele. Qualquer um dos dois basta — o WhatsApp cobre o caso
-    // de um abandono que chegou sem checkoutId (sem carrinho gravado). Sem nenhum
-    // sinal = venda direta = "Pago" (finalizou sozinha). Usamos os eventos, não a
-    // origem do lead, porque esse sinal é estável e independe da ordem.
+    // "Comprou" (recuperado) se o cliente passou pelo NOSSO funil: afiliado Mios
+    // Tech (prova pelo afiliado) OU carrinho rastreado (abandono/recusa) OU já
+    // enviamos um WhatsApp de recuperação. Qualquer um basta — o afiliado/WhatsApp
+    // cobrem os casos em que o abandono não chegou ao LoopSale. Sem nenhum sinal =
+    // venda direta = "Pago". Usamos os eventos/afiliado, não a origem do lead,
+    // porque esse sinal é estável e independe da ordem.
     let purchaseStatus: "purchased" | "paid" | undefined;
     if (normalized.eventType === "pagamento_aprovado") {
       const customerOr = [
@@ -249,11 +249,14 @@ export async function processIncomingEvent(
           ? [{ customerPhone: normalized.customerPhone }]
           : []),
       ];
-      const carrinho = await abandonedCheckoutsCol.findOne({
-        accountId,
-        $or: customerOr,
-      });
-      let veioDoFunil = !!carrinho;
+      let veioDoFunil = comissaoJaPagaNaKiwify(normalized.affiliate);
+      if (!veioDoFunil) {
+        const carrinho = await abandonedCheckoutsCol.findOne({
+          accountId,
+          $or: customerOr,
+        });
+        veioDoFunil = !!carrinho;
+      }
       if (!veioDoFunil) {
         const whatsapp = await checkoutEventsCol.findOne({
           accountId,
@@ -556,13 +559,19 @@ async function applyRefund(
 }
 
 /**
- * Marca um checkout como recuperado quando o cliente paga — mas SÓ se for uma
- * recuperação de fato da LoopSale, exigindo os 3 critérios:
- *  1. Afiliado elegível: sem afiliado ou "mios tech" (senão é venda de outro).
- *  2. Existe carrinho abandonado/recusado desse cliente para o produto.
- *  3. Veio do fluxo: houve WhatsApp enviado a esse cliente ENTRE o abandono e
- *     o pagamento (a mensagem precede a compra).
- * Só então grava recoveredAt + valores pagos.
+ * Marca um checkout como recuperado quando o cliente paga — SÓ se for uma
+ * recuperação de fato da LoopSale. Duas formas de atribuir:
+ *
+ *  A) Afiliado "Mios Tech" (nosso afiliado de recuperação, exclusivo): o próprio
+ *     afiliado PROVA que a venda veio do nosso fluxo (o link estava na mensagem).
+ *     Marca o carrinho se existir; se não existir, cria um registro (backup),
+ *     porque às vezes o abandono/WhatsApp não chega ao LoopSale.
+ *
+ *  B) Sem afiliado: não dá pra distinguir de venda orgânica, então exige o
+ *     rastro completo — carrinho abandonado/recusado + WhatsApp enviado ENTRE o
+ *     abandono e o pagamento.
+ *
+ * Outro afiliado (não Mios) = venda de terceiro: não é nossa recuperação.
  */
 export async function markRecovered(
   accountId: string,
@@ -571,52 +580,121 @@ export async function markRecovered(
 ) {
   if (isDatabaseDisabled()) return;
 
-  // 1. Regra de afiliado.
+  // Afiliado de terceiro = não é nossa.
   if (!affiliateElegivel(normalized.affiliate)) return;
 
   const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
   const checkoutEventsCol = await getCollection("checkoutEvents");
+  const isMios = comissaoJaPagaNaKiwify(normalized.affiliate);
 
-  // 2. Carrinho candidato.
   const candidate = await findRecoverableCandidate(
     abandonedCheckoutsCol,
     accountId,
     normalized
   );
-  if (!candidate?._id) return;
 
-  // 3. Veio do fluxo: WhatsApp enviado ao cliente entre o abandono e o pagamento.
+  if (candidate?._id) {
+    // Sem afiliado, exige o WhatsApp entre o abandono e o pagamento. Com Mios,
+    // o afiliado já prova — dispensa o WhatsApp.
+    if (!isMios) {
+      const email = normalized.customerEmail?.trim();
+      const phone = normalized.customerPhone?.trim();
+      const msgOr: Record<string, unknown>[] = [];
+      if (email) msgOr.push({ customerEmail: email });
+      if (phone) msgOr.push({ customerPhone: phone });
+      if (msgOr.length === 0) return;
+      const messaged = await checkoutEventsCol.findOne({
+        accountId,
+        eventType: "whatsapp_enviado",
+        $or: msgOr,
+        createdAt: { $gte: candidate.createdAt, $lte: now },
+      });
+      if (!messaged) return; // pagou, mas não veio do nosso fluxo
+    }
+
+    await abandonedCheckoutsCol.updateOne(
+      { _id: candidate._id },
+      {
+        $set: {
+          recoveredAt: now,
+          recoveredAmount: normalized.amount ?? null,
+          recoveredCurrency: normalized.currency ?? null,
+          recoveredFees: normalized.fees ?? null,
+          recoveredAffiliate: normalized.affiliate ?? null,
+          commissionPaidKiwify: isMios,
+        },
+      }
+    );
+    return;
+  }
+
+  // Sem carrinho: só o afiliado Mios permite atribuir (backup por afiliado).
+  if (isMios) {
+    await createSyntheticRecovery(accountId, normalized, now);
+  }
+}
+
+/**
+ * Backup por afiliado: chega um pagamento com afiliado Mios Tech mas NÃO existe
+ * carrinho rastreado (o abandono/WhatsApp não chegou ao LoopSale). Cria um
+ * registro de recuperação a partir da própria venda, para contar no funil. O
+ * afiliado Mios prova que veio do nosso fluxo; a comissão já foi paga na Kiwify.
+ */
+async function createSyntheticRecovery(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent,
+  now: Date
+) {
+  const col = await getCollection("abandonedCheckouts");
   const email = normalized.customerEmail?.trim();
   const phone = normalized.customerPhone?.trim();
-  const msgOr: Record<string, unknown>[] = [];
-  if (email) msgOr.push({ customerEmail: email });
-  if (phone) msgOr.push({ customerPhone: phone });
-  if (msgOr.length === 0) return;
+  const product = normalized.productName?.trim();
 
-  const messaged = await checkoutEventsCol.findOne({
+  // Idempotência: não duplica se já registramos esta venda (mesmo checkoutId)...
+  const saleId = normalized.platformCheckoutId;
+  if (saleId) {
+    const dup = await col.findOne({ accountId, platformCheckoutId: saleId });
+    if (dup) return;
+  }
+  // ...nem se já existe uma recuperação desse cliente para o mesmo produto.
+  if (product && (email || phone)) {
+    const customerOr: Record<string, unknown>[] = [];
+    if (email) customerOr.push({ customerEmail: email });
+    if (phone) customerOr.push({ customerPhone: phone });
+    const jaRecuperado = await col.findOne({
+      accountId,
+      recoveredAt: { $ne: null },
+      $or: customerOr,
+      productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
+    });
+    if (jaRecuperado) return;
+  }
+
+  const doc: AbandonedCheckout = {
     accountId,
-    eventType: "whatsapp_enviado",
-    $or: msgOr,
-    createdAt: { $gte: candidate.createdAt, $lte: now },
-  });
-  if (!messaged) return; // pagou, mas não veio do nosso fluxo de recuperação
-
-  // Valor efetivamente pago (da venda aprovada), guardado no recuperado.
-  await abandonedCheckoutsCol.updateOne(
-    { _id: candidate._id },
-    {
-      $set: {
-        recoveredAt: now,
-        recoveredAmount: normalized.amount ?? null,
-        recoveredCurrency: normalized.currency ?? null,
-        recoveredFees: normalized.fees ?? null,
-        recoveredAffiliate: normalized.affiliate ?? null,
-        // Se a venda saiu pelo afiliado Mios Tech, a comissão já foi paga na
-        // Kiwify; não entra na cobrança dos 40%.
-        commissionPaidKiwify: comissaoJaPagaNaKiwify(normalized.affiliate),
-      },
-    }
-  );
+    checkoutEventId: "",
+    platform: "n8n",
+    platformCheckoutId:
+      saleId ?? `affrec:${email ?? phone ?? ""}:${product ?? ""}`,
+    recoveryType: "abandoned",
+    customerEmail: normalized.customerEmail ?? null,
+    customerPhone: normalized.customerPhone ?? null,
+    productId: normalized.productId ?? null,
+    productName: normalized.productName ?? null,
+    affiliate: normalized.affiliate ?? null,
+    amount: normalized.amount ?? null,
+    currency: normalized.currency ?? null,
+    fees: normalized.fees ?? null,
+    recoveredAt: now,
+    paidAt: now,
+    recoveredAmount: normalized.amount ?? null,
+    recoveredCurrency: normalized.currency ?? null,
+    recoveredFees: normalized.fees ?? null,
+    recoveredAffiliate: normalized.affiliate ?? null,
+    commissionPaidKiwify: true,
+    createdAt: now,
+  };
+  await col.insertOne(doc as AbandonedCheckout & { _id?: unknown });
 }
 
 /**
