@@ -49,6 +49,12 @@ export async function GET(request: Request) {
   const commissionRate = commissionRateOf(account?.subscription?.plan);
 
   const rate = usdToBrlRate();
+  const REFUND_LABEL: Record<string, string> = {
+    pending: "Pendente",
+    refunded: "Reembolsado",
+    cancelled: "Cancelado",
+  };
+
   const header = [
     "Data",
     "Cliente",
@@ -59,6 +65,8 @@ export async function GET(request: Request) {
     "Valor (R$)",
     "Afiliado",
     "Origem",
+    "Reembolso",
+    "Solicitante",
     "Status comissão",
     "Comissão LoopSale (R$)",
   ];
@@ -69,9 +77,40 @@ export async function GET(request: Request) {
     const currency = (r.recoveredCurrency ?? "BRL").toUpperCase();
     const valorBrl = currency === "USD" ? amount * rate : amount;
     const paga = r.commissionPaidKiwify === true;
-    const comissao = paga
-      ? 0
-      : Math.round(valorBrl * commissionRate * 100) / 100;
+
+    // Estado do reembolso.
+    const refund = (r.refundStatus ?? "").toLowerCase();
+    const emReembolso = refund === "pending" || refund === "refunded";
+    const requester = (r.refundRequester ?? "").toLowerCase();
+    const isSeller =
+      requester.includes("sell") ||
+      requester.includes("vend") ||
+      requester.includes("loj");
+    const refundLabel = refund ? REFUND_LABEL[refund] ?? refund : "—";
+    const requesterLabel = !requester
+      ? "—"
+      : isSeller
+      ? "Vendedor"
+      : "Comprador";
+
+    // Status/valor da comissão considerando reembolso.
+    const bruto = Math.round(valorBrl * commissionRate * 100) / 100;
+    let statusComissao: string;
+    let comissao: number;
+    if (paga) {
+      statusComissao = "Paga na Kiwify";
+      comissao = 0;
+    } else if (emReembolso && isSeller) {
+      statusComissao = "Retida (reembolso do vendedor)";
+      comissao = bruto; // retida p/ revisão — não cobrada automaticamente
+    } else if (emReembolso) {
+      statusComissao = "Cancelada (reembolso do comprador)";
+      comissao = 0;
+    } else {
+      statusComissao = `Cobrada LoopSale (${Math.round(commissionRate * 100)}%)`;
+      comissao = bruto;
+    }
+
     const data = r.recoveredAt
       ? new Date(r.recoveredAt).toLocaleString("pt-BR")
       : "";
@@ -86,9 +125,9 @@ export async function GET(request: Request) {
         valorBrl.toFixed(2),
         r.recoveredAffiliate ?? "",
         r.recoveryType === "refused" ? "Recusado" : "Abandonado",
-        paga
-          ? "Paga na Kiwify"
-          : `Cobrada LoopSale (${Math.round(commissionRate * 100)}%)`,
+        refundLabel,
+        requesterLabel,
+        statusComissao,
         comissao.toFixed(2),
       ]
         .map(csvCell)

@@ -152,6 +152,12 @@ export interface AbandonedCheckout {
   refundRequestedAt?: Date | null;
   /** Motivo informado no pedido de reembolso. */
   refundReason?: string | null;
+  /**
+   * Quem pediu o reembolso: "buyer" (comprador) ou "seller" (vendedor). Seller é
+   * sinal de alerta — pode ser manobra para cancelar a venda e refazê-la por
+   * outro afiliado, fugindo da nossa comissão.
+   */
+  refundRequester?: string | null;
   createdAt: Date;
 }
 

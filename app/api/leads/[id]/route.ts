@@ -131,6 +131,12 @@ export async function GET(
             e.eventType === "reembolso"
               ? ((e.payload?.motivo ?? e.payload?.reason) as string | undefined)
               : undefined,
+          refundRequester:
+            e.eventType === "reembolso"
+              ? ((e.payload?.solicitante ??
+                  e.payload?.requester ??
+                  e.payload?.requested_by) as string | undefined)
+              : undefined,
         },
       });
 

@@ -20,6 +20,12 @@ export type CommissionCalc = {
   comissaoBrl: number;
   /** Recuperado via afiliado Mios Tech (comissão já paga na Kiwify), em R$. */
   pagaKiwifyBrl: number;
+  /**
+   * Comissão retida: reembolso ativo pedido pelo VENDEDOR. Não é cobrada
+   * automaticamente nem cancelada — fica para revisão manual (possível manobra
+   * de fuga da comissão).
+   */
+  retidaBrl: number;
 };
 
 /** Chave de competência YYYY-MM a partir de uma data (mês da data). */
@@ -50,6 +56,22 @@ export async function computeCommission(
   // Cobrável = recuperação SEM comissão já paga na Kiwify (afiliado Mios Tech).
   const cobravel = { $ne: ["$commissionPaidKiwify", true] };
   const usdRate = usdToBrlRate();
+  const valueBrl = { $cond: [isUsd, { $multiply: [value, usdRate] }, value] };
+
+  // Reembolso ativo (pedido/concedido) = pending/refunded.
+  const emReembolso = {
+    $in: [{ $ifNull: ["$refundStatus", ""] }, ["pending", "refunded"]],
+  };
+  // Sem reembolso ativo (cancelled/ausente/null) = continua cobrável.
+  const semReembolso = { $not: [emReembolso] };
+  // Retido = reembolso ativo pedido pelo VENDEDOR: não cobra automaticamente,
+  // mas também não cancela (possível manobra de fuga da comissão — revisar).
+  const retidoSeller = {
+    $and: [
+      emReembolso,
+      { $eq: [{ $toLower: { $ifNull: ["$refundRequester", ""] } }, "seller"] },
+    ],
+  };
 
   const [row] = (await col
     .aggregate([
@@ -57,32 +79,33 @@ export async function computeCommission(
         $match: {
           accountId,
           recoveredAt: { $ne: null, $gte: from, $lt: to },
-          // Reembolso pedido/concedido cancela a comissão. "cancelled" (pedido
-          // de reembolso caiu) e ausente/null continuam valendo. $nin também
-          // casa documentos sem o campo.
-          refundStatus: { $nin: ["pending", "refunded"] },
         },
       },
       {
         $group: {
           _id: null,
+          // Cobrável = recuperado, sem Kiwify, e sem reembolso ativo. Reembolso
+          // do buyer cancela; reembolso do seller vai para "retida".
           recuperadoBrl: {
             $sum: {
-              $cond: [{ $and: [cobravel, { $not: [isUsd] }] }, value, 0],
+              $cond: [
+                { $and: [cobravel, semReembolso, { $not: [isUsd] }] },
+                value,
+                0,
+              ],
             },
           },
           recuperadoUsd: {
-            $sum: { $cond: [{ $and: [cobravel, isUsd] }, value, 0] },
+            $sum: {
+              $cond: [{ $and: [cobravel, semReembolso, isUsd] }, value, 0],
+            },
+          },
+          retidaBaseBrl: {
+            $sum: { $cond: [{ $and: [cobravel, retidoSeller] }, valueBrl, 0] },
           },
           pagaKiwifyBrl: {
             $sum: {
-              $cond: [
-                { $eq: ["$commissionPaidKiwify", true] },
-                {
-                  $cond: [isUsd, { $multiply: [value, usdRate] }, value],
-                },
-                0,
-              ],
+              $cond: [{ $eq: ["$commissionPaidKiwify", true] }, valueBrl, 0],
             },
           },
         },
@@ -91,6 +114,7 @@ export async function computeCommission(
     .toArray()) as {
     recuperadoBrl: number;
     recuperadoUsd: number;
+    retidaBaseBrl: number;
     pagaKiwifyBrl: number;
   }[];
 
@@ -99,6 +123,8 @@ export async function computeCommission(
   const pagaKiwifyBrl = row?.pagaKiwifyBrl ?? 0;
   const baseBrl = recuperadoBrl + recuperadoUsd * usdRate;
   const comissaoBrl = Math.round(baseBrl * rate * 100) / 100;
+  const retidaBrl =
+    Math.round((row?.retidaBaseBrl ?? 0) * rate * 100) / 100;
 
   return {
     recuperadoBrl,
@@ -108,6 +134,7 @@ export async function computeCommission(
     rate,
     comissaoBrl,
     pagaKiwifyBrl,
+    retidaBrl,
   };
 }
 

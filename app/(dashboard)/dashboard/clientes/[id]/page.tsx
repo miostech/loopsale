@@ -41,6 +41,7 @@ interface TimelineItem {
     recoveredAt?: string | null;
     refundStatus?: string | null;
     refundReason?: string | null;
+    refundRequester?: string | null;
   };
 }
 
@@ -63,6 +64,7 @@ const STATUS_LABEL: Record<string, string> = {
   purchased: "Comprou",
   paid: "Pago",
   refunded: "Reembolso",
+  retained: "Reembolso (vendedor)",
 };
 const STATUS_VARIANT: Record<
   string,
@@ -74,6 +76,8 @@ const STATUS_VARIANT: Record<
   // Pago (venda direta, fora do funil) fica cinza — já foi finalizado.
   paid: "default",
   refunded: "error",
+  // Reembolso pedido pelo vendedor: sinalizado (comissão retida p/ revisão).
+  retained: "warning",
 };
 const SOURCE_LABEL: Record<string, string> = {
   checkout: "Checkout",
@@ -110,6 +114,15 @@ const REFUND_STATUS_LABEL: Record<string, string> = {
   refunded: "reembolsado",
   cancelled: "cancelado",
 };
+
+/** Normaliza o solicitante do reembolso vindo do payload em buyer/seller. */
+function refundRequesterKind(raw?: string | null): "buyer" | "seller" | null {
+  const s = (raw ?? "").toLowerCase();
+  if (!s) return null;
+  if (s.includes("sell") || s.includes("vend") || s.includes("loj")) return "seller";
+  if (s.includes("buy") || s.includes("compr") || s.includes("client")) return "buyer";
+  return null;
+}
 
 function formatBRL(v: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -380,6 +393,15 @@ export default function ClienteDetailPage() {
                           ] ?? item.data.refundStatus}
                         </span>
                       )}
+                      {item.data.refundRequester &&
+                        (refundRequesterKind(item.data.refundRequester) ===
+                        "seller" ? (
+                          <span className="mt-0.5 block font-medium text-[var(--loop-error)]">
+                            {`⚠ pedido pelo vendedor — verificar possível fuga de comissão`}
+                          </span>
+                        ) : (
+                          <span>{` • pedido pelo comprador`}</span>
+                        ))}
                       {item.data.refundReason && (
                         <span className="mt-0.5 block italic">
                           {`"${item.data.refundReason}"`}

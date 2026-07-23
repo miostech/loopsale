@@ -25,6 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
   purchased: "Comprou",
   paid: "Pago",
   refunded: "Reembolso",
+  retained: "Reembolso (vendedor)",
 };
 
 const STATUS_VARIANT: Record<
@@ -37,6 +38,8 @@ const STATUS_VARIANT: Record<
   // Pago (venda direta, sem passar pelo funil) fica cinza — já foi finalizado.
   paid: "default",
   refunded: "error",
+  // Reembolso pedido pelo vendedor: sinalizado (comissão retida p/ revisão).
+  retained: "warning",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -52,6 +55,7 @@ const STATUS_FILTERS = [
   { value: "purchased", label: "Comprou" },
   { value: "paid", label: "Pago" },
   { value: "refunded", label: "Reembolso" },
+  { value: "retained", label: "Reembolso (vendedor)" },
   { value: "hot", label: "Quente" },
 ];
 

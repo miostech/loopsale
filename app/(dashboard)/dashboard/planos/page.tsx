@@ -70,6 +70,7 @@ interface Commission {
     baseBrl: number;
     comissaoBrl: number;
     pagaKiwifyBrl: number;
+    retidaBrl: number;
   };
   historico: CommissionRow[];
 }
@@ -378,6 +379,16 @@ export default function PlanosPage() {
                       {formatMoney(commission.periodoAtual.pagaKiwifyBrl)}
                     </p>
                   </div>
+                  {commission.periodoAtual.retidaBrl > 0 && (
+                    <div>
+                      <p className="text-xs text-[var(--loop-warning)]">
+                        Comissão retida (reembolso do vendedor — revisar)
+                      </p>
+                      <p className="text-2xl font-bold text-[var(--loop-warning)]">
+                        {formatMoney(commission.periodoAtual.retidaBrl)}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <a

@@ -372,6 +372,15 @@ function normalizeRefundStatus(
   return "refunded";
 }
 
+/** Interpreta o solicitante do reembolso em "buyer" | "seller" (ou null). */
+function normalizeRefundRequester(raw?: string | null): string | null {
+  const s = (raw ?? "").toLowerCase();
+  if (!s) return null;
+  if (s.includes("sell") || s.includes("vend") || s.includes("loj")) return "seller";
+  if (s.includes("buy") || s.includes("compr") || s.includes("client")) return "buyer";
+  return s;
+}
+
 /**
  * Aplica um evento de reembolso à venda recuperada do cliente+produto:
  *  - pending/refunded → cancela a comissão (grava refundStatus no carrinho) e
@@ -396,6 +405,7 @@ async function applyRefund(
   const reason = (normalized.payload?.motivo ??
     normalized.payload?.reason ??
     null) as string | null;
+  const requester = normalizeRefundRequester(normalized.refundRequester);
 
   // Atualiza a(s) venda(s) recuperada(s) desse cliente+produto.
   const cartOr: Record<string, unknown>[] = [];
@@ -410,23 +420,32 @@ async function applyRefund(
       productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
     },
     {
-      $set: { refundStatus: status, refundRequestedAt: now, refundReason: reason },
+      $set: {
+        refundStatus: status,
+        refundRequestedAt: now,
+        refundReason: reason,
+        refundRequester: requester,
+      },
     }
   );
 
   // Reflete no status do lead (leads usam email/phone, não customerEmail).
+  //  - cancelled → volta a "purchased".
+  //  - reembolso do seller → "retained" (sinalizado, comissão retida).
+  //  - reembolso do buyer → "refunded".
+  const leadStatus =
+    status === "cancelled"
+      ? "purchased"
+      : requester === "seller"
+      ? "retained"
+      : "refunded";
   const leadOr: Record<string, unknown>[] = [];
   if (email) leadOr.push({ email });
   if (phone) leadOr.push({ phone });
   const leadsCol = await getCollection("leads");
   await leadsCol.updateOne(
     { accountId, $or: leadOr },
-    {
-      $set: {
-        status: status === "cancelled" ? "purchased" : "refunded",
-        updatedAt: now,
-      },
-    }
+    { $set: { status: leadStatus, updatedAt: now } }
   );
 }
 

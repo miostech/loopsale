@@ -30,6 +30,7 @@ export async function GET() {
         baseBrl: 0,
         comissaoBrl: 0,
         pagaKiwifyBrl: 0,
+        retidaBrl: 0,
       },
       historico: [],
     });

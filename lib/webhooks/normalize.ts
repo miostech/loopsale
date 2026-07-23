@@ -28,6 +28,8 @@ export interface NormalizedCheckoutEvent {
   fees?: string;
   /** Status do reembolso quando eventType = "reembolso" (pending/refunded/cancelled). */
   refundStatus?: string;
+  /** Quem pediu o reembolso: "buyer" ou "seller". Seller = risco de manobra. */
+  refundRequester?: string;
   payload: Record<string, unknown>;
 }
 
@@ -297,6 +299,16 @@ export function normalizeN8nPayload(
     refundStatus:
       eventType === "reembolso"
         ? pick("status", "refund_status", "refundStatus")
+        : undefined,
+    refundRequester:
+      eventType === "reembolso"
+        ? pick(
+            "solicitante",
+            "requester",
+            "requested_by",
+            "requestedBy",
+            "refund_requester"
+          )
         : undefined,
     payload: body,
   };
