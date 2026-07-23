@@ -1,4 +1,35 @@
 /**
+ * Normaliza um valor monetário para reais (string com casas decimais).
+ *
+ * A Kiwify manda os valores brutos em CENTAVOS como inteiro (ex.: "9700" =
+ * R$97,00, "782" = R$7,82), enquanto valores já em reais chegam com separador
+ * decimal (ex.: "89.18"). Regra: sem separador decimal => centavos => /100.
+ */
+export function toReais(raw: unknown): string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const s = String(raw).trim();
+  if (!s) return undefined;
+  // Só dígitos (inteiro, sem "." nem ",") = centavos.
+  if (/^\d+$/.test(s)) {
+    return (parseInt(s, 10) / 100).toFixed(2);
+  }
+  // Já em reais: normaliza vírgula decimal para ponto.
+  return s.replace(",", ".");
+}
+
+/**
+ * Descarta nomes de produto inválidos como "[object Object]" (a Kiwify manda o
+ * produto como objeto, que chega serializado). Sem o nome real no payload, é
+ * melhor ficar vazio do que exibir lixo.
+ */
+export function cleanName(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.trim();
+  if (!s || /^\[object /i.test(s)) return undefined;
+  return s;
+}
+
+/**
  * Tipos de eventos normalizados (spec da LoopSale).
  */
 export type NormalizedEventType =
@@ -30,6 +61,8 @@ export interface NormalizedCheckoutEvent {
   refundStatus?: string;
   /** Quem pediu o reembolso: "buyer" ou "seller". Seller = risco de manobra. */
   refundRequester?: string;
+  /** ID da mensagem do WhatsApp (wamid) no evento de envio. */
+  whatsappMessageId?: string;
   payload: Record<string, unknown>;
 }
 
@@ -199,10 +232,15 @@ export function normalizeN8nPayload(
   let eventType = mapping[rawEvent];
 
   // Um pagamento recusado pode chegar pelo MESMO webhook de abandono, distinguido
-  // apenas pelo campo `status` (ex.: status "refused"/"recusado" com
-  // event "checkout_abandonado"). Nesse caso, o status manda: é recusado.
+  // pelo campo `status` (ex.: "refused"/"recusado") ou por uma flag `recusada`.
+  // Qualquer um dos dois manda: é recusado. (O event "checkout_refused" já mapeia
+  // direto acima; isto cobre os casos em que só o status/flag distingue.)
   const rawStatus = String(body.status ?? "").toLowerCase().trim();
-  if (/recus|refus/.test(rawStatus)) {
+  const isTruthy = (v: unknown) =>
+    ["true", "1", "yes", "sim"].includes(String(v ?? "").toLowerCase().trim());
+  const flagRecusada =
+    isTruthy(body.recusada) || isTruthy(body.refused) || isTruthy(body.recusado);
+  if (/recus|refus/.test(rawStatus) || flagRecusada) {
     eventType = "pagamento_recusado";
   }
 
@@ -279,10 +317,13 @@ export function normalizeN8nPayload(
       "affiliateId"
     ),
     productId: pick("productId", "product_id"),
-    productName:
+    productName: cleanName(
       pickFrom([body], "productName", "product_name", "product", "offer_name") ??
-      pickFrom([product], "product_name", "name", "title"),
-    amount:
+        pickFrom([product], "product_name", "name", "title")
+    ),
+    // Kiwify manda valores brutos em centavos (inteiro); toReais converte para
+    // reais quando não há casa decimal. valorLiquido já vem em reais.
+    amount: toReais(
       pickFrom(
         [body],
         "valorLiquido",
@@ -293,9 +334,11 @@ export function normalizeN8nPayload(
         "value",
         "price",
         "total"
-      ) ?? pickFrom([product], "price", "value"),
+      ) ?? pickFrom([product], "price", "value")
+    ),
     currency: pick("currency", "moeda"),
-    fees: pick("taxas", "fees", "taxa"),
+    fees: toReais(pick("taxas", "fees", "taxa")),
+    whatsappMessageId: pick("wamid", "messageId", "message_id"),
     refundStatus:
       eventType === "reembolso"
         ? pick("status", "refund_status", "refundStatus")

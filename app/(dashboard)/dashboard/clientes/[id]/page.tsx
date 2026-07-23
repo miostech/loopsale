@@ -42,6 +42,7 @@ interface TimelineItem {
     refundStatus?: string | null;
     refundReason?: string | null;
     refundRequester?: string | null;
+    wamid?: string | null;
   };
 }
 
@@ -81,6 +82,7 @@ const STATUS_VARIANT: Record<
 };
 const SOURCE_LABEL: Record<string, string> = {
   checkout: "Checkout",
+  refused: "Recusado",
   approved: "Aprovado",
   whatsapp: "WhatsApp",
   manual: "Manual",
@@ -405,6 +407,11 @@ export default function ClienteDetailPage() {
                       {item.data.refundReason && (
                         <span className="mt-0.5 block italic">
                           {`"${item.data.refundReason}"`}
+                        </span>
+                      )}
+                      {item.data.wamid && (
+                        <span className="mt-0.5 block font-mono text-xs text-[var(--loop-text-muted)]">
+                          {`msg: ${item.data.wamid}`}
                         </span>
                       )}
                     </div>

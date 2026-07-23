@@ -44,13 +44,15 @@ const STATUS_VARIANT: Record<
 
 const SOURCE_LABELS: Record<string, string> = {
   checkout: "Checkout",
+  refused: "Recusado",
   approved: "Aprovado",
   whatsapp: "WhatsApp",
   manual: "Manual",
 };
 
 const STATUS_FILTERS = [
-  { value: "", label: "Todos os status" },
+  { value: "", label: "Ativos (lead + comprou)" },
+  { value: "all", label: "Todos os status" },
   { value: "lead", label: "Lead" },
   { value: "purchased", label: "Comprou" },
   { value: "paid", label: "Pago" },
@@ -62,6 +64,7 @@ const STATUS_FILTERS = [
 const SOURCE_FILTERS = [
   { value: "", label: "Todas as origens" },
   { value: "checkout", label: "Checkout" },
+  { value: "refused", label: "Recusado" },
   { value: "approved", label: "Aprovado" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "manual", label: "Manual" },

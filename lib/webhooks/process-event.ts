@@ -10,6 +10,23 @@ import type {
   ScheduledRecoveryMessage,
 } from "@/lib/db/types";
 
+/**
+ * Prioridade da origem do lead. "whatsapp" é só um placeholder (é a NOSSA ação
+ * de saída, nunca a origem real do cliente) e sempre cede para uma origem de
+ * verdade. Entre as reais: recusa > checkout (abandono) > venda direta. "manual"
+ * é uma escolha humana e nunca é sobrescrita por eventos.
+ */
+function sourceRank(source?: string | null): number {
+  const order: Record<string, number> = {
+    whatsapp: 0,
+    approved: 1,
+    checkout: 2,
+    refused: 3,
+    manual: 9,
+  };
+  return order[(source ?? "").toLowerCase()] ?? 2;
+}
+
 async function upsertLeadFromEvent(
   accountId: string,
   data: {
@@ -53,6 +70,12 @@ async function upsertLeadFromEvent(
     // Só preenche o nome se veio no evento e o lead ainda não tem nome.
     if (data.name && !(existing as { name?: string | null }).name) {
       update.name = data.name;
+    }
+    // Atualiza a origem quando o evento atual revela uma origem mais forte que a
+    // atual (ex.: "whatsapp" é só um placeholder e cede para checkout/recusado).
+    const curSource = (existing as { source?: string | null }).source;
+    if (data.source && sourceRank(data.source) > sourceRank(curSource)) {
+      update.source = data.source;
     }
     await leadsCol.updateOne(
       { _id: existing._id as ObjectId },
@@ -105,6 +128,17 @@ export async function processIncomingEvent(
     if (duplicate) return;
   }
 
+  // WhatsApp: cada mensagem é uma interação distinta, mas o mesmo envio (mesmo
+  // wamid) não pode duplicar se o n8n reenviar a lista. Deduplica por wamid.
+  if (normalized.eventType === "whatsapp_enviado" && normalized.whatsappMessageId) {
+    const dupWa = await checkoutEventsCol.findOne({
+      accountId,
+      eventType: "whatsapp_enviado",
+      whatsappMessageId: normalized.whatsappMessageId,
+    });
+    if (dupWa) return;
+  }
+
   const now = new Date();
   const eventDoc: CheckoutEvent = {
     accountId,
@@ -120,6 +154,7 @@ export async function processIncomingEvent(
     currency: normalized.currency ?? null,
     fees: normalized.fees ?? null,
     affiliate: normalized.affiliate ?? null,
+    whatsappMessageId: normalized.whatsappMessageId ?? null,
     payload: (normalized.payload ?? {}) as Record<string, unknown>,
     createdAt: now,
   };
@@ -172,6 +207,8 @@ export async function processIncomingEvent(
       source:
         normalized.eventType === "pagamento_aprovado"
           ? "approved"
+          : normalized.eventType === "pagamento_recusado"
+          ? "refused"
           : isContactEvent
           ? "whatsapp"
           : "checkout",

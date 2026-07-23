@@ -137,6 +137,9 @@ export async function GET(
                   e.payload?.requester ??
                   e.payload?.requested_by) as string | undefined)
               : undefined,
+          wamid: (e.whatsappMessageId ?? e.payload?.wamid) as
+            | string
+            | undefined,
         },
       });
 

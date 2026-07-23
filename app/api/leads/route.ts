@@ -25,7 +25,14 @@ export async function GET(request: Request) {
       { name: { $regex: search, $options: "i" } },
     ];
   }
-  if (status) filter.status = status;
+  // Padrão (status vazio) mostra só os clientes "ativos": lead e comprou. Para
+  // ver pago/reembolso/etc., o usuário escolhe o status no filtro; "all" mostra
+  // todos.
+  if (!status) {
+    filter.status = { $in: ["lead", "purchased"] };
+  } else if (status !== "all") {
+    filter.status = status;
+  }
   if (source) filter.source = source;
 
   const list = await leadsCol

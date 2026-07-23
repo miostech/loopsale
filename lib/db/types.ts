@@ -94,6 +94,8 @@ export interface CheckoutEvent {
   /** Taxas do evento (na moeda), quando informadas. */
   fees?: string | null;
   affiliate?: string | null;
+  /** ID da mensagem do WhatsApp (wamid), quando o evento é um envio. */
+  whatsappMessageId?: string | null;
   createdAt: Date;
 }
 
