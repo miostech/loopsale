@@ -140,6 +140,7 @@ export async function GET(
           wamid: (e.whatsappMessageId ?? e.payload?.wamid) as
             | string
             | undefined,
+          whatsappStatus: e.whatsappStatus as string | undefined,
         },
       });
 

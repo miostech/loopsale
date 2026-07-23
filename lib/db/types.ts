@@ -96,6 +96,11 @@ export interface CheckoutEvent {
   affiliate?: string | null;
   /** ID da mensagem do WhatsApp (wamid), quando o evento é um envio. */
   whatsappMessageId?: string | null;
+  /**
+   * Status de entrega da mensagem, atualizado pelos callbacks whatsapp_status
+   * casados por wamid: accepted → sent → delivered → read (ou failed).
+   */
+  whatsappStatus?: string | null;
   createdAt: Date;
 }
 

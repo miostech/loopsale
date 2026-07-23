@@ -27,6 +27,64 @@ function sourceRank(source?: string | null): number {
   return order[(source ?? "").toLowerCase()] ?? 2;
 }
 
+/** Canoniza o status de entrega do WhatsApp. */
+function normalizeMsgStatus(raw?: string | null): string | null {
+  const s = (raw ?? "").toLowerCase().trim();
+  if (!s) return null;
+  if (/read|lida|visualiz|seen/.test(s)) return "read";
+  if (/deliver|entregue/.test(s)) return "delivered";
+  if (/fail|falh|undeliver|error|erro/.test(s)) return "failed";
+  if (/sent|enviad/.test(s)) return "sent";
+  if (/accept|aceit|queued|fila|pend/.test(s)) return "accepted";
+  return null;
+}
+
+/** Ordem de progressão (só avança). */
+function msgStatusRank(s?: string | null): number {
+  const order: Record<string, number> = {
+    accepted: 0,
+    sent: 1,
+    delivered: 2,
+    read: 3,
+  };
+  return order[s ?? ""] ?? -1;
+}
+
+/**
+ * Casa um callback whatsapp_status com a mensagem enviada (pelo wamid) e atualiza
+ * o status de entrega — só progride (accepted→sent→delivered→read); "failed" só
+ * grava se ainda não tinha entregado/lido. Não cria entrada própria no histórico.
+ */
+async function applyWhatsappStatus(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent
+) {
+  if (isDatabaseDisabled()) return;
+  const wamid = normalized.whatsappMessageId;
+  const status = normalizeMsgStatus(normalized.messageStatus);
+  if (!wamid || !status) return;
+
+  const col = await getCollection("checkoutEvents");
+  const send = (await col.findOne({
+    accountId,
+    eventType: "whatsapp_enviado",
+    whatsappMessageId: wamid,
+  })) as (CheckoutEvent & { _id: ObjectId }) | null;
+  if (!send) return; // status chegou antes do envio (fora de ordem): ignora
+
+  const cur = send.whatsappStatus ?? null;
+  const avanca =
+    status === "failed"
+      ? cur !== "read" && cur !== "delivered"
+      : msgStatusRank(status) > msgStatusRank(cur);
+  if (avanca) {
+    await col.updateOne(
+      { _id: send._id },
+      { $set: { whatsappStatus: status } }
+    );
+  }
+}
+
 async function upsertLeadFromEvent(
   accountId: string,
   data: {
@@ -139,6 +197,13 @@ export async function processIncomingEvent(
     if (dupWa) return;
   }
 
+  // Callback de status do WhatsApp: não vira entrada própria no histórico —
+  // atualiza o status de entrega da mensagem enviada (casado por wamid).
+  if (normalized.eventType === "whatsapp_status") {
+    await applyWhatsappStatus(accountId, normalized);
+    return;
+  }
+
   const now = new Date();
   const eventDoc: CheckoutEvent = {
     accountId,
@@ -155,6 +220,10 @@ export async function processIncomingEvent(
     fees: normalized.fees ?? null,
     affiliate: normalized.affiliate ?? null,
     whatsappMessageId: normalized.whatsappMessageId ?? null,
+    whatsappStatus:
+      normalized.eventType === "whatsapp_enviado"
+        ? normalizeMsgStatus(normalized.messageStatus)
+        : null,
     payload: (normalized.payload ?? {}) as Record<string, unknown>,
     createdAt: now,
   };

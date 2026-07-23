@@ -63,6 +63,8 @@ export interface NormalizedCheckoutEvent {
   refundRequester?: string;
   /** ID da mensagem do WhatsApp (wamid) no evento de envio. */
   whatsappMessageId?: string;
+  /** Status de entrega da mensagem (accepted/sent/delivered/read/failed). */
+  messageStatus?: string;
   payload: Record<string, unknown>;
 }
 
@@ -339,6 +341,10 @@ export function normalizeN8nPayload(
     currency: pick("currency", "moeda"),
     fees: toReais(pick("taxas", "fees", "taxa")),
     whatsappMessageId: pick("wamid", "messageId", "message_id"),
+    messageStatus:
+      eventType === "whatsapp_enviado" || eventType === "whatsapp_status"
+        ? pick("message_status", "messageStatus", "delivery_status", "wa_status")
+        : undefined,
     refundStatus:
       eventType === "reembolso"
         ? pick("status", "refund_status", "refundStatus")

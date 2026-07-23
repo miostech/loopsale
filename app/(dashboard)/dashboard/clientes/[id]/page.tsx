@@ -43,6 +43,7 @@ interface TimelineItem {
     refundReason?: string | null;
     refundRequester?: string | null;
     wamid?: string | null;
+    whatsappStatus?: string | null;
   };
 }
 
@@ -115,6 +116,15 @@ const REFUND_STATUS_LABEL: Record<string, string> = {
   pending: "pendente",
   refunded: "reembolsado",
   cancelled: "cancelado",
+};
+
+// Status de entrega da mensagem de WhatsApp.
+const DELIVERY_LABEL: Record<string, string> = {
+  accepted: "aceita",
+  sent: "enviada",
+  delivered: "✅ entregue",
+  read: "👁 lida",
+  failed: "❌ falhou",
 };
 
 /** Normaliza o solicitante do reembolso vindo do payload em buyer/seller. */
@@ -407,6 +417,22 @@ export default function ClienteDetailPage() {
                       {item.data.refundReason && (
                         <span className="mt-0.5 block italic">
                           {`"${item.data.refundReason}"`}
+                        </span>
+                      )}
+                      {item.data.whatsappStatus && (
+                        <span
+                          className={`ml-1 font-medium ${
+                            item.data.whatsappStatus === "failed"
+                              ? "text-[var(--loop-error)]"
+                              : item.data.whatsappStatus === "read"
+                              ? "text-[var(--loop-success)]"
+                              : "text-[var(--loop-text-muted)]"
+                          }`}
+                        >
+                          {` · ${
+                            DELIVERY_LABEL[item.data.whatsappStatus] ??
+                            item.data.whatsappStatus
+                          }`}
                         </span>
                       )}
                       {item.data.wamid && (
