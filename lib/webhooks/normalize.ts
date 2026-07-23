@@ -26,6 +26,8 @@ export interface NormalizedCheckoutEvent {
   currency?: string;
   /** Taxas da venda (na moeda da venda). */
   fees?: string;
+  /** Status do reembolso quando eventType = "reembolso" (pending/refunded/cancelled). */
+  refundStatus?: string;
   payload: Record<string, unknown>;
 }
 
@@ -180,7 +182,10 @@ export function normalizeN8nPayload(
     canceled: "pedido_cancelado",
     cancelled: "pedido_cancelado",
     reembolso: "reembolso",
+    reembolso_solicitado: "reembolso",
+    solicitacao_reembolso: "reembolso",
     refund: "reembolso",
+    refund_requested: "reembolso",
     refunded: "reembolso",
     whatsapp_enviado: "whatsapp_enviado",
     whatsapp_sent: "whatsapp_enviado",
@@ -289,6 +294,10 @@ export function normalizeN8nPayload(
       ) ?? pickFrom([product], "price", "value"),
     currency: pick("currency", "moeda"),
     fees: pick("taxas", "fees", "taxa"),
+    refundStatus:
+      eventType === "reembolso"
+        ? pick("status", "refund_status", "refundStatus")
+        : undefined,
     payload: body,
   };
 }

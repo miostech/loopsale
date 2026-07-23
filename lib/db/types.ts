@@ -141,6 +141,17 @@ export interface AbandonedCheckout {
    * recuperada mas NÃO entra na cobrança dos 40%.
    */
   commissionPaidKiwify?: boolean;
+  /**
+   * Estado do reembolso desta venda recuperada:
+   *  - "pending" | "refunded" → reembolso pedido/concedido: comissão cancelada.
+   *  - "cancelled" → pedido de reembolso cancelado: volta a valer (comissão).
+   *  - ausente/null → sem reembolso.
+   */
+  refundStatus?: "pending" | "refunded" | "cancelled" | null;
+  /** Momento do último evento de reembolso. */
+  refundRequestedAt?: Date | null;
+  /** Motivo informado no pedido de reembolso. */
+  refundReason?: string | null;
   createdAt: Date;
 }
 

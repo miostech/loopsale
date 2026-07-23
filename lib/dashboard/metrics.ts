@@ -181,6 +181,19 @@ async function computeCoreMetrics(
     ])
     .toArray();
 
+  // Recuperado válido = tem recoveredAt E não está com reembolso ativo
+  // (pending/refunded). Reembolso "cancelled" ou ausente segue valendo.
+  const recuperadoValido = {
+    $and: [
+      { $ne: ["$recoveredAt", null] },
+      {
+        $not: [
+          { $in: [{ $ifNull: ["$refundStatus", ""] }, ["pending", "refunded"]] },
+        ],
+      },
+    ],
+  };
+
   // Um grupo por recoveryType; documentos antigos (sem o campo) = "abandoned".
   const bySegment = (await abandonedCheckoutsCol
     .aggregate([
@@ -243,14 +256,14 @@ async function computeCoreMetrics(
             },
           },
           recuperados: {
-            $sum: { $cond: [{ $ne: ["$recoveredAt", null] }, 1, 0] },
+            $sum: { $cond: [recuperadoValido, 1, 0] },
           },
           recuperadosBrl: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $ne: ["$recoveredAt", null] },
+                    recuperadoValido,
                     {
                       $ne: [
                         { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
@@ -269,7 +282,7 @@ async function computeCoreMetrics(
               $cond: [
                 {
                   $and: [
-                    { $ne: ["$recoveredAt", null] },
+                    recuperadoValido,
                     {
                       $eq: [
                         { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
@@ -288,7 +301,7 @@ async function computeCoreMetrics(
               $cond: [
                 {
                   $and: [
-                    { $ne: ["$recoveredAt", null] },
+                    recuperadoValido,
                     {
                       $ne: [
                         { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
@@ -311,7 +324,7 @@ async function computeCoreMetrics(
               $cond: [
                 {
                   $and: [
-                    { $ne: ["$recoveredAt", null] },
+                    recuperadoValido,
                     {
                       $eq: [
                         { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
@@ -549,6 +562,8 @@ export async function getDashboardDailyMetrics(
           accountId,
           createdAt: { $gte: since },
           recoveredAt: { $ne: null },
+          // Exclui reembolsadas (pending/refunded) da receita recuperada.
+          refundStatus: { $nin: ["pending", "refunded"] },
         },
       },
       {

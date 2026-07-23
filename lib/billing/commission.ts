@@ -57,6 +57,10 @@ export async function computeCommission(
         $match: {
           accountId,
           recoveredAt: { $ne: null, $gte: from, $lt: to },
+          // Reembolso pedido/concedido cancela a comissão. "cancelled" (pedido
+          // de reembolso caiu) e ausente/null continuam valendo. $nin também
+          // casa documentos sem o campo.
+          refundStatus: { $nin: ["pending", "refunded"] },
         },
       },
       {

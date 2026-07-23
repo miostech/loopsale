@@ -123,6 +123,14 @@ export async function GET(
           currency,
           platform: e.platform,
           affiliate: e.affiliate,
+          refundStatus:
+            e.eventType === "reembolso"
+              ? (e.payload?.status as string | undefined)
+              : undefined,
+          refundReason:
+            e.eventType === "reembolso"
+              ? ((e.payload?.motivo ?? e.payload?.reason) as string | undefined)
+              : undefined,
         },
       });
 

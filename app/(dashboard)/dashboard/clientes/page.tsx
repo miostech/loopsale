@@ -24,14 +24,19 @@ const STATUS_LABELS: Record<string, string> = {
   hot: "Quente",
   purchased: "Comprou",
   paid: "Pago",
+  refunded: "Reembolso",
 };
 
-const STATUS_VARIANT: Record<string, "default" | "cta" | "success"> = {
+const STATUS_VARIANT: Record<
+  string,
+  "default" | "cta" | "success" | "error" | "warning"
+> = {
   purchased: "success",
   hot: "cta",
   lead: "default",
   // Pago (venda direta, sem passar pelo funil) fica cinza — já foi finalizado.
   paid: "default",
+  refunded: "error",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -46,6 +51,7 @@ const STATUS_FILTERS = [
   { value: "lead", label: "Lead" },
   { value: "purchased", label: "Comprou" },
   { value: "paid", label: "Pago" },
+  { value: "refunded", label: "Reembolso" },
   { value: "hot", label: "Quente" },
 ];
 

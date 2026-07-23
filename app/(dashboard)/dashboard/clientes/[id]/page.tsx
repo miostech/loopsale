@@ -39,6 +39,8 @@ interface TimelineItem {
     affiliate?: string | null;
     recoveryType?: string | null;
     recoveredAt?: string | null;
+    refundStatus?: string | null;
+    refundReason?: string | null;
   };
 }
 
@@ -60,13 +62,18 @@ const STATUS_LABEL: Record<string, string> = {
   hot: "Quente",
   purchased: "Comprou",
   paid: "Pago",
+  refunded: "Reembolso",
 };
-const STATUS_VARIANT: Record<string, "default" | "cta" | "success"> = {
+const STATUS_VARIANT: Record<
+  string,
+  "default" | "cta" | "success" | "error" | "warning"
+> = {
   purchased: "success",
   hot: "cta",
   lead: "default",
   // Pago (venda direta, fora do funil) fica cinza — já foi finalizado.
   paid: "default",
+  refunded: "error",
 };
 const SOURCE_LABEL: Record<string, string> = {
   checkout: "Checkout",
@@ -95,6 +102,13 @@ const EVENT_COLOR: Record<string, string> = {
   abandono: "var(--loop-warning)",
   whatsapp_enviado: "var(--loop-cta)",
   checkout_iniciado: "var(--loop-primary)",
+  reembolso: "var(--loop-error)",
+};
+
+const REFUND_STATUS_LABEL: Record<string, string> = {
+  pending: "pendente",
+  refunded: "reembolsado",
+  cancelled: "cancelado",
 };
 
 function formatBRL(v: number): string {
@@ -357,6 +371,19 @@ export default function ClienteDetailPage() {
                       )}
                       {item.data.affiliate && (
                         <span>{` • afiliado: ${item.data.affiliate}`}</span>
+                      )}
+                      {item.data.refundStatus && (
+                        <span>
+                          {` • `}
+                          {REFUND_STATUS_LABEL[
+                            String(item.data.refundStatus).toLowerCase()
+                          ] ?? item.data.refundStatus}
+                        </span>
+                      )}
+                      {item.data.refundReason && (
+                        <span className="mt-0.5 block italic">
+                          {`"${item.data.refundReason}"`}
+                        </span>
                       )}
                     </div>
                   </div>

@@ -92,7 +92,10 @@ export async function processIncomingEvent(
   if (
     normalized.platformCheckoutId &&
     normalized.eventType !== "whatsapp_enviado" &&
-    normalized.eventType !== "whatsapp_status"
+    normalized.eventType !== "whatsapp_status" &&
+    // Reembolso muda de status (pending→refunded→cancelled) no mesmo pedido;
+    // cada atualização precisa ser processada, então não deduplica.
+    normalized.eventType !== "reembolso"
   ) {
     const duplicate = await checkoutEventsCol.findOne({
       accountId,
@@ -163,7 +166,8 @@ export async function processIncomingEvent(
       phone: normalized.customerPhone ?? null,
       name: normalized.customerName ?? null,
       status: "lead",
-      preserveStatus: isContactEvent,
+      // Reembolso não deve rebaixar o status aqui — quem decide é applyRefund.
+      preserveStatus: isContactEvent || normalized.eventType === "reembolso",
       purchaseStatus,
       source:
         normalized.eventType === "pagamento_aprovado"
@@ -182,6 +186,10 @@ export async function processIncomingEvent(
     // risco") e, se for recuperação de fato, marca recoveredAt.
     await markCartsPaid(accountId, normalized, now);
     await markRecovered(accountId, normalized, now);
+  }
+
+  if (normalized.eventType === "reembolso") {
+    await applyRefund(accountId, normalized, now);
   }
 
   if (
@@ -350,6 +358,75 @@ async function markCartsPaid(
       productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
     },
     { $set: { paidAt: now } }
+  );
+}
+
+/** Interpreta o status cru do reembolso em pending/refunded/cancelled. */
+function normalizeRefundStatus(
+  raw?: string | null
+): "pending" | "refunded" | "cancelled" {
+  const s = (raw ?? "").toLowerCase();
+  if (s.includes("cancel")) return "cancelled";
+  if (s.includes("pend")) return "pending";
+  // "refunded", vazio ou desconhecido = reembolso efetivado.
+  return "refunded";
+}
+
+/**
+ * Aplica um evento de reembolso à venda recuperada do cliente+produto:
+ *  - pending/refunded → cancela a comissão (grava refundStatus no carrinho) e
+ *    marca o lead como "refunded".
+ *  - cancelled → o pedido de reembolso caiu: a venda volta a valer (comissão) e
+ *    o lead volta a "purchased".
+ * Tudo fica registrado no histórico (o próprio checkout_event). Uma compra futura
+ * do mesmo produto gera um novo carrinho e pode ser recuperada normalmente.
+ */
+async function applyRefund(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent,
+  now: Date
+) {
+  if (isDatabaseDisabled()) return;
+  const status = normalizeRefundStatus(normalized.refundStatus);
+  const email = normalized.customerEmail?.trim();
+  const phone = normalized.customerPhone?.trim();
+  const product = normalized.productName?.trim();
+  if ((!email && !phone) || !product) return;
+
+  const reason = (normalized.payload?.motivo ??
+    normalized.payload?.reason ??
+    null) as string | null;
+
+  // Atualiza a(s) venda(s) recuperada(s) desse cliente+produto.
+  const cartOr: Record<string, unknown>[] = [];
+  if (email) cartOr.push({ customerEmail: email });
+  if (phone) cartOr.push({ customerPhone: phone });
+  const col = await getCollection("abandonedCheckouts");
+  await col.updateMany(
+    {
+      accountId,
+      recoveredAt: { $ne: null },
+      $or: cartOr,
+      productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
+    },
+    {
+      $set: { refundStatus: status, refundRequestedAt: now, refundReason: reason },
+    }
+  );
+
+  // Reflete no status do lead (leads usam email/phone, não customerEmail).
+  const leadOr: Record<string, unknown>[] = [];
+  if (email) leadOr.push({ email });
+  if (phone) leadOr.push({ phone });
+  const leadsCol = await getCollection("leads");
+  await leadsCol.updateOne(
+    { accountId, $or: leadOr },
+    {
+      $set: {
+        status: status === "cancelled" ? "purchased" : "refunded",
+        updatedAt: now,
+      },
+    }
   );
 }
 
