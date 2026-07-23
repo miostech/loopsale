@@ -273,8 +273,12 @@ export async function processIncomingEvent(
       phone: normalized.customerPhone ?? null,
       name: normalized.customerName ?? null,
       status: "lead",
-      // Reembolso não deve rebaixar o status aqui — quem decide é applyRefund.
-      preserveStatus: isContactEvent || normalized.eventType === "reembolso",
+      // Reembolso e encerramento não rebaixam o status aqui — quem decide é o
+      // applyRefund / closeLead.
+      preserveStatus:
+        isContactEvent ||
+        normalized.eventType === "reembolso" ||
+        normalized.eventType === "lead_encerrado",
       purchaseStatus,
       source:
         normalized.eventType === "pagamento_aprovado"
@@ -299,6 +303,10 @@ export async function processIncomingEvent(
 
   if (normalized.eventType === "reembolso") {
     await applyRefund(accountId, normalized, now);
+  }
+
+  if (normalized.eventType === "lead_encerrado") {
+    await closeLead(accountId, normalized, now);
   }
 
   if (
@@ -467,6 +475,41 @@ async function markCartsPaid(
       productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
     },
     { $set: { paidAt: now } }
+  );
+}
+
+/**
+ * Encerra um lead cujo fluxo terminou sem venda (evento lead_encerrado) — ex.:
+ * parou antes do WhatsApp. Vira status "closed" para sair da lista de leads
+ * ativos. Só encerra quem ainda está "lead"/"hot"; nunca rebaixa quem comprou.
+ * Guarda onde parou (stoppedAt) e o motivo (stopReason) para análise do funil.
+ */
+async function closeLead(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent,
+  now: Date
+) {
+  if (isDatabaseDisabled()) return;
+  const email = normalized.customerEmail?.trim();
+  const phone = normalized.customerPhone?.trim();
+  if (!email && !phone) return;
+
+  const leadOr: Record<string, unknown>[] = [];
+  if (email) leadOr.push({ email });
+  if (phone) leadOr.push({ phone });
+
+  const leadsCol = await getCollection("leads");
+  await leadsCol.updateOne(
+    { accountId, status: { $in: ["lead", "hot"] }, $or: leadOr },
+    {
+      $set: {
+        status: "closed",
+        closedAt: now,
+        stoppedAt: normalized.stoppedAt ?? null,
+        stopReason: normalized.stopReason ?? null,
+        updatedAt: now,
+      },
+    }
   );
 }
 

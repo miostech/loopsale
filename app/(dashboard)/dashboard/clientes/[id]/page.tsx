@@ -44,6 +44,8 @@ interface TimelineItem {
     refundRequester?: string | null;
     wamid?: string | null;
     whatsappStatus?: string | null;
+    stoppedAt?: string | null;
+    stopReason?: string | null;
   };
 }
 
@@ -67,6 +69,7 @@ const STATUS_LABEL: Record<string, string> = {
   paid: "Pago",
   refunded: "Reembolso",
   retained: "Reembolso (vendedor)",
+  closed: "Encerrado",
 };
 const STATUS_VARIANT: Record<
   string,
@@ -80,6 +83,8 @@ const STATUS_VARIANT: Record<
   refunded: "error",
   // Reembolso pedido pelo vendedor: sinalizado (comissão retida p/ revisão).
   retained: "warning",
+  // Fluxo encerrado sem venda.
+  closed: "default",
 };
 const SOURCE_LABEL: Record<string, string> = {
   checkout: "Checkout",
@@ -100,6 +105,7 @@ const EVENT_LABEL: Record<string, string> = {
   whatsapp_status: "Status do WhatsApp",
   reembolso: "Reembolso",
   pedido_cancelado: "Pedido cancelado",
+  lead_encerrado: "Lead encerrado",
 };
 const EVENT_COLOR: Record<string, string> = {
   recuperado: "var(--loop-success)",
@@ -438,6 +444,14 @@ export default function ClienteDetailPage() {
                       {item.data.wamid && (
                         <span className="mt-0.5 block font-mono text-xs text-[var(--loop-text-muted)]">
                           {`msg: ${item.data.wamid}`}
+                        </span>
+                      )}
+                      {(item.data.stoppedAt || item.data.stopReason) && (
+                        <span className="mt-0.5 block">
+                          {`parou em: ${item.data.stoppedAt ?? "—"}`}
+                          {item.data.stopReason
+                            ? ` · ${item.data.stopReason}`
+                            : ""}
                         </span>
                       )}
                     </div>

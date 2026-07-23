@@ -39,8 +39,27 @@ export type NormalizedEventType =
   | "pagamento_recusado"
   | "pedido_cancelado"
   | "reembolso"
+  | "lead_encerrado"
   | "whatsapp_status"
   | "whatsapp_enviado";
+
+/** Valores-placeholder que o n8n manda quando o campo real está vazio. */
+const PLACEHOLDERS = new Set([
+  "sem_id",
+  "sem_email",
+  "sem_telefone",
+  "sem_produto",
+  "sem_afiliado",
+  "sem_nome",
+]);
+
+/** Descarta placeholders ("sem_id", "sem_email", ...) tratando-os como vazio. */
+export function stripPlaceholder(v?: string): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  const s = String(v).trim();
+  if (!s || PLACEHOLDERS.has(s.toLowerCase())) return undefined;
+  return s;
+}
 
 export interface NormalizedCheckoutEvent {
   eventType: NormalizedEventType;
@@ -65,6 +84,10 @@ export interface NormalizedCheckoutEvent {
   whatsappMessageId?: string;
   /** Status de entrega da mensagem (accepted/sent/delivered/read/failed). */
   messageStatus?: string;
+  /** Onde o lead parou no fluxo (evento lead_encerrado). */
+  stoppedAt?: string;
+  /** Motivo de o lead ter sido encerrado (evento lead_encerrado). */
+  stopReason?: string;
   payload: Record<string, unknown>;
 }
 
@@ -230,6 +253,10 @@ export function normalizeN8nPayload(
     message_sent: "whatsapp_enviado",
     whatsapp: "whatsapp_enviado",
     whatsapp_status: "whatsapp_status",
+    closed_lead: "lead_encerrado",
+    lead_encerrado: "lead_encerrado",
+    lead_fechado: "lead_encerrado",
+    lead_closed: "lead_encerrado",
   };
   let eventType = mapping[rawEvent];
 
@@ -289,15 +316,15 @@ export function normalizeN8nPayload(
 
   return {
     eventType,
-    platformCheckoutId: pick("checkoutId", "checkout_id", "cartId", "cart_id", "id"),
+    platformCheckoutId: stripPlaceholder(
+      pick("checkoutId", "checkout_id", "cartId", "cart_id", "id")
+    ),
     platformOrderId: pick("orderId", "order_id", "transactionId", "transaction_id"),
-    customerEmail: pick("email", "customerEmail", "customer_email", "mail"),
-    customerPhone: pick(
-      "phone",
-      "customerPhone",
-      "customer_phone",
-      "whatsapp",
-      "mobile"
+    customerEmail: stripPlaceholder(
+      pick("email", "customerEmail", "customer_email", "mail")
+    ),
+    customerPhone: stripPlaceholder(
+      pick("phone", "customerPhone", "customer_phone", "whatsapp", "mobile")
     ),
     customerName: pick(
       "name",
@@ -309,19 +336,23 @@ export function normalizeN8nPayload(
       "first_name",
       "firstName"
     ),
-    affiliate: pick(
-      "afiliado",
-      "affiliate",
-      "affiliateName",
-      "affiliate_name",
-      "nome_afiliado",
-      "affiliate_id",
-      "affiliateId"
+    affiliate: stripPlaceholder(
+      pick(
+        "afiliado",
+        "affiliate",
+        "affiliateName",
+        "affiliate_name",
+        "nome_afiliado",
+        "affiliate_id",
+        "affiliateId"
+      )
     ),
     productId: pick("productId", "product_id"),
-    productName: cleanName(
-      pickFrom([body], "productName", "product_name", "product", "offer_name") ??
-        pickFrom([product], "product_name", "name", "title")
+    productName: stripPlaceholder(
+      cleanName(
+        pickFrom([body], "productName", "product_name", "product", "offer_name") ??
+          pickFrom([product], "product_name", "name", "title")
+      )
     ),
     // Kiwify manda valores brutos em centavos (inteiro); toReais converte para
     // reais quando não há casa decimal. valorLiquido já vem em reais.
@@ -344,6 +375,14 @@ export function normalizeN8nPayload(
     messageStatus:
       eventType === "whatsapp_enviado" || eventType === "whatsapp_status"
         ? pick("message_status", "messageStatus", "delivery_status", "wa_status")
+        : undefined,
+    stoppedAt:
+      eventType === "lead_encerrado"
+        ? pick("stoppedAt", "stopped_at", "parou_em")
+        : undefined,
+    stopReason:
+      eventType === "lead_encerrado"
+        ? pick("stopReason", "stop_reason", "motivo_parada")
         : undefined,
     refundStatus:
       eventType === "reembolso"

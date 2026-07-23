@@ -209,9 +209,17 @@ export interface Lead {
   phone?: string | null;
   name?: string | null;
   source: string;
+  /**
+   * lead | hot | purchased | paid | refunded | retained | closed. "closed" =
+   * fluxo encerrado sem venda (evento lead_encerrado); sai da lista de ativos.
+   */
   status: string;
   tags: string[];
   lastContactedAt?: Date | null;
+  /** Encerramento do fluxo (evento lead_encerrado). */
+  closedAt?: Date | null;
+  stoppedAt?: string | null;
+  stopReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

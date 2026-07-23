@@ -141,6 +141,14 @@ export async function GET(
             | string
             | undefined,
           whatsappStatus: e.whatsappStatus as string | undefined,
+          stoppedAt:
+            e.eventType === "lead_encerrado"
+              ? (e.payload?.stoppedAt as string | undefined)
+              : undefined,
+          stopReason:
+            e.eventType === "lead_encerrado"
+              ? (e.payload?.stopReason as string | undefined)
+              : undefined,
         },
       });
 

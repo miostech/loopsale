@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
   paid: "Pago",
   refunded: "Reembolso",
   retained: "Reembolso (vendedor)",
+  closed: "Encerrado",
 };
 
 const STATUS_VARIANT: Record<
@@ -40,6 +41,8 @@ const STATUS_VARIANT: Record<
   refunded: "error",
   // Reembolso pedido pelo vendedor: sinalizado (comissão retida p/ revisão).
   retained: "warning",
+  // Fluxo encerrado sem venda: cinza, some da lista de ativos.
+  closed: "default",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -58,6 +61,7 @@ const STATUS_FILTERS = [
   { value: "paid", label: "Pago" },
   { value: "refunded", label: "Reembolso" },
   { value: "retained", label: "Reembolso (vendedor)" },
+  { value: "closed", label: "Encerrado" },
   { value: "hot", label: "Quente" },
 ];
 
