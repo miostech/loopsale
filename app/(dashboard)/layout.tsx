@@ -14,6 +14,7 @@ const nav = [
   { href: "/dashboard/campanhas", label: "Campanhas" },
   { href: "/dashboard/templates", label: "Templates" },
   { href: "/dashboard/planos", label: "Planos e assinatura" },
+  { href: "/dashboard/comissao", label: "Comissão" },
   { href: "/dashboard/configuracoes", label: "Configurações" },
 ];
 

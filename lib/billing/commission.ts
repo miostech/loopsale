@@ -28,6 +28,18 @@ export type CommissionCalc = {
   retidaBrl: number;
 };
 
+/**
+ * Próxima data de cobrança da comissão. A cobrança roda no dia 1 e no dia 16 de
+ * cada mês (quinzenal, via cron), então a próxima é o próximo dia 16 (se estamos
+ * antes dele) ou o dia 1 do mês seguinte.
+ */
+export function nextChargeDate(now: Date): Date {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  if (now.getUTCDate() < 16) return new Date(Date.UTC(y, m, 16));
+  return new Date(Date.UTC(y, m + 1, 1));
+}
+
 /** Chave de competência YYYY-MM a partir de uma data (mês da data). */
 export function periodKeyOf(d: Date): string {
   const y = d.getUTCFullYear();

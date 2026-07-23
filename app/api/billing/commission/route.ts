@@ -5,7 +5,11 @@ import { getCollection, mapDocs, routeObjectId, isDatabaseDisabled } from "@/lib
 import type { Account } from "@/lib/db/types";
 import { getPlan, commissionRateOf } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
-import { computeCommission, currentFortnight } from "@/lib/billing/commission";
+import {
+  computeCommission,
+  currentFortnight,
+  nextChargeDate,
+} from "@/lib/billing/commission";
 
 type SessionUser = { accountId?: string; role?: string };
 
@@ -23,6 +27,7 @@ export async function GET() {
       cardOnFile: false,
       configured: stripeConfigured(),
       isAdmin: su.role === "admin",
+      proximaCobranca: nextChargeDate(new Date()).toISOString(),
       periodoAtual: {
         periodKey: "—",
         recuperadoBrl: 0,
@@ -50,6 +55,9 @@ export async function GET() {
   const quinzena = currentFortnight(now);
   const calc = await computeCommission(su.accountId, quinzena.from, now, rate);
 
+  // Próxima cobrança: próximo dia 1 ou 16 (o cron roda nessas datas).
+  const proximaCobranca = nextChargeDate(now);
+
   const commissionsCol = await getCollection("commissions");
   const historico = await commissionsCol
     .find({ accountId: su.accountId })
@@ -63,6 +71,7 @@ export async function GET() {
     cardOnFile,
     configured: stripeConfigured(),
     isAdmin: su.role === "admin",
+    proximaCobranca: proximaCobranca.toISOString(),
     periodoAtual: { periodKey: quinzena.periodKey, ...calc },
     historico: mapDocs(historico),
   });
