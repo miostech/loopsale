@@ -189,7 +189,16 @@ export function normalizeN8nPayload(
     whatsapp: "whatsapp_enviado",
     whatsapp_status: "whatsapp_status",
   };
-  const eventType = mapping[rawEvent];
+  let eventType = mapping[rawEvent];
+
+  // Um pagamento recusado pode chegar pelo MESMO webhook de abandono, distinguido
+  // apenas pelo campo `status` (ex.: status "refused"/"recusado" com
+  // event "checkout_abandonado"). Nesse caso, o status manda: é recusado.
+  const rawStatus = String(body.status ?? "").toLowerCase().trim();
+  if (/recus|refus/.test(rawStatus)) {
+    eventType = "pagamento_recusado";
+  }
+
   if (!eventType) return null;
 
   const asObject = (v: unknown): Record<string, unknown> =>
