@@ -6,9 +6,12 @@ import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
 interface CommissionRow {
   id: string;
   periodKey: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
   baseBrl: number;
   comissaoBrl: number;
   status: string;
+  updatedAt?: string | null;
 }
 
 interface Commission {
@@ -30,13 +33,17 @@ interface Commission {
   historico: CommissionRow[];
 }
 
-const COMMISSION_STATUS: Record<string, string> = {
-  paid: "Pago",
-  invoiced: "Faturado",
-  pending: "Pendente",
-  no_card: "Sem cartão",
-  failed: "Falhou",
-  zero: "Sem cobrança",
+// Situação do débito no cartão: Pago (ok) x Em aberto (falhou/pendente).
+const CHARGE_STATUS: Record<
+  string,
+  { label: string; variant: "default" | "success" | "warning" | "error" }
+> = {
+  paid: { label: "Pago", variant: "success" },
+  invoiced: { label: "Em aberto", variant: "warning" },
+  pending: { label: "Em aberto", variant: "warning" },
+  no_card: { label: "Sem cartão", variant: "error" },
+  failed: { label: "Débito falhou — em aberto", variant: "error" },
+  zero: { label: "Sem cobrança", variant: "default" },
 };
 
 const PLANO_LABEL: Record<string, string> = {
@@ -60,6 +67,18 @@ function formatDate(iso?: string | null): string {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function formatPeriodo(row: CommissionRow): string {
+  if (row.periodStart && row.periodEnd) {
+    const dm = (d: Date) =>
+      d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    const start = new Date(row.periodStart);
+    // periodEnd é exclusivo (início do dia seguinte) → mostra o último dia.
+    const end = new Date(new Date(row.periodEnd).getTime() - 86400000);
+    return `${dm(start)} – ${dm(end)}`;
+  }
+  return row.periodKey;
 }
 
 export default function ComissaoPage() {
@@ -234,48 +253,58 @@ export default function ComissaoPage() {
                 ↓ Baixar extrato (CSV)
               </a>
 
-              {/* Histórico */}
-              {commission.historico.length > 0 && (
+            </CardContent>
+          </Card>
+
+          {/* Histórico de cobranças no cartão */}
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-[var(--loop-text)]">
+                Histórico de cobranças
+              </h2>
+              <p className="text-sm text-[var(--loop-text-muted)]">
+                Comissões debitadas do cartão a cada quinzena — pago ou em aberto.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {commission.historico.length === 0 ? (
+                <p className="text-sm text-[var(--loop-text-muted)]">
+                  Nenhuma cobrança ainda. As comissões debitadas aparecem aqui a
+                  cada 15 dias.
+                </p>
+              ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-[var(--loop-border)] text-left text-[var(--loop-text-muted)]">
-                        <th className="pb-2 pr-4 font-medium">Competência</th>
-                        <th className="pb-2 pr-4 font-medium">Base</th>
+                        <th className="pb-2 pr-4 font-medium">Período</th>
                         <th className="pb-2 pr-4 font-medium">Comissão</th>
-                        <th className="pb-2 font-medium">Status</th>
+                        <th className="pb-2 font-medium">Situação</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {commission.historico.map((h) => (
-                        <tr
-                          key={h.id}
-                          className="border-b border-[var(--loop-border)]"
-                        >
-                          <td className="py-2 pr-4 text-[var(--loop-text)]">
-                            {h.periodKey}
-                          </td>
-                          <td className="py-2 pr-4 text-[var(--loop-text)]">
-                            {formatMoney(h.baseBrl)}
-                          </td>
-                          <td className="py-2 pr-4 text-[var(--loop-text)]">
-                            {formatMoney(h.comissaoBrl)}
-                          </td>
-                          <td className="py-2">
-                            <Badge
-                              variant={
-                                h.status === "paid"
-                                  ? "success"
-                                  : h.status === "failed"
-                                    ? "error"
-                                    : "default"
-                              }
-                            >
-                              {COMMISSION_STATUS[h.status] ?? h.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
+                      {commission.historico.map((h) => {
+                        const st = CHARGE_STATUS[h.status] ?? {
+                          label: h.status,
+                          variant: "default" as const,
+                        };
+                        return (
+                          <tr
+                            key={h.id}
+                            className="border-b border-[var(--loop-border)]"
+                          >
+                            <td className="py-2 pr-4 text-[var(--loop-text)]">
+                              {formatPeriodo(h)}
+                            </td>
+                            <td className="py-2 pr-4 font-medium text-[var(--loop-text)]">
+                              {formatMoney(h.comissaoBrl)}
+                            </td>
+                            <td className="py-2">
+                              <Badge variant={st.variant}>{st.label}</Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
