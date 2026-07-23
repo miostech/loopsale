@@ -189,16 +189,30 @@ async function computeCoreMetrics(
         $group: {
           _id: { $ifNull: ["$recoveryType", "abandoned"] },
           total: { $sum: 1 },
+          // Valor em risco = líquido (amount - fees), só do que AINDA está em
+          // risco: exclui recuperados (recoveredAt) e pagos (paidAt). USD sempre
+          // em balde separado do real.
           valorEmRisco: {
             $sum: {
               $cond: [
                 {
-                  $ne: [
-                    { $toUpper: { $ifNull: ["$currency", "BRL"] } },
-                    "USD",
+                  $and: [
+                    {
+                      $ne: [
+                        { $toUpper: { $ifNull: ["$currency", "BRL"] } },
+                        "USD",
+                      ],
+                    },
+                    { $eq: [{ $ifNull: ["$recoveredAt", null] }, null] },
+                    { $eq: [{ $ifNull: ["$paidAt", null] }, null] },
                   ],
                 },
-                { $toDouble: { $ifNull: ["$amount", "0"] } },
+                {
+                  $subtract: [
+                    { $toDouble: { $ifNull: ["$amount", "0"] } },
+                    { $toDouble: { $ifNull: ["$fees", "0"] } },
+                  ],
+                },
                 0,
               ],
             },
@@ -207,12 +221,23 @@ async function computeCoreMetrics(
             $sum: {
               $cond: [
                 {
-                  $eq: [
-                    { $toUpper: { $ifNull: ["$currency", "BRL"] } },
-                    "USD",
+                  $and: [
+                    {
+                      $eq: [
+                        { $toUpper: { $ifNull: ["$currency", "BRL"] } },
+                        "USD",
+                      ],
+                    },
+                    { $eq: [{ $ifNull: ["$recoveredAt", null] }, null] },
+                    { $eq: [{ $ifNull: ["$paidAt", null] }, null] },
                   ],
                 },
-                { $toDouble: { $ifNull: ["$amount", "0"] } },
+                {
+                  $subtract: [
+                    { $toDouble: { $ifNull: ["$amount", "0"] } },
+                    { $toDouble: { $ifNull: ["$fees", "0"] } },
+                  ],
+                },
                 0,
               ],
             },
@@ -530,7 +555,27 @@ export async function getDashboardDailyMetrics(
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$recoveredAt" } },
           count: { $sum: 1 },
-          total: { $sum: { $toDouble: { $ifNull: ["$amount", "0"] } } },
+          // O gráfico tem eixo em R$; USD nunca soma junto com o real. Aqui
+          // contamos só o valor recuperado em BRL (o total em US$ aparece
+          // separado nos cards). count continua com todas as moedas (é qtd).
+          total: {
+            $sum: {
+              $cond: [
+                {
+                  $ne: [
+                    { $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } },
+                    "USD",
+                  ],
+                },
+                {
+                  $toDouble: {
+                    $ifNull: ["$recoveredAmount", { $ifNull: ["$amount", "0"] }],
+                  },
+                },
+                0,
+              ],
+            },
+          },
         },
       },
     ])

@@ -122,6 +122,12 @@ export interface AbandonedCheckout {
   fees?: string | null;
   affiliate?: string | null;
   recoveredAt?: Date | null;
+  /**
+   * Momento em que a venda deste carrinho foi paga (qualquer pagamento aprovado
+   * do cliente para o produto), independentemente de contar como recuperação
+   * nossa. Usado para tirar do "valor em risco" o que já foi vendido.
+   */
+  paidAt?: Date | null;
   /** Valor líquido efetivamente pago quando recuperado (na moeda da venda). */
   recoveredAmount?: string | null;
   /** Moeda da venda que recuperou (ex: BRL, USD). Define o balde no dashboard. */

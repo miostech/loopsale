@@ -178,6 +178,9 @@ export async function processIncomingEvent(
   if (isContactEvent) return;
 
   if (normalized.eventType === "pagamento_aprovado") {
+    // Marca o(s) carrinho(s) desse cliente/produto como pagos (sai do "valor em
+    // risco") e, se for recuperação de fato, marca recoveredAt.
+    await markCartsPaid(accountId, normalized, now);
     await markRecovered(accountId, normalized, now);
   }
 
@@ -315,6 +318,39 @@ async function findRecoverableCandidate(
   }[];
   if (pendentes.length === 1 && pendentes[0]?._id) return pendentes[0];
   return null;
+}
+
+/**
+ * Marca como pago (`paidAt`) qualquer carrinho pendente do mesmo cliente para o
+ * mesmo produto quando chega um pagamento aprovado — independentemente de contar
+ * como recuperação nossa (afiliado/WhatsApp). Serve para tirar do "valor em
+ * risco" o que já foi efetivamente vendido.
+ */
+async function markCartsPaid(
+  accountId: string,
+  normalized: NormalizedCheckoutEvent,
+  now: Date
+) {
+  if (isDatabaseDisabled()) return;
+  const email = normalized.customerEmail?.trim();
+  const phone = normalized.customerPhone?.trim();
+  const product = normalized.productName?.trim();
+  if ((!email && !phone) || !product) return;
+
+  const customerOr: Record<string, unknown>[] = [];
+  if (email) customerOr.push({ customerEmail: email });
+  if (phone) customerOr.push({ customerPhone: phone });
+
+  const col = await getCollection("abandonedCheckouts");
+  await col.updateMany(
+    {
+      accountId,
+      paidAt: null,
+      $or: customerOr,
+      productName: { $regex: `^${escapeRegex(product)}$`, $options: "i" },
+    },
+    { $set: { paidAt: now } }
+  );
 }
 
 /**

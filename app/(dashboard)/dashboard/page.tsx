@@ -241,7 +241,7 @@ export default function DashboardPage() {
                   {formatUSD(metrics.total.valorEmRiscoDolar)}
                 </p>
                 <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
-                  Total recuperável no período
+                  Ainda em risco (líquido, sem os já pagos)
                 </p>
                 <ChangeBadge
                   value={metrics.variacao.valorEmRisco}
