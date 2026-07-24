@@ -17,9 +17,16 @@ export type CommissionCalc = {
   /** Base cobrável em R$ (recuperado sem afiliado, USD convertido). */
   baseBrl: number;
   rate: number;
+  /** Total a cobrar no cartão em R$ (USD convertido — Stripe cobra 1 moeda). */
   comissaoBrl: number;
+  /** Comissão sobre vendas em real (recuperadoBrl × taxa). */
+  comissaoRealBrl: number;
+  /** Comissão sobre vendas em dólar (recuperadoUsd × taxa), em US$. */
+  comissaoUsd: number;
   /** Recuperado via afiliado Mios Tech (comissão já paga na Kiwify), em R$. */
   pagaKiwifyBrl: number;
+  /** Idem, em US$ (separado do real). */
+  pagaKiwifyUsd: number;
   /**
    * Comissão retida: reembolso ativo pedido pelo VENDEDOR. Não é cobrada
    * automaticamente nem cancelada — fica para revisão manual (possível manobra
@@ -115,9 +122,23 @@ export async function computeCommission(
           retidaBaseBrl: {
             $sum: { $cond: [{ $and: [cobravel, retidoSeller] }, valueBrl, 0] },
           },
+          // Recuperado via afiliado Mios (comissão já paga na Kiwify), por moeda.
           pagaKiwifyBrl: {
             $sum: {
-              $cond: [{ $eq: ["$commissionPaidKiwify", true] }, valueBrl, 0],
+              $cond: [
+                { $and: [{ $eq: ["$commissionPaidKiwify", true] }, { $not: [isUsd] }] },
+                value,
+                0,
+              ],
+            },
+          },
+          pagaKiwifyUsd: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$commissionPaidKiwify", true] }, isUsd] },
+                value,
+                0,
+              ],
             },
           },
         },
@@ -128,12 +149,19 @@ export async function computeCommission(
     recuperadoUsd: number;
     retidaBaseBrl: number;
     pagaKiwifyBrl: number;
+    pagaKiwifyUsd: number;
   }[];
 
   const recuperadoBrl = row?.recuperadoBrl ?? 0;
   const recuperadoUsd = row?.recuperadoUsd ?? 0;
   const pagaKiwifyBrl = row?.pagaKiwifyBrl ?? 0;
+  const pagaKiwifyUsd = row?.pagaKiwifyUsd ?? 0;
   const baseBrl = recuperadoBrl + recuperadoUsd * usdRate;
+  // Comissão por moeda (USD fica separado do real, conforme a regra).
+  const comissaoRealBrl = Math.round(recuperadoBrl * rate * 100) / 100;
+  const comissaoUsd = Math.round(recuperadoUsd * rate * 100) / 100;
+  // Total a cobrar no cartão (R$): o Stripe cobra numa moeda só, então o USD é
+  // convertido aqui — mas o valor em US$ é exibido separado.
   const comissaoBrl = Math.round(baseBrl * rate * 100) / 100;
   const retidaBrl =
     Math.round((row?.retidaBaseBrl ?? 0) * rate * 100) / 100;
@@ -145,7 +173,10 @@ export async function computeCommission(
     baseBrl,
     rate,
     comissaoBrl,
+    comissaoRealBrl,
+    comissaoUsd,
     pagaKiwifyBrl,
+    pagaKiwifyUsd,
     retidaBrl,
   };
 }

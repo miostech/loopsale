@@ -108,11 +108,30 @@ export async function GET(
               ],
             },
           },
-          kiwify: {
+          kiwifyBrl: {
             $sum: {
               $cond: [
-                { $eq: ["$commissionPaidKiwify", true] },
+                {
+                  $and: [
+                    { $eq: ["$commissionPaidKiwify", true] },
+                    { $ne: [{ $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } }, "USD"] },
+                  ],
+                },
                 { $toDouble: { $ifNull: ["$recoveredAmount", { $ifNull: ["$amount", "0"] }] } },
+                0,
+              ],
+            },
+          },
+          kiwifyUsd: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$commissionPaidKiwify", true] },
+                    { $eq: [{ $toUpper: { $ifNull: ["$recoveredCurrency", "BRL"] } }, "USD"] },
+                  ],
+                },
+                { $toDouble: { $ifNull: ["$recoveredAmount", "0"] } },
                 0,
               ],
             },
@@ -120,7 +139,13 @@ export async function GET(
         },
       },
     ])
-    .toArray()) as { total: number; brl: number; usd: number; kiwify: number }[];
+    .toArray()) as {
+    total: number;
+    brl: number;
+    usd: number;
+    kiwifyBrl: number;
+    kiwifyUsd: number;
+  }[];
 
   return NextResponse.json({
     empresa: {
@@ -140,7 +165,8 @@ export async function GET(
       emAberto,
       recuperadoTotalBrl: agg?.brl ?? 0,
       recuperadoTotalUsd: agg?.usd ?? 0,
-      recuperadoViaKiwify: agg?.kiwify ?? 0,
+      recuperadoViaKiwifyBrl: agg?.kiwifyBrl ?? 0,
+      recuperadoViaKiwifyUsd: agg?.kiwifyUsd ?? 0,
       recuperadasTotal: agg?.total ?? 0,
     },
     historico: mapDocs(historico),

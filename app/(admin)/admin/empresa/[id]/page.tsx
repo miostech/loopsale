@@ -22,7 +22,10 @@ interface Detalhe {
     recuperadoUsd: number;
     baseBrl: number;
     comissaoBrl: number;
+    comissaoRealBrl: number;
+    comissaoUsd: number;
     pagaKiwifyBrl: number;
+    pagaKiwifyUsd: number;
     retidaBrl: number;
   };
   totais: {
@@ -30,7 +33,8 @@ interface Detalhe {
     emAberto: number;
     recuperadoTotalBrl: number;
     recuperadoTotalUsd: number;
-    recuperadoViaKiwify: number;
+    recuperadoViaKiwifyBrl: number;
+    recuperadoViaKiwifyUsd: number;
     recuperadasTotal: number;
   };
   historico: {
@@ -120,12 +124,31 @@ export default function EmpresaDetalhe({
 
   const { empresa: e, quinzena: q, totais: t } = d;
 
-  const cardQuinzena = [
-    { label: "Recuperado (base)", value: brl(q.baseBrl), accent: "var(--loop-text)" },
-    { label: "A receber", value: brl(q.comissaoBrl), accent: "var(--loop-primary)" },
+  const cardQuinzena: {
+    label: string;
+    value: string;
+    sub?: string;
+    accent: string;
+  }[] = [
+    {
+      label: "Recuperado (base)",
+      value: brl(q.recuperadoBrl),
+      sub: usd(q.recuperadoUsd),
+      accent: "var(--loop-text)",
+    },
+    {
+      label: "A receber (total no cartão)",
+      value: brl(q.comissaoBrl),
+      sub:
+        q.comissaoUsd > 0
+          ? `${brl(q.comissaoRealBrl)} real + ${usd(q.comissaoUsd)} dólar`
+          : undefined,
+      accent: "var(--loop-primary)",
+    },
     {
       label: "Comissão via Kiwify/Hotmart",
       value: brl(q.pagaKiwifyBrl),
+      sub: usd(q.pagaKiwifyUsd),
       accent: "var(--loop-text-muted)",
     },
   ];
@@ -185,6 +208,14 @@ export default function EmpresaDetalhe({
                 >
                   {c.value}
                 </p>
+                {c.sub && (
+                  <p
+                    className="mt-0.5 text-xs font-medium"
+                    style={{ color: c.accent }}
+                  >
+                    {c.sub}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -236,8 +267,13 @@ export default function EmpresaDetalhe({
                 Recuperado via Kiwify/Hotmart
               </p>
               <p className="mt-1 text-xl font-bold text-[var(--loop-text-muted)]">
-                {brl(t.recuperadoViaKiwify)}
+                {brl(t.recuperadoViaKiwifyBrl)}
               </p>
+              {t.recuperadoViaKiwifyUsd > 0 && (
+                <p className="text-sm font-medium text-[var(--loop-text-muted)]">
+                  {usd(t.recuperadoViaKiwifyUsd)}
+                </p>
+              )}
               <p className="mt-0.5 text-xs text-[var(--loop-text-muted)]">
                 comissão já paga na plataforma
               </p>

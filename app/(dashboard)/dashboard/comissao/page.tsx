@@ -27,7 +27,10 @@ interface Commission {
     recuperadoUsd: number;
     baseBrl: number;
     comissaoBrl: number;
+    comissaoRealBrl: number;
+    comissaoUsd: number;
     pagaKiwifyBrl: number;
+    pagaKiwifyUsd: number;
     retidaBrl: number;
   };
   historico: CommissionRow[];
@@ -57,6 +60,12 @@ function formatMoney(v: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
+  }).format(v || 0);
+}
+function formatUsd(v: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
   }).format(v || 0);
 }
 
@@ -196,14 +205,17 @@ export default function ComissaoPage() {
                 neste pagamento.
               </p>
 
-              {/* Apuração da quinzena */}
+              {/* Apuração da quinzena — R$ e US$ sempre separados */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-lg border border-[var(--loop-border)] p-3">
                   <p className="text-xs text-[var(--loop-text-muted)]">
                     Recuperado no período (base da comissão)
                   </p>
                   <p className="text-2xl font-bold text-[var(--loop-text)]">
-                    {formatMoney(commission.periodoAtual.baseBrl)}
+                    {formatMoney(commission.periodoAtual.recuperadoBrl)}
+                  </p>
+                  <p className="text-sm font-semibold text-[var(--loop-text-muted)]">
+                    {formatUsd(commission.periodoAtual.recuperadoUsd)}
                   </p>
                   <p className="mt-0.5 text-xs text-[var(--loop-text-muted)]">
                     × {Math.round(commission.rate * 100)}%
@@ -211,12 +223,19 @@ export default function ComissaoPage() {
                 </div>
                 <div className="rounded-lg border border-[var(--loop-primary)] bg-[var(--loop-primary-muted)] p-3">
                   <p className="text-xs text-[var(--loop-primary)]">
-                    Comissão a pagar
+                    Comissão a pagar (total no cartão)
                   </p>
-                  <p className="text-2xl font-bold text-[var(--loop-primary)]">
+                  <p className="text-3xl font-bold text-[var(--loop-primary)]">
                     {formatMoney(commission.periodoAtual.comissaoBrl)}
                   </p>
-                  <p className="mt-0.5 text-xs text-[var(--loop-primary)]">
+                  {commission.periodoAtual.comissaoUsd > 0 && (
+                    <p className="mt-0.5 text-xs text-[var(--loop-primary)]">
+                      {formatMoney(commission.periodoAtual.comissaoRealBrl)} em
+                      real + {formatUsd(commission.periodoAtual.comissaoUsd)} em
+                      dólar (convertido pra real)
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-[var(--loop-primary)]">
                     Próxima cobrança: {formatDate(commission.proximaCobranca)}
                   </p>
                 </div>
@@ -226,6 +245,9 @@ export default function ComissaoPage() {
                   </p>
                   <p className="text-2xl font-bold text-[var(--loop-text-muted)]">
                     {formatMoney(commission.periodoAtual.pagaKiwifyBrl)}
+                  </p>
+                  <p className="text-sm font-semibold text-[var(--loop-text-muted)]">
+                    {formatUsd(commission.periodoAtual.pagaKiwifyUsd)}
                   </p>
                   <p className="mt-0.5 text-xs text-[var(--loop-text-muted)]">
                     não entra neste pagamento
