@@ -8,8 +8,12 @@ import {
   isDatabaseDisabled,
 } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { isSuperAdmin } from "@/lib/admin";
-import { commissionRateOf, getPlan } from "@/lib/billing/plans";
+import { isSuperAdmin, metaCostPerMessageEur, eurToBrlRate } from "@/lib/admin";
+import {
+  commissionRateOf,
+  getPlan,
+  subscriptionRevenueOf,
+} from "@/lib/billing/plans";
 import {
   computeCommission,
   currentFortnight,
@@ -65,6 +69,25 @@ export async function GET(
 
   const usersCol = await getCollection("users");
   const membros = await usersCol.countDocuments({ accountId });
+
+  // Mensagens de WhatsApp enviadas (cada uma é custo Meta). Total + na quinzena.
+  const eventsCol = await getCollection("checkoutEvents");
+  const mensagensTotal = await eventsCol.countDocuments({
+    accountId,
+    eventType: "whatsapp_enviado",
+  });
+  const mensagensQuinzena = await eventsCol.countDocuments({
+    accountId,
+    eventType: "whatsapp_enviado",
+    createdAt: { $gte: quinzena.from, $lt: now },
+  });
+  // Última atividade (qualquer evento) — sinal de integração saudável.
+  const ultimoEvento = (await eventsCol
+    .find({ accountId })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .toArray()) as { createdAt?: Date }[];
+  const ultimaAtividade = ultimoEvento[0]?.createdAt ?? null;
 
   // Histórico de cobranças.
   const commissionsCol = await getCollection("commissions");
@@ -147,6 +170,30 @@ export async function GET(
     kiwifyUsd: number;
   }[];
 
+  // Conversão: recuperados ÷ recuperáveis (todos os carrinhos abandono/recusa).
+  // E conversão por mensagem enviada (quantas viraram venda).
+  const recuperaveisTotal = await carts.countDocuments({ accountId });
+  const recuperadasTotal = agg?.total ?? 0;
+  const taxaConversao =
+    recuperaveisTotal > 0 ? recuperadasTotal / recuperaveisTotal : 0;
+  const taxaPorMensagem =
+    mensagensTotal > 0 ? recuperadasTotal / mensagensTotal : 0;
+
+  // Receita de assinatura (mensal) + custo Meta + margem (comissão − Meta).
+  const assinaturaMensal = subscriptionRevenueOf(
+    account.subscription?.plan,
+    !!account.support?.active
+  );
+  // Custo Meta em EUR (moeda que a LoopSale paga) e convertido pra R$ (margem).
+  const custoMetaEur =
+    Math.round(mensagensTotal * metaCostPerMessageEur() * 100) / 100;
+  const custoMeta =
+    Math.round(mensagensTotal * metaCostPerMessageEur() * eurToBrlRate() * 100) /
+    100;
+  // Margem = comissão gerada (recebida + a receber) menos o custo Meta (R$).
+  const margem =
+    Math.round((recebido + calc.comissaoBrl - custoMeta) * 100) / 100;
+
   return NextResponse.json({
     empresa: {
       id: accountId,
@@ -158,6 +205,8 @@ export async function GET(
       criadoEm: account.createdAt,
       cardOnFile: !!account.subscription?.defaultPaymentMethod,
       membros,
+      assinaturaMensal,
+      ultimaAtividade,
     },
     quinzena: { periodKey: quinzena.periodKey, ...calc },
     totais: {
@@ -167,7 +216,15 @@ export async function GET(
       recuperadoTotalUsd: agg?.usd ?? 0,
       recuperadoViaKiwifyBrl: agg?.kiwifyBrl ?? 0,
       recuperadoViaKiwifyUsd: agg?.kiwifyUsd ?? 0,
-      recuperadasTotal: agg?.total ?? 0,
+      recuperadasTotal,
+      recuperaveisTotal,
+      taxaConversao,
+      taxaPorMensagem,
+      mensagensTotal,
+      mensagensQuinzena,
+      custoMeta,
+      custoMetaEur,
+      margem,
     },
     historico: mapDocs(historico),
   });

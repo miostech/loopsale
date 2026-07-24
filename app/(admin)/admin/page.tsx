@@ -18,16 +18,30 @@ interface Empresa {
   aReceberQuinzena: number;
   recebido: number;
   emAberto: number;
+  assinaturaMensal: number;
+  mensagens: number;
+  custoMeta: number;
+  custoMetaEur: number;
+  margem: number;
+  ultimaAtividade: string | null;
+  ativo: boolean;
 }
 
 interface Overview {
   periodo: string;
+  metaCostEur: number;
+  eurRate: number;
   totals: {
     empresas: number;
+    ativos: number;
+    inativos: number;
     aReceber: number;
     recebido: number;
     emAberto: number;
-    recuperadoBrl: number;
+    mrr: number;
+    custoMeta: number;
+    custoMetaEur: number;
+    margem: number;
   };
   empresas: Empresa[];
   error?: string;
@@ -39,8 +53,18 @@ function money(v: number): string {
     currency: "BRL",
   }).format(v || 0);
 }
-function data(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR");
+function eur(v: number): string {
+  return new Intl.NumberFormat("pt-PT", {
+    style: "currency",
+    currency: "EUR",
+  }).format(v || 0);
+}
+function haQuanto(iso: string | null): string {
+  if (!iso) return "sem eventos";
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (dias <= 0) return "hoje";
+  if (dias === 1) return "ontem";
+  return `há ${dias} dias`;
 }
 
 export default function AdminPage() {
@@ -77,12 +101,25 @@ export default function AdminPage() {
     );
   }
 
-  const tiles = ov
+  const t = ov?.totals;
+  const tiles = t
     ? [
-        { label: "Empresas clientes", value: String(ov.totals.empresas), accent: "var(--loop-text)" },
-        { label: "A receber (quinzena)", value: money(ov.totals.aReceber), accent: "var(--loop-primary)" },
-        { label: "Já recebido", value: money(ov.totals.recebido), accent: "var(--loop-success)" },
-        { label: "Em aberto", value: money(ov.totals.emAberto), accent: "var(--loop-error)" },
+        { label: "Empresas clientes", value: String(t.empresas), accent: "var(--loop-text)" },
+        {
+          label: "Ativas · inativas",
+          value: `${t.ativos} · ${t.inativos}`,
+          accent: t.inativos > 0 ? "var(--loop-warning)" : "var(--loop-success)",
+        },
+        { label: "MRR (assinaturas)", value: money(t.mrr), accent: "var(--loop-cta)" },
+        { label: "A receber (quinzena)", value: money(t.aReceber), accent: "var(--loop-primary)" },
+        { label: "Já recebido", value: money(t.recebido), accent: "var(--loop-success)" },
+        { label: "Em aberto", value: money(t.emAberto), accent: "var(--loop-error)" },
+        { label: "Custo Meta (mensagens)", value: eur(t.custoMetaEur), accent: "var(--loop-text-muted)" },
+        {
+          label: "Margem (comissão − Meta)",
+          value: money(t.margem),
+          accent: t.margem >= 0 ? "var(--loop-success)" : "var(--loop-error)",
+        },
       ]
     : [];
 
@@ -93,7 +130,7 @@ export default function AdminPage() {
           Painel LoopSale (admin)
         </h1>
         <p className="text-sm text-[var(--loop-text-muted)]">
-          Todas as empresas clientes e as comissões que vamos receber.
+          Empresas clientes, receita (assinatura + comissão), custo Meta e saúde.
         </p>
       </div>
 
@@ -105,19 +142,19 @@ export default function AdminPage() {
         </p>
       ) : (
         <>
-          {/* Resumo */}
+          {/* Resumo da plataforma */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {tiles.map((t) => (
-              <Card key={t.label}>
+            {tiles.map((tile) => (
+              <Card key={tile.label}>
                 <CardContent className="py-4">
                   <p className="text-xs text-[var(--loop-text-muted)]">
-                    {t.label}
+                    {tile.label}
                   </p>
                   <p
                     className="mt-1 text-2xl font-bold"
-                    style={{ color: t.accent }}
+                    style={{ color: tile.accent }}
                   >
-                    {t.value}
+                    {tile.value}
                   </p>
                 </CardContent>
               </Card>
@@ -131,7 +168,9 @@ export default function AdminPage() {
                 Empresas clientes
               </h2>
               <p className="text-sm text-[var(--loop-text-muted)]">
-                Comissão a receber é a apuração parcial da quinzena atual.
+                Comissão a receber = apuração parcial da quinzena. Custo Meta ={" "}
+                {eur(ov.metaCostEur)}/mensagem (câmbio €→R$ {ov.eurRate}). Clique
+                numa empresa para o detalhe.
               </p>
             </CardHeader>
             <CardContent>
@@ -141,19 +180,18 @@ export default function AdminPage() {
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full whitespace-nowrap text-sm">
                     <thead>
                       <tr className="border-b border-[var(--loop-border)] text-left text-[var(--loop-text-muted)]">
                         <th className="pb-2 pr-4 font-medium">Empresa</th>
                         <th className="pb-2 pr-4 font-medium">Plano</th>
-                        <th className="pb-2 pr-4 font-medium">Cadastro</th>
-                        <th className="pb-2 pr-4 font-medium">Cartão</th>
-                        <th className="pb-2 pr-4 font-medium">
-                          Recuperado (quinzena)
-                        </th>
+                        <th className="pb-2 pr-4 font-medium">Assinatura/mês</th>
+                        <th className="pb-2 pr-4 font-medium">Mensagens</th>
                         <th className="pb-2 pr-4 font-medium">A receber</th>
                         <th className="pb-2 pr-4 font-medium">Recebido</th>
-                        <th className="pb-2 font-medium">Em aberto</th>
+                        <th className="pb-2 pr-4 font-medium">Em aberto</th>
+                        <th className="pb-2 pr-4 font-medium">Margem</th>
+                        <th className="pb-2 font-medium">Cartão</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -169,30 +207,30 @@ export default function AdminPage() {
                             >
                               {e.nome}
                             </Link>
-                            <span className="ml-2 text-xs text-[var(--loop-text-muted)]">
-                              {e.membros} usuário{e.membros === 1 ? "" : "s"}
+                            {!e.ativo && (
+                              <Badge variant="warning" className="ml-2">
+                                inativa
+                              </Badge>
+                            )}
+                            <span className="block text-xs text-[var(--loop-text-muted)]">
+                              {e.membros} usuário{e.membros === 1 ? "" : "s"} ·
+                              ativo {haQuanto(e.ultimaAtividade)}
                             </span>
                           </td>
                           <td className="py-2 pr-4">
                             <Badge variant="default">
                               {e.planoNome}
-                              {e.rate > 0
-                                ? ` · ${Math.round(e.rate * 100)}%`
-                                : ""}
+                              {e.rate > 0 ? ` · ${Math.round(e.rate * 100)}%` : ""}
                             </Badge>
                           </td>
-                          <td className="py-2 pr-4 text-[var(--loop-text-muted)]">
-                            {data(e.criadoEm)}
-                          </td>
-                          <td className="py-2 pr-4">
-                            {e.cardOnFile ? (
-                              <Badge variant="success">Sim</Badge>
-                            ) : (
-                              <Badge variant="warning">Não</Badge>
-                            )}
+                          <td className="py-2 pr-4 text-[var(--loop-text)]">
+                            {e.assinaturaMensal > 0 ? money(e.assinaturaMensal) : "—"}
                           </td>
                           <td className="py-2 pr-4 text-[var(--loop-text)]">
-                            {money(e.recuperadoQuinzena)}
+                            {e.mensagens.toLocaleString("pt-BR")}
+                            <span className="block text-xs text-[var(--loop-text-muted)]">
+                              {eur(e.custoMetaEur)} Meta
+                            </span>
                           </td>
                           <td className="py-2 pr-4 font-semibold text-[var(--loop-primary)]">
                             {money(e.aReceberQuinzena)}
@@ -200,15 +238,31 @@ export default function AdminPage() {
                           <td className="py-2 pr-4 text-[var(--loop-success)]">
                             {money(e.recebido)}
                           </td>
-                          <td className="py-2">
+                          <td className="py-2 pr-4">
                             {e.emAberto > 0 ? (
                               <span className="text-[var(--loop-error)]">
                                 {money(e.emAberto)}
                               </span>
                             ) : (
-                              <span className="text-[var(--loop-text-muted)]">
-                                —
-                              </span>
+                              <span className="text-[var(--loop-text-muted)]">—</span>
+                            )}
+                          </td>
+                          <td
+                            className="py-2 pr-4 font-medium"
+                            style={{
+                              color:
+                                e.margem >= 0
+                                  ? "var(--loop-success)"
+                                  : "var(--loop-error)",
+                            }}
+                          >
+                            {money(e.margem)}
+                          </td>
+                          <td className="py-2">
+                            {e.cardOnFile ? (
+                              <Badge variant="success">Sim</Badge>
+                            ) : (
+                              <Badge variant="warning">Não</Badge>
                             )}
                           </td>
                         </tr>

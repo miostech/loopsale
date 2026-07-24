@@ -121,6 +121,21 @@ export function getPlan(id: string | null | undefined): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }
 
+/**
+ * Receita de assinatura mensal (R$) que a LoopSale cobra do cliente: mensalidade
+ * do plano + atendimento gerenciado (se contratado e não já incluído no plano).
+ * Não inclui comissão (que é variável, sobre vendas recuperadas).
+ */
+export function subscriptionRevenueOf(
+  planId: string | null | undefined,
+  supportActive: boolean
+): number {
+  const plan = getPlan(planId);
+  let mensal = plan.priceMonthly;
+  if (supportActive && !plan.includesSupport) mensal += SUPPORT_ADDON.priceMonthly;
+  return mensal;
+}
+
 /** Taxa de comissão sobre vendas recuperadas do plano (0 se não cobra). */
 export function commissionRateOf(id: string | null | undefined): number {
   return getPlan(id).commissionRate ?? 0;

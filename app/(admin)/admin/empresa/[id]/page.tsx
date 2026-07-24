@@ -15,6 +15,8 @@ interface Detalhe {
     criadoEm: string;
     cardOnFile: boolean;
     membros: number;
+    assinaturaMensal: number;
+    ultimaAtividade: string | null;
   };
   quinzena: {
     periodKey: string;
@@ -36,6 +38,14 @@ interface Detalhe {
     recuperadoViaKiwifyBrl: number;
     recuperadoViaKiwifyUsd: number;
     recuperadasTotal: number;
+    recuperaveisTotal: number;
+    taxaConversao: number;
+    taxaPorMensagem: number;
+    mensagensTotal: number;
+    mensagensQuinzena: number;
+    custoMeta: number;
+    custoMetaEur: number;
+    margem: number;
   };
   historico: {
     id: string;
@@ -69,8 +79,37 @@ const usd = (v: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
     v || 0
   );
+const eur = (v: number) =>
+  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(
+    v || 0
+  );
 const dataBR = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR") : "—";
+
+/** Há quanto tempo aconteceu algo (última atividade). */
+function haQuanto(iso?: string | null): string {
+  if (!iso) return "sem eventos";
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (dias <= 0) return "hoje";
+  if (dias === 1) return "ontem";
+  return `há ${dias} dias`;
+}
+
+/** Há quanto tempo é cliente (a partir da data de cadastro). */
+function tempoCliente(iso?: string | null): string {
+  if (!iso) return "";
+  const dias = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  );
+  if (dias === 0) return "cadastrado hoje";
+  if (dias === 1) return "cliente há 1 dia";
+  if (dias < 60) return `cliente há ${dias} dias`;
+  const meses = Math.floor(dias / 30);
+  if (meses < 24) return `cliente há ${meses} ${meses === 1 ? "mês" : "meses"}`;
+  const anos = Math.floor(dias / 365);
+  return `cliente há ${anos} ${anos === 1 ? "ano" : "anos"}`;
+}
 
 function periodo(row: Detalhe["historico"][number]): string {
   if (row.periodStart && row.periodEnd) {
@@ -173,14 +212,30 @@ export default function EmpresaDetalhe({
             {e.planoNome}
             {e.rate > 0 ? ` · ${Math.round(e.rate * 100)}%` : ""}
           </Badge>
-          <span>· Cadastro {dataBR(e.criadoEm)}</span>
+          <span>
+            · Cadastro {dataBR(e.criadoEm)} ({tempoCliente(e.criadoEm)})
+          </span>
           <span>· {e.membros} usuário{e.membros === 1 ? "" : "s"}</span>
+          {e.assinaturaMensal > 0 && (
+            <span>· Assinatura {brl(e.assinaturaMensal)}/mês</span>
+          )}
+          <span>· ativo {haQuanto(e.ultimaAtividade)}</span>
           <span>·</span>
           {e.cardOnFile ? (
             <Badge variant="success">Cartão cadastrado</Badge>
           ) : (
             <Badge variant="warning">Sem cartão</Badge>
           )}
+          {(() => {
+            const dias = e.ultimaAtividade
+              ? Math.floor(
+                  (Date.now() - new Date(e.ultimaAtividade).getTime()) / 86400000
+                )
+              : Infinity;
+            return dias > 7 ? (
+              <Badge variant="error">integração parada?</Badge>
+            ) : null;
+          })()}
         </div>
       </div>
 
@@ -232,6 +287,17 @@ export default function EmpresaDetalhe({
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-[var(--loop-success)] bg-emerald-50 p-3 dark:bg-emerald-900/20">
+              <p className="text-xs text-[var(--loop-success)]">
+                Taxa de conversão
+              </p>
+              <p className="mt-1 text-xl font-bold text-[var(--loop-success)]">
+                {Math.round(t.taxaConversao * 100)}%
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--loop-success)]">
+                {t.recuperadasTotal} de {t.recuperaveisTotal} recuperáveis
+              </p>
+            </div>
             <div className="rounded-lg border border-[var(--loop-border)] p-3">
               <p className="text-xs text-[var(--loop-text-muted)]">
                 Recuperado total
@@ -276,6 +342,44 @@ export default function EmpresaDetalhe({
               )}
               <p className="mt-0.5 text-xs text-[var(--loop-text-muted)]">
                 comissão já paga na plataforma
+              </p>
+            </div>
+            <div className="rounded-lg border border-[var(--loop-cta)] bg-[var(--loop-cta-muted)] p-3">
+              <p className="text-xs text-[var(--loop-cta)]">
+                Mensagens WhatsApp (custo Meta)
+              </p>
+              <p className="mt-1 text-xl font-bold text-[var(--loop-cta)]">
+                {t.mensagensTotal.toLocaleString("pt-BR")}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--loop-cta)]">
+                {t.mensagensQuinzena.toLocaleString("pt-BR")} nesta quinzena ·{" "}
+                {Math.round(t.taxaPorMensagem * 100)}% viraram venda
+              </p>
+              <p className="text-xs text-[var(--loop-cta)]">
+                custo Meta {eur(t.custoMetaEur)} (≈ {brl(t.custoMeta)})
+              </p>
+            </div>
+            <div
+              className="rounded-lg border p-3"
+              style={{
+                borderColor:
+                  t.margem >= 0 ? "var(--loop-success)" : "var(--loop-error)",
+              }}
+            >
+              <p className="text-xs text-[var(--loop-text-muted)]">
+                Margem (comissão − custo Meta)
+              </p>
+              <p
+                className="mt-1 text-xl font-bold"
+                style={{
+                  color:
+                    t.margem >= 0 ? "var(--loop-success)" : "var(--loop-error)",
+                }}
+              >
+                {brl(t.margem)}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--loop-text-muted)]">
+                comissão gerada (recebida + a receber) − custo Meta
               </p>
             </div>
           </div>
