@@ -41,14 +41,30 @@ export async function GET(request: Request) {
     recoveredAt.$lte = end;
   }
   const filter: Record<string, unknown> = { accountId, recoveredAt };
-  if (affiliate) filter.affiliate = affiliate;
   if (product) filter.productName = product;
-  if (search) {
-    filter.$or = [
-      { customerEmail: { $regex: search, $options: "i" } },
-      { customerPhone: { $regex: search, $options: "i" } },
-    ];
+
+  // Condições que podem se combinar (afiliado + busca) vão em $and para não
+  // sobrescrever o $or uma da outra.
+  const and: Record<string, unknown>[] = [];
+  // Afiliado da VENDA que recuperou (recoveredAffiliate) — que é o exibido na
+  // lista. Fallback ao afiliado do carrinho quando a venda não trouxe afiliado.
+  if (affiliate) {
+    and.push({
+      $or: [
+        { recoveredAffiliate: affiliate },
+        { recoveredAffiliate: { $in: [null, ""] }, affiliate },
+      ],
+    });
   }
+  if (search) {
+    and.push({
+      $or: [
+        { customerEmail: { $regex: search, $options: "i" } },
+        { customerPhone: { $regex: search, $options: "i" } },
+      ],
+    });
+  }
+  if (and.length) filter.$and = and;
 
   const col = await getCollection("abandonedCheckouts");
 
@@ -101,10 +117,30 @@ export async function GET(request: Request) {
 
   // Opções de filtro (afiliados e produtos de todas as vendas recuperadas).
   const optionsBase = { accountId, recoveredAt: { $ne: null } };
+  // Afiliado efetivo = o da venda (recoveredAffiliate), com fallback ao do
+  // carrinho — igual ao que a lista exibe e ao que o filtro casa.
   const affiliatesRows = (await col
     .aggregate([
-      { $match: { ...optionsBase, affiliate: { $nin: [null, ""] } } },
-      { $group: { _id: "$affiliate" } },
+      { $match: optionsBase },
+      {
+        $group: {
+          _id: {
+            $let: {
+              vars: {
+                ra: { $ifNull: ["$recoveredAffiliate", ""] },
+              },
+              in: {
+                $cond: [
+                  { $eq: ["$$ra", ""] },
+                  { $ifNull: ["$affiliate", ""] },
+                  "$$ra",
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $match: { _id: { $nin: [null, ""] } } },
       { $sort: { _id: 1 } },
     ])
     .toArray()) as { _id: string }[];
