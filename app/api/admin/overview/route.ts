@@ -135,6 +135,7 @@ export async function GET() {
     // Margem = comissão gerada (recebida + a receber) menos o custo Meta.
     const margem =
       Math.round((recebido + calc.comissaoBrl - custoMeta) * 100) / 100;
+    const margemEur = Math.round((margem / eurRate) * 100) / 100;
     const dias = ev.lastAt
       ? Math.floor((now.getTime() - new Date(ev.lastAt).getTime()) / DAY)
       : Infinity;
@@ -168,6 +169,7 @@ export async function GET() {
       custoMeta,
       custoMetaEur,
       margem,
+      margemEur,
       ultimaAtividade: ev.lastAt,
       ativo,
     });
@@ -191,6 +193,10 @@ export async function GET() {
       custoMetaEur: Math.round(totCustoMetaEur * 100) / 100,
       margem:
         Math.round((totRecebido + totAReceber - totCustoMeta) * 100) / 100,
+      margemEur:
+        Math.round(
+          ((totRecebido + totAReceber - totCustoMeta) / eurRate) * 100
+        ) / 100,
     },
     empresas,
   });

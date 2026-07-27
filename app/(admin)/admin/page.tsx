@@ -23,6 +23,7 @@ interface Empresa {
   custoMeta: number;
   custoMetaEur: number;
   margem: number;
+  margemEur: number;
   ultimaAtividade: string | null;
   ativo: boolean;
 }
@@ -42,6 +43,7 @@ interface Overview {
     custoMeta: number;
     custoMetaEur: number;
     margem: number;
+    margemEur: number;
   };
   empresas: Empresa[];
   error?: string;
@@ -118,6 +120,7 @@ export default function AdminPage() {
         {
           label: "Margem (comissão − Meta)",
           value: money(t.margem),
+          sub: `${eur(t.margemEur)} em euro`,
           accent: t.margem >= 0 ? "var(--loop-success)" : "var(--loop-error)",
         },
       ]
@@ -156,6 +159,14 @@ export default function AdminPage() {
                   >
                     {tile.value}
                   </p>
+                  {"sub" in tile && tile.sub && (
+                    <p
+                      className="text-xs font-medium"
+                      style={{ color: tile.accent }}
+                    >
+                      {tile.sub}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -257,6 +268,9 @@ export default function AdminPage() {
                             }}
                           >
                             {money(e.margem)}
+                            <span className="block text-xs font-normal text-[var(--loop-text-muted)]">
+                              {eur(e.margemEur)}
+                            </span>
                           </td>
                           <td className="py-2">
                             {e.cardOnFile ? (

@@ -46,6 +46,7 @@ interface Detalhe {
     custoMeta: number;
     custoMetaEur: number;
     margem: number;
+    margemEur: number;
   };
   historico: {
     id: string;
@@ -377,6 +378,15 @@ export default function EmpresaDetalhe({
                 }}
               >
                 {brl(t.margem)}
+              </p>
+              <p
+                className="text-xs font-medium"
+                style={{
+                  color:
+                    t.margem >= 0 ? "var(--loop-success)" : "var(--loop-error)",
+                }}
+              >
+                {eur(t.margemEur)} em euro
               </p>
               <p className="mt-0.5 text-xs text-[var(--loop-text-muted)]">
                 comissão gerada (recebida + a receber) − custo Meta

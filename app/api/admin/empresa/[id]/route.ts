@@ -193,6 +193,7 @@ export async function GET(
   // Margem = comissão gerada (recebida + a receber) menos o custo Meta (R$).
   const margem =
     Math.round((recebido + calc.comissaoBrl - custoMeta) * 100) / 100;
+  const margemEur = Math.round((margem / eurToBrlRate()) * 100) / 100;
 
   return NextResponse.json({
     empresa: {
@@ -225,6 +226,7 @@ export async function GET(
       custoMeta,
       custoMetaEur,
       margem,
+      margemEur,
     },
     historico: mapDocs(historico),
   });
