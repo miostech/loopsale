@@ -27,6 +27,7 @@ export async function GET() {
       platformConnected: true,
       loopConnected: true,
       awaitingApproval: false,
+      welcomeSeen: true,
     });
   }
 
@@ -39,7 +40,7 @@ export async function GET() {
   const platform = account?.platform ?? null;
   const companyName = account?.name ?? "";
 
-  // Sem plataforma definida (contas antigas) => libera.
+  // Sem plataforma definida (contas antigas) => libera e não mostra tour.
   if (!platform) {
     return NextResponse.json({
       onboarded: true,
@@ -48,6 +49,7 @@ export async function GET() {
       platformConnected: true,
       loopConnected: true,
       awaitingApproval: false,
+      welcomeSeen: true,
     });
   }
 
@@ -71,5 +73,27 @@ export async function GET() {
     platformConnected,
     loopConnected,
     awaitingApproval: integrationsDone && !approved,
+    welcomeSeen: !!account?.welcomeSeenAt,
   });
+}
+
+/** Marca que o cliente já viu o tour de boas-vindas (mostrado 1x após ativar). */
+export async function POST() {
+  const session = await getServerSession(authOptions);
+  const su = session?.user as SessionUser | undefined;
+  if (!su?.accountId) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+  if (isDatabaseDisabled()) {
+    return NextResponse.json({ ok: true });
+  }
+  const accountsCol = await getCollection("accounts");
+  const accOid = await routeObjectId(su.accountId);
+  if (accOid) {
+    await accountsCol.updateOne(
+      { _id: accOid },
+      { $set: { welcomeSeenAt: new Date(), updatedAt: new Date() } }
+    );
+  }
+  return NextResponse.json({ ok: true });
 }

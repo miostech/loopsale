@@ -24,9 +24,16 @@ export interface OnboardingState {
   platformConnected: boolean;
   loopConnected: boolean;
   awaitingApproval: boolean;
+  welcomeSeen: boolean;
 }
 
-const OnboardingCtx = createContext<OnboardingState>({
+interface OnboardingContextValue extends OnboardingState {
+  /** href do item do menu destacado pelo tour de boas-vindas (ou null). */
+  tourHighlight: string | null;
+  setTourHighlight: (href: string | null) => void;
+}
+
+const OnboardingCtx = createContext<OnboardingContextValue>({
   loading: true,
   onboarded: true,
   platform: null,
@@ -34,6 +41,9 @@ const OnboardingCtx = createContext<OnboardingState>({
   platformConnected: true,
   loopConnected: true,
   awaitingApproval: false,
+  welcomeSeen: true,
+  tourHighlight: null,
+  setTourHighlight: () => {},
 });
 
 export function useOnboarding() {
@@ -46,6 +56,7 @@ export function OnboardingProvider({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [tourHighlight, setTourHighlight] = useState<string | null>(null);
   const [state, setState] = useState<OnboardingState>({
     loading: true,
     onboarded: true,
@@ -54,6 +65,7 @@ export function OnboardingProvider({
     platformConnected: true,
     loopConnected: true,
     awaitingApproval: false,
+    welcomeSeen: true,
   });
 
   useEffect(() => {
@@ -74,6 +86,7 @@ export function OnboardingProvider({
             platformConnected: !!d.platformConnected,
             loopConnected: !!d.loopConnected,
             awaitingApproval: !!d.awaitingApproval,
+            welcomeSeen: d.welcomeSeen !== false,
           });
         })
         .catch(() => {
@@ -91,6 +104,8 @@ export function OnboardingProvider({
   }, [pathname, state.loading, state.onboarded]);
 
   return (
-    <OnboardingCtx.Provider value={state}>{children}</OnboardingCtx.Provider>
+    <OnboardingCtx.Provider value={{ ...state, tourHighlight, setTourHighlight }}>
+      {children}
+    </OnboardingCtx.Provider>
   );
 }

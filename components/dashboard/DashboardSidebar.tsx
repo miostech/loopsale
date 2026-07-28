@@ -11,7 +11,8 @@ type NavItem = { href: string; label: string };
 
 export function DashboardSidebar({ nav }: { nav: NavItem[] }) {
   const { open, setOpen } = useSidebar();
-  const { loading, onboarded } = useOnboarding();
+  const { loading, onboarded, tourHighlight } = useOnboarding();
+  const tourActive = tourHighlight != null;
 
   // Durante o onboarding, tudo fica bloqueado menos a home (tela de boas-vindas)
   // e as páginas liberadas (Integrações, Planos).
@@ -47,6 +48,8 @@ export function DashboardSidebar({ nav }: { nav: NavItem[] }) {
 
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-56 shrink-0 flex-col border-r border-[var(--loop-border)] bg-[var(--loop-bg)] transition-transform duration-200 md:static md:z-auto md:translate-x-0 ${
+          tourActive ? "!z-[70] md:!relative md:!z-[70]" : ""
+        } ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -98,6 +101,14 @@ export function DashboardSidebar({ nav }: { nav: NavItem[] }) {
                     d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                   />
                 </svg>
+              </div>
+            ) : tourHighlight === item.href ? (
+              <div
+                key={item.href}
+                className="flex items-center justify-between gap-2 rounded-lg border border-[var(--loop-primary)] bg-[var(--loop-primary-muted)] px-3 py-2 font-medium text-[var(--loop-primary)]"
+              >
+                <span>{item.label}</span>
+                <span className="loop-tour-arrow text-lg leading-none">←</span>
               </div>
             ) : (
               <Link

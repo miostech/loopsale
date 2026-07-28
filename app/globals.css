@@ -46,6 +46,20 @@ body {
 }
 
 /* —— Marketing: fundo e movimento (referência visual Martz) —— */
+@keyframes loop-tour-arrow-bounce {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-5px);
+  }
+}
+.loop-tour-arrow {
+  display: inline-block;
+  animation: loop-tour-arrow-bounce 0.8s ease-in-out infinite;
+}
+
 @keyframes marketing-mesh-drift {
   0%,
   100% {

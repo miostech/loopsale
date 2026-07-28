@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
+import { CompanyKeysButton } from "./CompanyKeysButton";
 
 interface Detalhe {
   empresa: {
@@ -205,9 +206,12 @@ export default function EmpresaDetalhe({
         <Link href="/admin" className="text-sm text-[var(--loop-primary)] hover:underline">
           ← Todas as empresas
         </Link>
-        <h1 className="mt-1 text-2xl font-bold text-[var(--loop-text)]">
-          {e.nome}
-        </h1>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-[var(--loop-text)]">
+            {e.nome}
+          </h1>
+          <CompanyKeysButton companyId={e.id} />
+        </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--loop-text-muted)]">
           <Badge variant="default">
             {e.planoNome}

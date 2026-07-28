@@ -55,6 +55,8 @@ export interface Account {
   approvedAt?: Date | null;
   /** E-mail do super-admin que aprovou. */
   approvedBy?: string | null;
+  /** Quando o cliente já viu o tour de boas-vindas (mostrado 1x após ativar). */
+  welcomeSeenAt?: Date | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   createdAt: Date;

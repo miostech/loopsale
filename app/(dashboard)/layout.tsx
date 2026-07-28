@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/dashboard/SidebarContext";
 import { OnboardingGate } from "@/components/dashboard/OnboardingGate";
 import { OnboardingProvider } from "@/components/dashboard/OnboardingContext";
+import { WelcomeTourModal } from "@/components/dashboard/WelcomeTourModal";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard" },
@@ -40,6 +41,7 @@ export default async function DashboardLayout({
             </main>
           </div>
         </div>
+        <WelcomeTourModal />
       </OnboardingProvider>
     </SidebarProvider>
   );
