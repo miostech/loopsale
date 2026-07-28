@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
+import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -32,45 +33,15 @@ function LoginForm() {
     if (res?.ok) window.location.href = callbackUrl;
   }
 
-  const DEMO_EMAIL = "demo@loopsale.com";
-  const DEMO_PASSWORD = "demo123";
-
-  async function handleDemoLogin() {
-    setError("");
-    setLoading(true);
-    try {
-      const ensure = await fetch("/api/auth/ensure-demo-user");
-      let email = DEMO_EMAIL;
-      let password = DEMO_PASSWORD;
-      if (ensure.ok) {
-        const data = await ensure.json().catch(() => ({}));
-        if (data.email) email = data.email;
-        if (data.password) password = data.password;
-      }
-      const res = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-        callbackUrl: "/dashboard",
-      });
-      if (res?.error) {
-        setError(
-          ensure.ok
-            ? "Erro ao entrar no demo."
-            : "Demo indisponível. Com banco desligado, use DATABASE_DISABLED=true e o botão demo; com MongoDB, verifique a conexão."
-        );
-        setLoading(false);
-        return;
-      }
-      if (res?.ok) window.location.href = "/dashboard";
-    } catch {
-      setError("Erro ao entrar no demo.");
-    }
-    setLoading(false);
-  }
-
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 bg-[var(--loop-bg-alt)]">
+      <Link
+        href="/"
+        aria-label="Voltar para a página inicial"
+        className="mb-8 inline-block"
+      >
+        <LoopSaleLogo />
+      </Link>
       <Card className="w-full max-w-md">
         <CardHeader>
           <h1 className="text-2xl font-bold text-[var(--loop-text)]">Entrar</h1>
@@ -107,15 +78,6 @@ function LoginForm() {
               disabled={loading}
             >
               {loading ? "Entrando…" : "Entrar"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              disabled={loading}
-              onClick={handleDemoLogin}
-            >
-              Ir direto para o dashboard (demo)
             </Button>
           </form>
           <p className="text-center text-sm text-[var(--loop-text-muted)]">

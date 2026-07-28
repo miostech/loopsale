@@ -24,6 +24,20 @@ export default async function AdminLayout({
           <span className="rounded-full bg-[var(--loop-primary-muted)] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[var(--loop-primary)]">
             Admin
           </span>
+          <nav className="ml-2 hidden items-center gap-4 sm:flex">
+            <Link
+              href="/admin"
+              className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              Empresas
+            </Link>
+            <Link
+              href="/admin/leads"
+              className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              Leads
+            </Link>
+          </nav>
         </div>
         <div className="flex items-center gap-4">
           <Link

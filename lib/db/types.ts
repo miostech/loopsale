@@ -224,6 +224,28 @@ export interface Lead {
   updatedAt: Date;
 }
 
+/**
+ * Lead comercial da LoopSale vindo do formulário /agendamento-demo.
+ * Coleção separada dos leads de CRM dos clientes (não tem accountId de tenant).
+ */
+export interface DemoRequest {
+  _id?: ObjectId;
+  /** Sempre "lead_demo" — origem do lead. */
+  source: string;
+  /** novo | contatado | qualificado | convertido | descartado. */
+  status: string;
+  name: string;
+  email: string;
+  contato?: string | null;
+  negocio?: string | null;
+  plataforma?: string | null;
+  faturamento?: string | null;
+  clientes?: string | null;
+  necessidade?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface MessageTemplate {
   _id?: ObjectId;
   accountId: string;

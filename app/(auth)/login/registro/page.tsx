@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
+import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 
 export default function RegistroPage() {
   const [name, setName] = useState("");
@@ -33,6 +34,13 @@ export default function RegistroPage() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6 bg-[var(--loop-bg-alt)]">
+      <Link
+        href="/"
+        aria-label="Voltar para a página inicial"
+        className="mb-8 inline-block"
+      >
+        <LoopSaleLogo />
+      </Link>
       <Card className="w-full max-w-md">
         <CardHeader>
           <h1 className="text-2xl font-bold text-[var(--loop-text)]">

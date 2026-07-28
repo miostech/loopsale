@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/channels/email";
+import { getCollection, isDatabaseDisabled } from "@/lib/db";
+import type { DemoRequest } from "@/lib/db/types";
 
 const DEMO_EMAIL = process.env.DEMO_REQUEST_EMAIL;
 
@@ -22,6 +24,32 @@ export async function POST(request: Request) {
         { error: "Nome e e-mail são obrigatórios." },
         { status: 400 }
       );
+    }
+
+    // Grava o lead comercial no Mongo (coleção separada dos leads de CRM).
+    if (!isDatabaseDisabled()) {
+      try {
+        const now = new Date();
+        const demoCol = await getCollection("demoRequests");
+        const doc: DemoRequest = {
+          source: "lead_demo",
+          status: "novo",
+          name: String(nome),
+          email: String(email),
+          contato: contato || null,
+          negocio: negocio || null,
+          plataforma: plataforma || null,
+          faturamento: faturamento || null,
+          clientes: clientes || null,
+          necessidade: necessidade || null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await demoCol.insertOne(doc as DemoRequest & { _id?: unknown });
+      } catch (dbErr) {
+        // Não falha a solicitação se o banco estiver indisponível.
+        console.error("demo-request: falha ao gravar lead no Mongo:", dbErr);
+      }
     }
 
     if (DEMO_EMAIL) {

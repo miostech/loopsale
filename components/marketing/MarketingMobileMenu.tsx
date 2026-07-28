@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui";
-import { DemoDashboardButton } from "./DemoDashboardButton";
 
 const LINKS = [
   { href: "#como-funciona", label: "Como funciona" },
@@ -65,9 +64,6 @@ export function MarketingMobileMenu() {
               </a>
             ))}
             <hr className="my-2 border-[var(--loop-border)]" />
-            <div onClick={() => setOpen(false)}>
-              <DemoDashboardButton className="w-full" />
-            </div>
             <Link href="/login" onClick={() => setOpen(false)} className="block">
               <Button variant="ghost" className="w-full">
                 Entrar

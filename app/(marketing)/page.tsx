@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Button, Accordion } from "@/components/ui";
 import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 import { WhatsAppMockup } from "@/components/marketing/WhatsAppMockup";
-import { DemoDashboardButton } from "@/components/marketing/DemoDashboardButton";
 import { MarketingMobileMenu } from "@/components/marketing/MarketingMobileMenu";
 import { RevealOnScroll } from "@/components/marketing/RevealOnScroll";
 
@@ -122,16 +121,13 @@ export default function MarketingHome() {
             </a>
           </nav>
           <div className="hidden items-center gap-3 md:flex">
-            <DemoDashboardButton />
             <Link href="/login">
               <Button variant="ghost" size="sm">
                 Entrar
               </Button>
             </Link>
             <Link href="/agendamento-demo">
-              <Button variant="cta" size="sm">
-                Agendar demo
-              </Button>
+              <Button variant="cta" size="sm">Agendar demonstração</Button>
             </Link>
           </div>
           <MarketingMobileMenu />
@@ -169,9 +165,7 @@ export default function MarketingHome() {
                   variant="cta"
                   size="lg"
                   className="w-full transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
-                >
-                  Solicitar demo
-                </Button>
+                >Solicitar demonstração</Button>
               </Link>
               <Link href="#depoimentos" className="w-full sm:w-auto">
                 <Button
@@ -425,9 +419,7 @@ export default function MarketingHome() {
                       variant="cta"
                       size="lg"
                       className="transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      Iniciar demo
-                    </Button>
+                    >Iniciar demonstração</Button>
                   </Link>
                 </div>
               </div>
@@ -504,9 +496,7 @@ export default function MarketingHome() {
                     </Button>
                   </Link>
                   <Link href="/agendamento-demo">
-                    <Button variant="cta" size="sm">
-                      Agendar demo
-                    </Button>
+                    <Button variant="cta" size="sm">Agendar demonstração</Button>
                   </Link>
                 </div>
               </div>
