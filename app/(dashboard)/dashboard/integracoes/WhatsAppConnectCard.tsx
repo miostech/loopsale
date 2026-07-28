@@ -134,6 +134,14 @@ export function WhatsAppConnectCard() {
       setError("SDK do Facebook ainda carregando. Tente de novo em instantes.");
       return;
     }
+    // O SDK recusa FB.login em página http: só loga no console e não abre nada,
+    // sem lançar erro — o botão pareceria morto. Avisa em vez de silenciar.
+    if (window.location.protocol !== "https:") {
+      setError(
+        "O login do Facebook exige HTTPS. Em desenvolvimento, rode o servidor com https (next dev --experimental-https)."
+      );
+      return;
+    }
     try {
       // O callback precisa ser função comum: o SDK rejeita async function
       // ("Expression is of type asyncfunction") e nem chega a abrir o popup.
@@ -145,7 +153,13 @@ export function WhatsAppConnectCard() {
           config_id: CONFIG_ID,
           response_type: "code",
           override_default_response_type: true,
-          extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+          extras: {
+            setup: {},
+            // Sem "feature" o diálogo abre como Login for Business genérico e o
+            // FINISH do Embedded Signup (waba_id/phone_number_id) nunca chega.
+            feature: "whatsapp_embedded_signup",
+            sessionInfoVersion: 3,
+          },
         }
       );
     } catch (e) {
