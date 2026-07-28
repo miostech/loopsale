@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { DashboardTopBar } from "@/components/dashboard/DashboardTopBar";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { SidebarProvider } from "@/components/dashboard/SidebarContext";
+import { OnboardingGate } from "@/components/dashboard/OnboardingGate";
+import { OnboardingProvider } from "@/components/dashboard/OnboardingContext";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard" },
@@ -28,13 +30,17 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex bg-[var(--loop-bg-alt)]">
-        <DashboardSidebar nav={nav} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <DashboardTopBar />
-          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+      <OnboardingProvider>
+        <div className="min-h-screen flex bg-[var(--loop-bg-alt)]">
+          <DashboardSidebar nav={nav} />
+          <div className="flex-1 flex flex-col min-w-0">
+            <DashboardTopBar />
+            <main className="flex-1 overflow-auto p-4 md:p-6">
+              <OnboardingGate>{children}</OnboardingGate>
+            </main>
+          </div>
         </div>
-      </div>
+      </OnboardingProvider>
     </SidebarProvider>
   );
 }

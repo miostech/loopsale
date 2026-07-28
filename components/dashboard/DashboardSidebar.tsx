@@ -5,11 +5,24 @@ import { useEffect } from "react";
 import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 import { SignOutButton } from "@/components/dashboard/SignOutButton";
 import { useSidebar } from "./SidebarContext";
+import { useOnboarding, ONBOARDING_ALLOWED } from "./OnboardingContext";
 
 type NavItem = { href: string; label: string };
 
 export function DashboardSidebar({ nav }: { nav: NavItem[] }) {
   const { open, setOpen } = useSidebar();
+  const { loading, onboarded } = useOnboarding();
+
+  // Durante o onboarding, tudo fica bloqueado menos a home (tela de boas-vindas)
+  // e as páginas liberadas (Integrações, Planos).
+  function isLocked(href: string) {
+    return (
+      !loading &&
+      !onboarded &&
+      href !== "/dashboard" &&
+      !ONBOARDING_ALLOWED.includes(href)
+    );
+  }
 
   // Fecha o drawer com Esc (só relevante no mobile).
   useEffect(() => {
@@ -62,16 +75,41 @@ export function DashboardSidebar({ nav }: { nav: NavItem[] }) {
           </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2 text-[var(--loop-text)] hover:bg-[var(--loop-bg-alt)]"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {nav.map((item) =>
+            isLocked(item.href) ? (
+              <div
+                key={item.href}
+                aria-disabled="true"
+                title="Conclua a integração para desbloquear"
+                className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2 text-[var(--loop-text-muted)] opacity-50 select-none"
+              >
+                <span>{item.label}</span>
+                <svg
+                  className="h-3.5 w-3.5 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="block rounded-lg px-3 py-2 text-[var(--loop-text)] hover:bg-[var(--loop-bg-alt)]"
+              >
+                {item.label}
+              </Link>
+            )
+          )}
         </nav>
         <div className="border-t border-[var(--loop-border)] p-4">
           <SignOutButton />

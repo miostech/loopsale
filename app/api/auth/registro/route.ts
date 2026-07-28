@@ -15,10 +15,22 @@ export async function POST(request: Request) {
       );
     }
     const body = await request.json();
-    const { name, email, password } = body;
+    const { name, email, password, empresa, platform } = body;
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email e senha são obrigatórios" },
+        { status: 400 }
+      );
+    }
+    if (!empresa || !String(empresa).trim()) {
+      return NextResponse.json(
+        { error: "Informe o nome da empresa." },
+        { status: 400 }
+      );
+    }
+    if (platform !== "kiwify" && platform !== "hotmart") {
+      return NextResponse.json(
+        { error: "Escolha a plataforma (Kiwify ou Hotmart)." },
         { status: 400 }
       );
     }
@@ -34,8 +46,9 @@ export async function POST(request: Request) {
     const accountsCol = await getCollection("accounts");
     const now = new Date();
     const accountDoc: Account = {
-      name: name || "Minha Conta",
+      name: String(empresa).trim(),
       slug: slug + "-" + Date.now(),
+      platform,
       createdAt: now,
       updatedAt: now,
     };
@@ -52,7 +65,7 @@ export async function POST(request: Request) {
       updatedAt: now,
     };
     await usersCol.insertOne(userDoc as User & { _id?: unknown });
-    return NextResponse.json({ ok: true, redirect: "/login" });
+    return NextResponse.json({ ok: true, redirect: "/dashboard" });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

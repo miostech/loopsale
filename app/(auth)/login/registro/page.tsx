@@ -3,11 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
 import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 
 export default function RegistroPage() {
   const [name, setName] = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [platform, setPlatform] = useState<"kiwify" | "hotmart" | "">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,19 +20,39 @@ export default function RegistroPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!empresa.trim()) {
+      setError("Informe o nome da sua empresa.");
+      return;
+    }
+    if (!platform) {
+      setError("Escolha a plataforma que você usa (Kiwify ou Hotmart).");
+      return;
+    }
     setLoading(true);
     const res = await fetch("/api/auth/registro", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, empresa, platform }),
     });
     const data = await res.json().catch(() => ({}));
-    setLoading(false);
     if (!res.ok) {
+      setLoading(false);
       setError(data.error || "Erro ao cadastrar.");
       return;
     }
-    router.push("/login");
+    // Cadastro OK: já faz login e entra direto no dashboard.
+    const login = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+    setLoading(false);
+    if (login?.ok) {
+      window.location.href = "/dashboard";
+    } else {
+      // Conta criada, mas o login automático falhou: cai no login manual.
+      router.push("/login");
+    }
   }
 
   return (
@@ -56,13 +79,44 @@ export default function RegistroPage() {
               <p className="text-sm text-[var(--loop-error)]">{error}</p>
             )}
             <Input
-              label="Nome"
+              label="Seu nome"
               name="name"
               type="text"
               placeholder="Seu nome"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+            <Input
+              label="Nome da empresa"
+              name="empresa"
+              type="text"
+              placeholder="Ex: Minha Loja Digital"
+              value={empresa}
+              onChange={(e) => setEmpresa(e.target.value)}
+              required
+            />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-[var(--loop-text)]">
+                Qual plataforma você usa?
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {(["kiwify", "hotmart"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPlatform(p)}
+                    aria-pressed={platform === p}
+                    className={`rounded-lg border px-4 py-2.5 text-sm font-medium capitalize transition ${
+                      platform === p
+                        ? "border-[var(--loop-primary)] bg-[var(--loop-primary-muted)] text-[var(--loop-primary)]"
+                        : "border-[var(--loop-border)] text-[var(--loop-text-muted)] hover:border-[var(--loop-primary)]"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
             <Input
               label="Email"
               name="email"

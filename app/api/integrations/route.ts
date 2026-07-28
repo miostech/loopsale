@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import type { ObjectId } from "mongodb";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getCollection } from "@/lib/db";
-import type { Integration } from "@/lib/db/types";
+import { getCollection, routeObjectId } from "@/lib/db";
+import type { Account, Integration } from "@/lib/db/types";
 
 type Platform = "kiwify" | "hotmart" | "n8n";
 
@@ -116,6 +116,27 @@ export async function POST(request: Request) {
   const now = new Date();
   const crypto = await import("crypto");
   const accountId = session.user.accountId;
+
+  // Regra de plano: no grátis, só a plataforma escolhida no cadastro pode ser
+  // conectada (1 conta). A outra plataforma de vendas fica bloqueada.
+  if (platform === "kiwify" || platform === "hotmart") {
+    const accountsCol = await getCollection("accounts");
+    const accOid = await routeObjectId(accountId);
+    const account = accOid
+      ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
+      : null;
+    const plan = account?.subscription?.plan ?? "free";
+    const chosen = account?.platform ?? null;
+    if (plan === "free" && chosen && platform !== chosen) {
+      return NextResponse.json(
+        {
+          error:
+            "O plano grátis permite conectar apenas 1 plataforma. Faça upgrade para conectar mais de uma.",
+        },
+        { status: 403 }
+      );
+    }
+  }
 
   const existing = await integrationsCol.findOne({ accountId, platform });
 

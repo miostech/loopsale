@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Badge, Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
 
 export interface CredentialField {
@@ -28,11 +29,15 @@ export function CredentialCard({
   title,
   description,
   fields,
+  locked = false,
+  lockedReason,
 }: {
   platform: "kiwify" | "hotmart";
   title: string;
   description: string;
   fields: CredentialField[];
+  locked?: boolean;
+  lockedReason?: string;
 }) {
   const [saved, setSaved] = useState<Record<string, CredentialState>>({});
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
@@ -59,6 +64,10 @@ export function CredentialCard({
   );
 
   const load = useCallback(async () => {
+    if (locked) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/integrations");
@@ -73,7 +82,7 @@ export function CredentialCard({
     } finally {
       setLoading(false);
     }
-  }, [platform, applyData]);
+  }, [platform, applyData, locked]);
 
   useEffect(() => {
     load();
@@ -121,6 +130,33 @@ export function CredentialCard({
   }
 
   const isConnected = fields.some((f) => saved[f.key]?.set);
+
+  if (locked) {
+    return (
+      <Card className="opacity-90">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div>
+            <h2 className="font-semibold text-[var(--loop-text-muted)]">
+              🔒 {title}
+            </h2>
+            <p className="text-sm text-[var(--loop-text-muted)]">{description}</p>
+          </div>
+          <Badge variant="default">Indisponível</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-[var(--loop-text-muted)]">
+            {lockedReason ??
+              "Disponível em um plano pago."}
+          </p>
+          <Link href="/dashboard/planos" className="inline-block">
+            <Button variant="cta" size="sm">
+              Fazer upgrade
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

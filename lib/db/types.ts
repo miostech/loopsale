@@ -49,6 +49,8 @@ export interface Account {
   _id?: ObjectId;
   name: string;
   slug: string;
+  /** Plataforma de checkout do cliente: "kiwify" | "hotmart". Definida no cadastro. */
+  platform?: string | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   createdAt: Date;
