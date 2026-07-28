@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { isSuperAdmin } from "@/lib/admin";
 import {
   centralWabaId,
   centralToken,
   listTemplates,
 } from "@/lib/whatsapp/cloud";
 
-type SessionUser = { email?: string | null };
-
+// Basta estar logado — serve a /meta-review, aberta a qualquer usuário.
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!isSuperAdmin((session?.user as SessionUser | undefined)?.email)) {
-    return NextResponse.json({ error: "Acesso restrito" }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
   const wabaId = centralWabaId();
   const token = centralToken();

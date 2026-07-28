@@ -43,7 +43,7 @@ export function MetaReviewClient() {
 
   const loadStatus = useCallback(async () => {
     const res = await fetch("/api/admin/meta/status");
-    if (res.status === 403) {
+    if (res.status === 401 || res.status === 403) {
       setDenied(true);
       return;
     }
@@ -105,7 +105,7 @@ export function MetaReviewClient() {
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold text-[var(--loop-text)]">Meta Review</h1>
         <p className="mt-2 text-sm text-[var(--loop-error)]">
-          Acesso restrito ao time da LoopSale.
+          Sessão expirada. Faça login novamente.
         </p>
       </div>
     );

@@ -7,12 +7,12 @@ import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 import { SignOutButton } from "@/components/dashboard/SignOutButton";
 import { MetaReviewClient } from "./MetaReviewClient";
 
-// Rota própria (fora do /admin), mas ainda restrita ao time LoopSale — ela usa
-// a WABA central e o token de sistema, então não pode ficar aberta.
+// Rota própria (fora do /admin), aberta a qualquer usuário logado — não é mais
+// restrita ao time LoopSale. O login continua obrigatório.
 export default async function MetaReviewPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
-  if (!isSuperAdmin(session.user?.email)) redirect("/dashboard");
+  const isAdmin = isSuperAdmin(session.user?.email);
 
   return (
     <div className="min-h-screen bg-[var(--loop-bg-alt)]">
@@ -24,12 +24,14 @@ export default async function MetaReviewPage() {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <Link
-            href="/admin"
-            className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
-          >
-            Admin →
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              Admin →
+            </Link>
+          )}
           <SignOutButton />
         </div>
       </header>
