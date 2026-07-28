@@ -14,6 +14,8 @@ interface Empresa {
   name: string;
   platform: string | null;
   createdAt: string;
+  email: string;
+  phone: string | null;
   platformConnected: boolean;
   loopConnected: boolean;
   readyToApprove: boolean;
@@ -136,6 +138,26 @@ export default function AtivacoesPage() {
                         {e.platformConnected ? "✓" : "✗"}{" "}
                         {e.platform ? PLATFORM_LABEL[e.platform] : "plataforma"} ·{" "}
                         {e.loopConnected ? "✓" : "✗"} Loop API
+                      </p>
+                      <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs">
+                        <a
+                          href={`mailto:${e.email}`}
+                          className="text-[var(--loop-primary)] hover:underline"
+                        >
+                          ✉ {e.email || "—"}
+                        </a>
+                        {e.phone ? (
+                          <a
+                            href={`tel:${e.phone.replace(/[^\d+]/g, "")}`}
+                            className="text-[var(--loop-primary)] hover:underline"
+                          >
+                            ☎ {e.phone}
+                          </a>
+                        ) : (
+                          <span className="text-[var(--loop-text-muted)]">
+                            ☎ sem telefone
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex gap-2">

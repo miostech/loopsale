@@ -57,6 +57,8 @@ export interface Account {
   approvedBy?: string | null;
   /** Quando o cliente já viu o tour de boas-vindas (mostrado 1x após ativar). */
   welcomeSeenAt?: Date | null;
+  /** Conta de demonstração (dados fictícios). Excluída das métricas do admin. */
+  isDemo?: boolean;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   createdAt: Date;
@@ -68,6 +70,8 @@ export interface User {
   accountId: string;
   email: string;
   name: string | null;
+  /** Telefone/WhatsApp de contato do cliente (capturado no cadastro). */
+  phone?: string | null;
   passwordHash: string;
   role: string;
   createdAt: Date;

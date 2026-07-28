@@ -31,6 +31,7 @@ export async function GET() {
     const accountDoc: Account = {
       name: "Conta Demo",
       slug: "demo-" + Date.now(),
+      isDemo: true,
       createdAt: now,
       updatedAt: now,
     };

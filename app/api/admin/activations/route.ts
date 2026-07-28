@@ -47,6 +47,7 @@ export async function GET() {
     .toArray()) as (Account & { _id: ObjectId })[];
 
   const integrationsCol = await getCollection("integrations");
+  const usersCol = await getCollection("users");
 
   const empresas = await Promise.all(
     accounts.map(async (acc) => {
@@ -54,6 +55,14 @@ export async function GET() {
       const integs = (await integrationsCol
         .find({ accountId })
         .toArray()) as Integration[];
+
+      // Contato: admin mais antigo (ou primeiro usuário) da conta.
+      const contatoUsers = (await usersCol
+        .find({ accountId })
+        .sort({ role: 1, createdAt: 1 })
+        .limit(1)
+        .toArray()) as { email?: string; phone?: string | null }[];
+      const contatoUser = contatoUsers[0] ?? null;
 
       const platformConnected = integs.some(
         (i) => i.platform === acc.platform && i.active
@@ -78,6 +87,8 @@ export async function GET() {
         name: acc.name,
         platform: acc.platform ?? null,
         createdAt: acc.createdAt,
+        email: contatoUser?.email ?? "",
+        phone: contatoUser?.phone ?? null,
         platformConnected,
         loopConnected,
         readyToApprove: platformConnected && loopConnected,

@@ -16,6 +16,7 @@ interface Detalhe {
     criadoEm: string;
     cardOnFile: boolean;
     membros: number;
+    contato: { email: string; phone: string | null };
     assinaturaMensal: number;
     ultimaAtividade: string | null;
   };
@@ -241,6 +242,24 @@ export default function EmpresaDetalhe({
               <Badge variant="error">integração parada?</Badge>
             ) : null;
           })()}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <a
+            href={`mailto:${e.contato.email}`}
+            className="text-[var(--loop-primary)] hover:underline"
+          >
+            ✉ {e.contato.email || "—"}
+          </a>
+          {e.contato.phone ? (
+            <a
+              href={`tel:${e.contato.phone.replace(/[^\d+]/g, "")}`}
+              className="text-[var(--loop-primary)] hover:underline"
+            >
+              ☎ {e.contato.phone}
+            </a>
+          ) : (
+            <span className="text-[var(--loop-text-muted)]">☎ sem telefone</span>
+          )}
         </div>
       </div>
 

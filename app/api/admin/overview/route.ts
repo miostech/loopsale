@@ -49,8 +49,9 @@ export async function GET() {
   const usersCol = await getCollection("users");
   const eventsCol = await getCollection("checkoutEvents");
 
+  // Exclui contas de demonstração (dados fictícios) das métricas do admin.
   const accounts = (await accountsCol
-    .find({})
+    .find({ isDemo: { $ne: true } })
     .toArray()) as (Account & { _id: ObjectId })[];
 
   const now = new Date();

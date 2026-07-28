@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
     const body = await request.json();
-    const { name, email, password, empresa, platform } = body;
+    const { name, email, password, empresa, platform, phone } = body;
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email e senha são obrigatórios" },
@@ -25,6 +25,12 @@ export async function POST(request: Request) {
     if (!empresa || !String(empresa).trim()) {
       return NextResponse.json(
         { error: "Informe o nome da empresa." },
+        { status: 400 }
+      );
+    }
+    if (!phone || !String(phone).trim()) {
+      return NextResponse.json(
+        { error: "Informe o telefone/WhatsApp de contato." },
         { status: 400 }
       );
     }
@@ -59,6 +65,7 @@ export async function POST(request: Request) {
       accountId,
       email,
       name: name || null,
+      phone: String(phone).trim(),
       passwordHash,
       role: "admin",
       createdAt: now,

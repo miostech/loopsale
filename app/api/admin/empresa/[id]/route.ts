@@ -69,6 +69,17 @@ export async function GET(
 
   const usersCol = await getCollection("users");
   const membros = await usersCol.countDocuments({ accountId });
+  // Contato do cliente: admin mais antigo (ou primeiro usuário) da conta.
+  const contatoUsers = (await usersCol
+    .find({ accountId })
+    .sort({ role: 1, createdAt: 1 })
+    .limit(1)
+    .toArray()) as { email?: string; phone?: string | null }[];
+  const contatoUser = contatoUsers[0] ?? null;
+  const contato = {
+    email: contatoUser?.email ?? "",
+    phone: contatoUser?.phone ?? null,
+  };
 
   // Mensagens de WhatsApp enviadas (cada uma é custo Meta). Total + na quinzena.
   const eventsCol = await getCollection("checkoutEvents");
@@ -206,6 +217,7 @@ export async function GET(
       criadoEm: account.createdAt,
       cardOnFile: !!account.subscription?.defaultPaymentMethod,
       membros,
+      contato,
       assinaturaMensal,
       ultimaAtividade,
     },

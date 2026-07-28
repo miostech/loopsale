@@ -10,6 +10,7 @@ import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 export default function RegistroPage() {
   const [name, setName] = useState("");
   const [empresa, setEmpresa] = useState("");
+  const [phone, setPhone] = useState("");
   const [platform, setPlatform] = useState<"kiwify" | "hotmart" | "">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,6 +25,10 @@ export default function RegistroPage() {
       setError("Informe o nome da sua empresa.");
       return;
     }
+    if (!phone.trim()) {
+      setError("Informe seu telefone/WhatsApp de contato.");
+      return;
+    }
     if (!platform) {
       setError("Escolha a plataforma que você usa (Kiwify ou Hotmart).");
       return;
@@ -32,7 +37,7 @@ export default function RegistroPage() {
     const res = await fetch("/api/auth/registro", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, empresa, platform }),
+      body: JSON.stringify({ name, email, password, empresa, platform, phone }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -93,6 +98,15 @@ export default function RegistroPage() {
               placeholder="Ex: Minha Loja Digital"
               value={empresa}
               onChange={(e) => setEmpresa(e.target.value)}
+              required
+            />
+            <Input
+              label="Telefone / WhatsApp"
+              name="phone"
+              type="tel"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               required
             />
             <div>
