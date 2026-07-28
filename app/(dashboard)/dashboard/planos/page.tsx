@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { EmbeddedCheckoutModal } from "@/components/billing/EmbeddedCheckoutModal";
 
 interface PlanView {
   id: string;
@@ -81,6 +82,10 @@ export default function PlanosPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [checkout, setCheckout] = useState<{
+    payload: Record<string, unknown>;
+    title: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,26 +106,13 @@ export default function PlanosPage() {
     load();
   }, [load]);
 
-  async function contratar(planId: string) {
+  function contratar(planId: string) {
     setError("");
-    setBusy(planId);
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
-      } else {
-        setError(data.error ?? "Não foi possível iniciar o checkout.");
-      }
-    } catch {
-      setError("Erro de rede.");
-    } finally {
-      setBusy(null);
-    }
+    const nome = billing?.plans.find((p) => p.id === planId)?.name ?? "";
+    setCheckout({
+      payload: { plan: planId },
+      title: nome ? `Assinar ${nome}` : "Finalizar assinatura",
+    });
   }
 
   async function gerenciar() {
@@ -138,23 +130,12 @@ export default function PlanosPage() {
     }
   }
 
-  async function ativarAtendimento() {
+  function ativarAtendimento() {
     setError("");
-    setBusy("support");
-    try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ addon: "support" }),
-      });
-      const data = await res.json();
-      if (res.ok && data.url) window.location.href = data.url;
-      else setError(data.error ?? "Não foi possível ativar o atendimento.");
-    } catch {
-      setError("Erro de rede.");
-    } finally {
-      setBusy(null);
-    }
+    setCheckout({
+      payload: { addon: "support" },
+      title: "Ativar atendimento gerenciado",
+    });
   }
 
   const isAdmin = billing?.isAdmin;
@@ -308,10 +289,10 @@ export default function PlanosPage() {
                         variant={p.highlighted ? "cta" : "secondary"}
                         size="sm"
                         className="w-full justify-center"
-                        disabled={!isAdmin || busy === p.id}
+                        disabled={!isAdmin}
                         onClick={() => contratar(p.id)}
                       >
-                        {busy === p.id ? "Redirecionando…" : "Contratar"}
+                        Contratar
                       </Button>
                     )}
                     {atual && (
@@ -420,12 +401,10 @@ export default function PlanosPage() {
                           variant="cta"
                           size="sm"
                           className="mt-3 w-full justify-center"
-                          disabled={!isAdmin || busy === "support"}
+                          disabled={!isAdmin}
                           onClick={ativarAtendimento}
                         >
-                          {busy === "support"
-                            ? "Redirecionando…"
-                            : "Ativar atendimento"}
+                          Ativar atendimento
                         </Button>
                       )}
                     </>
@@ -507,6 +486,14 @@ export default function PlanosPage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {checkout && (
+        <EmbeddedCheckoutModal
+          payload={checkout.payload}
+          title={checkout.title}
+          onClose={() => setCheckout(null)}
+        />
       )}
     </div>
   );

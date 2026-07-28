@@ -81,6 +81,25 @@ export async function createCheckoutSession(params: {
   return { url: String(doc.url) };
 }
 
+export async function createEmbeddedCheckoutSession(params: {
+  customer: string;
+  priceId: string;
+  returnUrl: string;
+  accountId: string;
+}): Promise<{ clientSecret: string }> {
+  const doc = await stripePost("/checkout/sessions", {
+    ui_mode: "embedded",
+    mode: "subscription",
+    customer: params.customer,
+    "line_items[0][price]": params.priceId,
+    "line_items[0][quantity]": "1",
+    return_url: params.returnUrl,
+    "subscription_data[metadata][accountId]": params.accountId,
+    allow_promotion_codes: "true",
+  });
+  return { clientSecret: String(doc.client_secret) };
+}
+
 export async function createPortalSession(params: {
   customer: string;
   returnUrl: string;

@@ -9,6 +9,7 @@ import {
   stripeConfigured,
   createCustomer,
   createCheckoutSession,
+  createEmbeddedCheckoutSession,
 } from "@/lib/billing/stripe";
 
 type SessionUser = {
@@ -92,6 +93,18 @@ export async function POST(request: Request) {
     }
 
     const returnBase = `${baseUrl()}/dashboard/planos`;
+
+    // Modo embedded: checkout dentro da própria página (iframe do Stripe).
+    if (body.embedded) {
+      const { clientSecret } = await createEmbeddedCheckoutSession({
+        customer: customerId,
+        priceId,
+        accountId: su.accountId,
+        returnUrl: `${returnBase}?status=sucesso&session_id={CHECKOUT_SESSION_ID}`,
+      });
+      return NextResponse.json({ clientSecret });
+    }
+
     const checkout = await createCheckoutSession({
       customer: customerId,
       priceId,
