@@ -60,14 +60,18 @@ export interface Account {
   /** Conta de demonstração (dados fictícios). Excluída das métricas do admin. */
   isDemo?: boolean;
   /**
-   * WhatsApp Cloud API: a LoopSale usa UMA WABA central (token no ambiente),
-   * mas cada cliente tem um número (Phone Number ID) próprio, atribuído pelo
-   * time no admin.
+   * WhatsApp Cloud API. O cliente conecta a própria WABA via Embedded Signup
+   * (LoopSale é Tech Provider). Guarda WABA, número e o token retornado.
+   * O phoneNumberId ainda pode ser preenchido manualmente pelo admin.
    */
   whatsapp?: {
+    wabaId?: string | null;
     phoneNumberId?: string | null;
     /** Número exibido, ex: "+55 11 99999-8888". Informativo. */
     displayNumber?: string | null;
+    /** Token retornado pelo Embedded Signup (por conta). */
+    accessToken?: string | null;
+    connectedAt?: Date | null;
   } | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;

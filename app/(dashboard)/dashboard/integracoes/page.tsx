@@ -4,6 +4,7 @@ import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
 import { N8nCard } from "./N8nCard";
 import { CredentialCard, type CredentialField } from "./CredentialCard";
+import { WhatsAppConnectCard } from "./WhatsAppConnectCard";
 
 const KIWIFY_FIELDS: CredentialField[] = [
   {
@@ -76,6 +77,7 @@ export default async function IntegracoesPage() {
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
+        <WhatsAppConnectCard />
         <N8nCard />
         <CredentialCard
           platform="kiwify"

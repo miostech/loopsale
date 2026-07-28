@@ -3,7 +3,7 @@ import type { ObjectId } from "mongodb";
 import { getCollection, routeObjectId } from "@/lib/db";
 import { sendMessage } from "@/lib/channels/send";
 import {
-  whatsappConfigured,
+  canSendFor,
   sendTemplate,
   sendText,
   type SendResult,
@@ -63,13 +63,16 @@ export async function GET(request: Request) {
     let result: SendResult;
     let wamid: string | null = null;
 
-    // WhatsApp via Cloud API (WABA central + número do cliente).
-    if (step.channel === "whatsapp" && whatsappConfigured()) {
-      const accountsCol = await getCollection("accounts");
-      const accOid = await routeObjectId(String(abandoned.accountId));
-      const account = accOid
-        ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
-        : null;
+    // WhatsApp via Cloud API (WABA do cliente conectada via Embedded Signup;
+    // token central como fallback).
+    const accountsCol = await getCollection("accounts");
+    const accOid = await routeObjectId(String(abandoned.accountId));
+    const account = accOid
+      ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
+      : null;
+    const waToken = account?.whatsapp?.accessToken ?? null;
+
+    if (step.channel === "whatsapp" && canSendFor(waToken)) {
       const phoneNumberId = account?.whatsapp?.phoneNumberId ?? "";
 
       const metaTemplate = (step as { metaTemplateName?: string })
@@ -83,8 +86,14 @@ export async function GET(request: Request) {
             templateName: metaTemplate,
             language,
             variables: [abandoned.customerName ?? "", "[link]"],
+            token: waToken,
           })
-        : await sendText({ phoneNumberId, to: String(to), body });
+        : await sendText({
+            phoneNumberId,
+            to: String(to),
+            body,
+            token: waToken,
+          });
       wamid = result.wamid ?? null;
 
       // Registra a mensagem no histórico de conversas.

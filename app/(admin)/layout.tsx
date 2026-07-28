@@ -43,6 +43,12 @@ export default async function AdminLayout({
             >
               Leads
             </Link>
+            <Link
+              href="/meta-review"
+              className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              Meta ↗
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-4">
