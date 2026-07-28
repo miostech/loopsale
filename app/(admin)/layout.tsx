@@ -32,6 +32,12 @@ export default async function AdminLayout({
               Empresas
             </Link>
             <Link
+              href="/admin/ativacoes"
+              className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              Ativações
+            </Link>
+            <Link
               href="/admin/leads"
               className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
             >

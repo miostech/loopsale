@@ -51,6 +51,10 @@ export interface Account {
   slug: string;
   /** Plataforma de checkout do cliente: "kiwify" | "hotmart". Definida no cadastro. */
   platform?: string | null;
+  /** Ativação pelo time LoopSale. Enquanto null, a conta fica "aguardando ativação". */
+  approvedAt?: Date | null;
+  /** E-mail do super-admin que aprovou. */
+  approvedBy?: string | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   createdAt: Date;

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
+import { useOnboarding } from "@/components/dashboard/OnboardingContext";
 
 export interface CredentialField {
   key: string;
@@ -47,6 +48,7 @@ export function CredentialCard({
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const { onboarded } = useOnboarding();
 
   const applyData = useCallback(
     (data: IntegrationData | undefined) => {
@@ -145,14 +147,19 @@ export function CredentialCard({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-[var(--loop-text-muted)]">
-            {lockedReason ??
-              "Disponível em um plano pago."}
+            {lockedReason ?? "Disponível em um plano pago."}
           </p>
-          <Link href="/dashboard/planos" className="inline-block">
-            <Button variant="cta" size="sm">
-              Fazer upgrade
-            </Button>
-          </Link>
+          {onboarded ? (
+            <Link href="/dashboard/planos" className="inline-block">
+              <Button variant="cta" size="sm">
+                Fazer upgrade
+              </Button>
+            </Link>
+          ) : (
+            <p className="text-xs font-medium text-[var(--loop-text-muted)]">
+              Disponível após a ativação da conta.
+            </p>
+          )}
         </CardContent>
       </Card>
     );

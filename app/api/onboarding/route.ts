@@ -20,7 +20,14 @@ export async function GET() {
 
   // Modo demo / sem banco: nunca bloqueia.
   if (isDatabaseDisabled()) {
-    return NextResponse.json({ onboarded: true, platform: null, companyName: "" });
+    return NextResponse.json({
+      onboarded: true,
+      platform: null,
+      companyName: "",
+      platformConnected: true,
+      loopConnected: true,
+      awaitingApproval: false,
+    });
   }
 
   const accountsCol = await getCollection("accounts");
@@ -34,20 +41,35 @@ export async function GET() {
 
   // Sem plataforma definida (contas antigas) => libera.
   if (!platform) {
-    return NextResponse.json({ onboarded: true, platform: null, companyName });
+    return NextResponse.json({
+      onboarded: true,
+      platform: null,
+      companyName,
+      platformConnected: true,
+      loopConnected: true,
+      awaitingApproval: false,
+    });
   }
 
-  // Precisa de uma integração ATIVA da plataforma escolhida.
+  // Precisa de DUAS integrações ativas: a plataforma escolhida E a Loop API.
   const integrationsCol = await getCollection("integrations");
-  const integ = (await integrationsCol.findOne({
-    accountId: su.accountId,
-    platform,
-    active: true,
-  })) as Integration | null;
+  const list = (await integrationsCol
+    .find({ accountId: su.accountId, active: true })
+    .toArray()) as Integration[];
 
+  const platformConnected = list.some((i) => i.platform === platform);
+  const loopConnected = list.some((i) => i.platform === "n8n");
+  const integrationsDone = platformConnected && loopConnected;
+  const approved = !!account?.approvedAt;
+
+  // Só libera após aprovação do time LoopSale. Com as integrações prontas mas
+  // sem aprovação => "aguardando ativação".
   return NextResponse.json({
-    onboarded: !!integ,
+    onboarded: approved,
     platform,
     companyName,
+    platformConnected,
+    loopConnected,
+    awaitingApproval: integrationsDone && !approved,
   });
 }
