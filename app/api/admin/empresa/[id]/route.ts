@@ -218,6 +218,10 @@ export async function GET(
       cardOnFile: !!account.subscription?.defaultPaymentMethod,
       membros,
       contato,
+      whatsapp: {
+        phoneNumberId: account.whatsapp?.phoneNumberId ?? "",
+        displayNumber: account.whatsapp?.displayNumber ?? "",
+      },
       assinaturaMensal,
       ultimaAtividade,
     },

@@ -38,13 +38,23 @@ export async function PUT(
   const docs: RecoveryFlowStep[] = rawSteps.map(
     (s: Record<string, unknown>, i: number) => {
       const channel = String(s.channel ?? "whatsapp").toLowerCase();
+      const finalChannel = CHANNELS.includes(channel) ? channel : "whatsapp";
       return {
         recoveryFlowId: id,
         orderIndex: i,
         delayMinutes: Math.max(0, Number(s.delayMinutes) || 0),
-        channel: CHANNELS.includes(channel) ? channel : "whatsapp",
+        channel: finalChannel,
         templateId: s.templateId ? String(s.templateId) : null,
         templateBody: s.templateBody ? String(s.templateBody) : null,
+        // Template da Meta só faz sentido no WhatsApp.
+        metaTemplateName:
+          finalChannel === "whatsapp" && s.metaTemplateName
+            ? String(s.metaTemplateName).trim()
+            : null,
+        language:
+          finalChannel === "whatsapp" && s.language
+            ? String(s.language).trim()
+            : null,
         couponCode: s.couponCode ? String(s.couponCode) : null,
         createdAt: now,
         updatedAt: now,

@@ -16,6 +16,8 @@ interface Step {
   channel: string;
   templateId: string | null;
   templateBody: string | null;
+  metaTemplateName: string | null;
+  language: string | null;
   couponCode: string | null;
 }
 
@@ -59,6 +61,7 @@ export default function FluxosPage() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [savingFlow, setSavingFlow] = useState(false);
   const [editMsg, setEditMsg] = useState("");
+  const [editErr, setEditErr] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,6 +154,8 @@ export default function FluxosPage() {
         channel: s.channel ?? "whatsapp",
         templateId: s.templateId ?? null,
         templateBody: s.templateBody ?? null,
+        metaTemplateName: s.metaTemplateName ?? null,
+        language: s.language ?? null,
         couponCode: s.couponCode ?? null,
       }))
     );
@@ -167,6 +172,8 @@ export default function FluxosPage() {
         channel: "whatsapp",
         templateId: null,
         templateBody: "",
+        metaTemplateName: null,
+        language: "pt_BR",
         couponCode: null,
       },
     ]);
@@ -186,8 +193,24 @@ export default function FluxosPage() {
 
   async function saveFlow() {
     if (!editing) return;
-    setSavingFlow(true);
     setEditMsg("");
+    setEditErr(false);
+    // Validação: passo de WhatsApp precisa de template Meta (envio a frio).
+    const semTemplate = steps
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => s.channel === "whatsapp" && !s.metaTemplateName?.trim())
+      .map(({ i }) => i + 1);
+    if (semTemplate.length > 0) {
+      const plural = semTemplate.length > 1;
+      setEditErr(true);
+      setEditMsg(
+        `Etapa${plural ? "s" : ""} ${semTemplate.join(", ")}: informe o template da Meta ${
+          plural ? "nos passos" : "no passo"
+        } de WhatsApp (necessário para o envio fora da janela de 24h).`
+      );
+      return;
+    }
+    setSavingFlow(true);
     try {
       await fetch(`/api/recovery-flows/${editing.id}`, {
         method: "PATCH",
@@ -203,9 +226,11 @@ export default function FluxosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ steps }),
       });
+      setEditErr(false);
       setEditMsg("Fluxo salvo.");
       await load();
     } catch {
+      setEditErr(true);
       setEditMsg("Erro ao salvar.");
     } finally {
       setSavingFlow(false);
@@ -425,6 +450,47 @@ export default function FluxosPage() {
                       className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] placeholder:text-[var(--loop-text-muted)]"
                     />
                   </div>
+
+                  {s.channel === "whatsapp" && (
+                    <div className="mt-3 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
+                      <p className="mb-2 text-xs text-[var(--loop-text-muted)]">
+                        Template aprovado na Meta — obrigatório para o 1º contato
+                        no WhatsApp (fora da janela de 24h).
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="w-full">
+                          <label className="mb-1.5 block text-sm font-medium text-[var(--loop-text)]">
+                            Nome do template (Meta)
+                          </label>
+                          <input
+                            type="text"
+                            value={s.metaTemplateName ?? ""}
+                            onChange={(e) =>
+                              updateStep(i, {
+                                metaTemplateName: e.target.value || null,
+                              })
+                            }
+                            placeholder="ex: carrinho_abandonado_1"
+                            className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] placeholder:text-[var(--loop-text-muted)]"
+                          />
+                        </div>
+                        <div className="w-full">
+                          <label className="mb-1.5 block text-sm font-medium text-[var(--loop-text)]">
+                            Idioma
+                          </label>
+                          <input
+                            type="text"
+                            value={s.language ?? ""}
+                            onChange={(e) =>
+                              updateStep(i, { language: e.target.value || null })
+                            }
+                            placeholder="pt_BR"
+                            className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] placeholder:text-[var(--loop-text-muted)]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               <Button variant="secondary" size="sm" onClick={addStep}>
@@ -442,7 +508,13 @@ export default function FluxosPage() {
                 {savingFlow ? "Salvando…" : "Salvar fluxo"}
               </Button>
               {editMsg && (
-                <span className="text-sm text-[var(--loop-success)]">
+                <span
+                  className={`text-sm ${
+                    editErr
+                      ? "text-[var(--loop-error)]"
+                      : "text-[var(--loop-success)]"
+                  }`}
+                >
                   {editMsg}
                 </span>
               )}

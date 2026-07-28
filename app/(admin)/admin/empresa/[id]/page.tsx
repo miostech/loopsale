@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
 import { CompanyKeysButton } from "./CompanyKeysButton";
+import { WhatsAppNumberCard } from "./WhatsAppNumberCard";
 
 interface Detalhe {
   empresa: {
@@ -17,6 +18,7 @@ interface Detalhe {
     cardOnFile: boolean;
     membros: number;
     contato: { email: string; phone: string | null };
+    whatsapp: { phoneNumberId: string; displayNumber: string };
     assinaturaMensal: number;
     ultimaAtividade: string | null;
   };
@@ -262,6 +264,13 @@ export default function EmpresaDetalhe({
           )}
         </div>
       </div>
+
+      {/* WhatsApp: número do cliente (WABA central) */}
+      <WhatsAppNumberCard
+        companyId={e.id}
+        initialPhoneNumberId={e.whatsapp.phoneNumberId}
+        initialDisplayNumber={e.whatsapp.displayNumber}
+      />
 
       {/* Quinzena atual */}
       <Card>

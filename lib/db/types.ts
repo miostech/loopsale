@@ -59,6 +59,16 @@ export interface Account {
   welcomeSeenAt?: Date | null;
   /** Conta de demonstração (dados fictícios). Excluída das métricas do admin. */
   isDemo?: boolean;
+  /**
+   * WhatsApp Cloud API: a LoopSale usa UMA WABA central (token no ambiente),
+   * mas cada cliente tem um número (Phone Number ID) próprio, atribuído pelo
+   * time no admin.
+   */
+  whatsapp?: {
+    phoneNumberId?: string | null;
+    /** Número exibido, ex: "+55 11 99999-8888". Informativo. */
+    displayNumber?: string | null;
+  } | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   createdAt: Date;
@@ -199,6 +209,13 @@ export interface RecoveryFlowStep {
   channel: string;
   templateId?: string | null;
   templateBody?: string | null;
+  /**
+   * Nome do template aprovado na Meta (WhatsApp Cloud API). Obrigatório para
+   * envio de recuperação "a frio" (fora da janela de 24h). Ex: "carrinho_1".
+   */
+  metaTemplateName?: string | null;
+  /** Idioma do template na Meta, ex: "pt_BR". */
+  language?: string | null;
   couponCode?: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -254,6 +271,30 @@ export interface DemoRequest {
   faturamento?: string | null;
   clientes?: string | null;
   necessidade?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Mensagem de WhatsApp (Cloud API) — enviada (out) ou recebida (in).
+ * Guarda o histórico de conversas e o status de entrega por wamid.
+ */
+export interface WhatsAppMessage {
+  _id?: ObjectId;
+  accountId: string;
+  /** "out" = enviada pela LoopSale; "in" = resposta do cliente final. */
+  direction: "in" | "out";
+  /** ID da mensagem na Meta (wamid), usado para casar status. */
+  wamid?: string | null;
+  phoneNumberId?: string | null;
+  /** Número do contato (cliente final), em dígitos E.164 sem "+". */
+  contact?: string | null;
+  type?: string;
+  body?: string | null;
+  templateName?: string | null;
+  /** Status de entrega (out): accepted | sent | delivered | read | failed. */
+  status?: string | null;
+  error?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
