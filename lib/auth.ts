@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { getCollection, mapDoc, isDatabaseDisabled } from "@/lib/db";
 import type { User } from "@/lib/db/types";
 
-const DEMO_EMAIL = process.env.DEMO_LOGIN_EMAIL ?? "demo@loopsale.com";
+const DEMO_EMAIL = process.env.DEMO_LOGIN_EMAIL ?? "demo@loopsale.com.br";
 const DEMO_PASSWORD = process.env.DEMO_LOGIN_PASSWORD ?? "demo123";
 
 export const authOptions: NextAuthOptions = {
