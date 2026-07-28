@@ -477,14 +477,28 @@ export default function MarketingHome() {
                 </span>
                 <ul className="mt-3 space-y-1 text-sm text-[var(--loop-text-muted)]">
                   <li>
-                    <a href="#" className="hover:text-[var(--loop-text)]">
+                    <Link
+                      href="/termos-de-uso"
+                      className="hover:text-[var(--loop-text)]"
+                    >
                       Termos de uso
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="#" className="hover:text-[var(--loop-text)]">
+                    <Link
+                      href="/politica-de-privacidade"
+                      className="hover:text-[var(--loop-text)]"
+                    >
                       Política de privacidade
-                    </a>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/exclusao-de-dados"
+                      className="hover:text-[var(--loop-text)]"
+                    >
+                      Exclusão de dados
+                    </Link>
                   </li>
                 </ul>
               </div>
@@ -501,9 +515,24 @@ export default function MarketingHome() {
                 </div>
               </div>
             </div>
-            <p className="mt-10 text-center text-sm text-[var(--loop-text-muted)]">
-              © {new Date().getFullYear()} LoopSale. Todos os direitos reservados.
-            </p>
+            <div className="mt-10 space-y-1 text-center text-sm text-[var(--loop-text-muted)]">
+              <p>
+                A LoopSale é uma plataforma operada por{" "}
+                <a
+                  href="https://www.miostec.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-[var(--loop-text)] hover:text-[var(--loop-primary)] hover:underline"
+                >
+                  MIOS
+                </a>
+                .
+              </p>
+              <p>
+                © {new Date().getFullYear()} LoopSale. Todos os direitos
+                reservados.
+              </p>
+            </div>
           </div>
         </footer>
       </main>
