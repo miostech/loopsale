@@ -101,46 +101,61 @@ export function WhatsAppConnectCard() {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  async function finishConnect(response: any) {
+    const code = response?.authResponse?.code;
+    if (!code) {
+      setError("Autorização cancelada ou sem retorno.");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/whatsapp/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          wabaId: sessionInfo.current.waba_id,
+          phoneNumberId: sessionInfo.current.phone_number_id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) setError(data.error ?? "Não foi possível conectar.");
+      else await loadStatus();
+    } catch {
+      setError("Erro de rede ao conectar.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
   function connect() {
     setError("");
     if (!window.FB) {
       setError("SDK do Facebook ainda carregando. Tente de novo em instantes.");
       return;
     }
-    window.FB.login(
-      async (response: any) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          setError("Autorização cancelada ou sem retorno.");
-          return;
+    try {
+      // O callback precisa ser função comum: o SDK rejeita async function
+      // ("Expression is of type asyncfunction") e nem chega a abrir o popup.
+      window.FB.login(
+        (response: any) => {
+          void finishConnect(response);
+        },
+        {
+          config_id: CONFIG_ID,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
         }
-        setConnecting(true);
-        try {
-          const res = await fetch("/api/whatsapp/connect", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              wabaId: sessionInfo.current.waba_id,
-              phoneNumberId: sessionInfo.current.phone_number_id,
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok) setError(data.error ?? "Não foi possível conectar.");
-          else await loadStatus();
-        } catch {
-          setError("Erro de rede ao conectar.");
-        } finally {
-          setConnecting(false);
-        }
-      },
-      {
-        config_id: CONFIG_ID,
-        response_type: "code",
-        override_default_response_type: true,
-        extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
-      }
-    );
+      );
+    } catch (e) {
+      // Sem isso, qualquer erro do SDK sobe do onClick e o botão parece morto.
+      setError(
+        e instanceof Error
+          ? `Erro ao abrir o login do Facebook: ${e.message}`
+          : "Erro ao abrir o login do Facebook."
+      );
+    }
   }
 
   const connected = !!status?.connected;
