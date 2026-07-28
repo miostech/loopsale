@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardContent, CardHeader, Input } from "@/component
 interface Me {
   name: string | null;
   email: string;
+  phone: string | null;
   role: string;
   account: { name: string; slug: string };
   demo?: boolean;
@@ -33,6 +34,7 @@ export default function ConfiguracoesPage() {
 
   // Perfil
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [nameMsg, setNameMsg] = useState<{ ok?: string; err?: string }>({});
 
@@ -42,10 +44,8 @@ export default function ConfiguracoesPage() {
   const [savingPass, setSavingPass] = useState(false);
   const [passMsg, setPassMsg] = useState<{ ok?: string; err?: string }>({});
 
-  // Conta
+  // Conta (somente leitura — alteração via suporte)
   const [accName, setAccName] = useState("");
-  const [savingAcc, setSavingAcc] = useState(false);
-  const [accMsg, setAccMsg] = useState<{ ok?: string; err?: string }>({});
 
   // Novo membro
   const [mName, setMName] = useState("");
@@ -69,6 +69,7 @@ export default function ConfiguracoesPage() {
       const memData = await memRes.json();
       setMe(meData);
       setName(meData.name ?? "");
+      setPhone(meData.phone ?? "");
       setAccName(meData.account?.name ?? "");
       setMembers(Array.isArray(memData) ? memData : []);
     } finally {
@@ -83,18 +84,18 @@ export default function ConfiguracoesPage() {
   const isAdmin = me?.role === "admin";
   const roleLabel = (r: string) => (r === "admin" ? "Administrador" : "Membro");
 
-  async function saveName() {
+  async function saveProfile() {
     setNameMsg({});
     setSavingName(true);
     try {
       const res = await fetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, phone }),
       });
       const data = await res.json();
       if (!res.ok) setNameMsg({ err: data.error ?? "Erro ao salvar." });
-      else setNameMsg({ ok: "Nome atualizado." });
+      else setNameMsg({ ok: "Perfil atualizado." });
     } catch {
       setNameMsg({ err: "Erro de rede." });
     } finally {
@@ -122,25 +123,6 @@ export default function ConfiguracoesPage() {
       setPassMsg({ err: "Erro de rede." });
     } finally {
       setSavingPass(false);
-    }
-  }
-
-  async function saveAccount() {
-    setAccMsg({});
-    setSavingAcc(true);
-    try {
-      const res = await fetch("/api/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: accName }),
-      });
-      const data = await res.json();
-      if (!res.ok) setAccMsg({ err: data.error ?? "Erro ao salvar." });
-      else setAccMsg({ ok: "Conta atualizada." });
-    } catch {
-      setAccMsg({ err: "Erro de rede." });
-    } finally {
-      setSavingAcc(false);
     }
   }
 
@@ -263,16 +245,28 @@ export default function ConfiguracoesPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
+                <Input
+                  label="Telefone / WhatsApp"
+                  type="tel"
+                  placeholder="(11) 99999-9999"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+              <div>
                 <Input label="Email" value={me?.email ?? ""} disabled />
+                <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
+                  Para alterar o e-mail, entre em contato com o suporte.
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <Button
                   variant="cta"
                   size="sm"
                   disabled={savingName || me?.demo}
-                  onClick={saveName}
+                  onClick={saveProfile}
                 >
-                  {savingName ? "Salvando…" : "Salvar nome"}
+                  {savingName ? "Salvando…" : "Salvar perfil"}
                 </Button>
                 <Feedback ok={nameMsg.ok} err={nameMsg.err} />
               </div>
@@ -325,36 +319,18 @@ export default function ConfiguracoesPage() {
                 Dados da conta
               </h2>
               <p className="text-sm text-[var(--loop-text-muted)]">
-                Nome do negócio. {isAdmin ? "" : "Somente administradores editam."}
+                Para alterar os dados da conta, entre em contato com o suporte.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label="Nome da conta"
-                  value={accName}
-                  onChange={(e) => setAccName(e.target.value)}
-                  disabled={!isAdmin || me?.demo}
-                />
+                <Input label="Nome da conta" value={accName} disabled />
                 <Input
                   label="Identificador (slug)"
                   value={me?.account?.slug ?? ""}
                   disabled
                 />
               </div>
-              {isAdmin && (
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="cta"
-                    size="sm"
-                    disabled={savingAcc || me?.demo}
-                    onClick={saveAccount}
-                  >
-                    {savingAcc ? "Salvando…" : "Salvar conta"}
-                  </Button>
-                  <Feedback ok={accMsg.ok} err={accMsg.err} />
-                </div>
-              )}
             </CardContent>
           </Card>
 

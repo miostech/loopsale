@@ -48,6 +48,7 @@ export async function GET() {
   return NextResponse.json({
     name: user?.name ?? su.name ?? null,
     email: user?.email ?? su.email ?? "",
+    phone: (user as { phone?: string | null } | null)?.phone ?? null,
     role: user?.role ?? su.role ?? "member",
     account: account
       ? { name: account.name, slug: account.slug }
@@ -73,6 +74,9 @@ export async function PATCH(request: Request) {
   if (name === null) {
     return NextResponse.json({ error: "Nome inválido" }, { status: 400 });
   }
+  // Telefone é opcional; o email NÃO pode ser alterado por aqui (só suporte).
+  const phone =
+    typeof body.phone === "string" ? body.phone.trim() : undefined;
 
   const user = await findCurrentUser(su);
   if (!user?._id) {
@@ -82,10 +86,10 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const set: Record<string, unknown> = { name, updatedAt: new Date() };
+  if (phone !== undefined) set.phone = phone;
+
   const usersCol = await getCollection("users");
-  await usersCol.updateOne(
-    { _id: user._id as ObjectId },
-    { $set: { name, updatedAt: new Date() } }
-  );
-  return NextResponse.json({ ok: true, name });
+  await usersCol.updateOne({ _id: user._id as ObjectId }, { $set: set });
+  return NextResponse.json({ ok: true, name, phone: phone ?? user.phone ?? null });
 }
