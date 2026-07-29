@@ -97,6 +97,8 @@ export interface Account {
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   numberAddon?: AccountNumberAddon | null;
+  /** Add-on LoopChat (caixa de entrada). Indisponível se support.active. */
+  chatAddon?: AccountSupport | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -5,7 +5,7 @@ import {
   getSetupIntent,
   setDefaultPaymentMethod,
 } from "@/lib/billing/stripe";
-import { planByPriceId, NUMBER_ADDON } from "@/lib/billing/plans";
+import { planByPriceId, NUMBER_ADDON, CHAT_ADDON } from "@/lib/billing/plans";
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -123,6 +123,20 @@ export async function POST(request: Request) {
           );
         }
       }
+    } else if (!!CHAT_ADDON.priceId && priceId === CHAT_ADDON.priceId) {
+      // Add-on LoopChat.
+      await accountsCol.updateOne(
+        { "subscription.stripeCustomerId": customerId },
+        {
+          $set: {
+            "chatAddon.active": active,
+            "chatAddon.status": status,
+            "chatAddon.stripeSubscriptionId": String(obj.id ?? ""),
+            "chatAddon.currentPeriodEnd": cpe,
+            updatedAt: new Date(),
+          },
+        }
+      );
     } else if (isSupport) {
       // Add-on de atendimento gerenciado.
       await accountsCol.updateOne(

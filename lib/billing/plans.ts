@@ -145,6 +145,43 @@ export const NUMBER_ADDON = {
     "As mensagens da Meta continuam sendo pagas por você, no cartão da sua conta. O número é disponibilizado enquanto o add-on estiver ativo.",
 };
 
+/**
+ * LoopChat: caixa de entrada do número conectado, para o cliente (ou o time
+ * dele) responder as conversas. Não faz sentido para quem contratou o
+ * atendimento gerenciado — nesse caso quem responde é a LoopSale.
+ *
+ * VALOR PROVISÓRIO: confirmar antes de criar o preço no Stripe.
+ */
+export const CHAT_ADDON = {
+  name: "LoopChat",
+  description:
+    "Caixa de entrada do seu número: veja e responda as conversas dos clientes direto na LoopSale.",
+  priceMonthly: Number(process.env.LOOPCHAT_MONTHLY_BRL) || 97,
+  priceId: process.env.STRIPE_PRICE_LOOPCHAT ?? null,
+  features: [
+    "Conversas do seu número em um só lugar",
+    "Responda você ou sua equipe",
+    "Histórico ligado ao checkout recuperado",
+  ],
+};
+
+/** O que a conta pode fazer no LoopChat. */
+export type LoopChatAccess = "hidden" | "available" | "locked";
+
+/**
+ * Regra única de acesso ao LoopChat — usada pelo menu, pela página e pela API.
+ * "hidden": tem atendimento gerenciado, quem responde é a LoopSale.
+ * "available": contratou o LoopChat.
+ * "locked": pode contratar.
+ */
+export function loopChatAccess(params: {
+  supportActive?: boolean | null;
+  chatActive?: boolean | null;
+}): LoopChatAccess {
+  if (params.supportActive) return "hidden";
+  return params.chatActive ? "available" : "locked";
+}
+
 export function getPlan(id: string | null | undefined): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { PLANS, SUPPORT_ADDON, NUMBER_ADDON } from "@/lib/billing/plans";
+import { PLANS, SUPPORT_ADDON, NUMBER_ADDON, CHAT_ADDON } from "@/lib/billing/plans";
 import {
   stripeConfigured,
   createCustomer,
@@ -53,9 +53,11 @@ export async function POST(request: Request) {
   const isNumberAddon = body.addon === "number";
   const priceId = isNumberAddon
     ? NUMBER_ADDON.priceIdMonthly
-    : body.addon === "support"
-      ? SUPPORT_ADDON.priceId
-      : PLANS.find((p) => p.id === body.plan)?.priceId ?? null;
+    : body.addon === "chat"
+      ? CHAT_ADDON.priceId
+      : body.addon === "support"
+        ? SUPPORT_ADDON.priceId
+        : PLANS.find((p) => p.id === body.plan)?.priceId ?? null;
   if (!priceId) {
     return NextResponse.json(
       { error: "Plano/add-on inválido ou sem preço configurado." },
