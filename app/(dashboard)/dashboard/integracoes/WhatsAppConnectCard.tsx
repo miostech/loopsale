@@ -47,9 +47,10 @@ export function WhatsAppConnectCard() {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [setupAberto, setSetupAberto] = useState(false);
-  const [pedidoNumero, setPedidoNumero] = useState<{ status: string } | null>(
-    null
-  );
+  const [pedidoNumero, setPedidoNumero] = useState<{
+    status: string;
+    deliveredNumber?: string | null;
+  } | null>(null);
   const sessionInfo = useRef<{ waba_id?: string; phone_number_id?: string }>({});
 
   const loadStatus = useCallback(async () => {
@@ -219,12 +220,24 @@ export function WhatsAppConnectCard() {
                 dos seus fluxos de recuperação <strong>não são enviados</strong>.
               </p>
             )}
-            {pedidoNumero && (
+            {pedidoNumero?.status === "delivered" ? (
+              <div className="rounded-lg border border-[color-mix(in_srgb,var(--loop-success)_35%,var(--loop-border))] bg-[color-mix(in_srgb,var(--loop-success)_6%,transparent)] p-3">
+                <p className="text-sm font-medium text-[var(--loop-text)]">
+                  Seu número LoopSale está pronto:{" "}
+                  <strong>{pedidoNumero.deliveredNumber}</strong>
+                </p>
+                <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
+                  Use este número ao conectar sua conta do WhatsApp Business
+                  abaixo. Ele não funciona no WhatsApp normal nem no WhatsApp
+                  Business.
+                </p>
+              </div>
+            ) : pedidoNumero ? (
               <p className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3 text-sm text-[var(--loop-text)]">
                 Pedido de número LoopSale em andamento. Nosso time entra em
                 contato para concluir a ativação.
               </p>
-            )}
+            ) : null}
             <Button
               variant="cta"
               size="sm"

@@ -90,10 +90,35 @@ export async function PATCH(request: Request) {
         { status: 400 }
       );
     }
+    const pedido = (await reqCol.findOne({
+      _id: oid as ObjectId,
+    })) as NumberRequest | null;
+    if (!pedido) {
+      return NextResponse.json(
+        { error: "Pedido não encontrado." },
+        { status: 404 }
+      );
+    }
     await reqCol.updateOne(
       { _id: oid as ObjectId },
       { $set: { status: "delivered", deliveredNumber: numero, updatedAt: now } }
     );
+    // Grava também na conta: o perfil da empresa precisa saber qual número é
+    // nosso, mesmo depois que o pedido sair da lista de pendentes.
+    const accOid = await routeObjectId(pedido.accountId);
+    if (accOid) {
+      const accountsCol = await getCollection("accounts");
+      await accountsCol.updateOne(
+        { _id: accOid as ObjectId },
+        {
+          $set: {
+            "numberAddon.deliveredNumber": numero,
+            "numberAddon.deliveredAt": now,
+            updatedAt: now,
+          },
+        }
+      );
+    }
     return NextResponse.json({ ok: true });
   }
 

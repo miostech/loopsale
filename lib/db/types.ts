@@ -52,6 +52,12 @@ export interface AccountNumberAddon {
   status?: string;
   stripeSubscriptionId?: string | null;
   currentPeriodEnd?: Date | null;
+  /**
+   * Número que a LoopSale entregou. É também o que distingue linha nossa de
+   * linha do cliente no perfil da empresa — preenchido, a linha é nossa.
+   */
+  deliveredNumber?: string | null;
+  deliveredAt?: Date | null;
 }
 
 export interface Account {

@@ -18,7 +18,15 @@ interface Detalhe {
     cardOnFile: boolean;
     membros: number;
     contato: { email: string; phone: string | null };
-    whatsapp: { phoneNumberId: string; displayNumber: string };
+    whatsapp: {
+      phoneNumberId: string;
+      displayNumber: string;
+      deliveredNumber: string;
+      deliveredAt: string | null;
+      addonAtivo: boolean;
+      conectado: boolean;
+      source: string;
+    };
     assinaturaMensal: number;
     ultimaAtividade: string | null;
   };
@@ -270,6 +278,10 @@ export default function EmpresaDetalhe({
         companyId={e.id}
         initialPhoneNumberId={e.whatsapp.phoneNumberId}
         initialDisplayNumber={e.whatsapp.displayNumber}
+        deliveredNumber={e.whatsapp.deliveredNumber}
+        deliveredAt={e.whatsapp.deliveredAt}
+        addonAtivo={e.whatsapp.addonAtivo}
+        conectado={e.whatsapp.conectado}
       />
 
       {/* Quinzena atual */}

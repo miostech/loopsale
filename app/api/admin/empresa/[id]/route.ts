@@ -228,6 +228,12 @@ export async function GET(
       whatsapp: {
         phoneNumberId: account.whatsapp?.phoneNumberId ?? "",
         displayNumber: account.whatsapp?.displayNumber ?? "",
+        // Linha entregue pela LoopSale (add-on) — vazio = número do cliente.
+        deliveredNumber: account.numberAddon?.deliveredNumber ?? "",
+        deliveredAt: account.numberAddon?.deliveredAt ?? null,
+        addonAtivo: !!account.numberAddon?.active,
+        conectado: !!account.whatsapp?.accessToken,
+        source: account.whatsapp?.source ?? "own",
       },
       assinaturaMensal,
       ultimaAtividade,

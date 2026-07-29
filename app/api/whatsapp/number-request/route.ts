@@ -24,9 +24,14 @@ export async function GET() {
     return NextResponse.json({ request: null });
   }
 
+  // Inclui "delivered": o cliente precisa ver o número que recebeu, não só
+  // saber que o pedido está em andamento.
   const col = await getCollection("numberRequests");
   const rows = await col
-    .find({ accountId: su.accountId, status: { $in: EM_ANDAMENTO } })
+    .find({
+      accountId: su.accountId,
+      status: { $in: [...EM_ANDAMENTO, "delivered"] },
+    })
     .sort({ createdAt: -1 })
     .limit(1)
     .toArray();
