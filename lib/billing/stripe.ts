@@ -2,6 +2,13 @@ import crypto from "crypto";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 
+/**
+ * Idioma das telas hospedadas pelo Stripe (checkout, portal). Sem isso o Stripe
+ * usa "auto", que segue o idioma do navegador — e cai em inglês para quem está
+ * com o sistema em outro idioma.
+ */
+const STRIPE_LOCALE = "pt-BR";
+
 export function stripeConfigured(): boolean {
   return !!process.env.STRIPE_SECRET_KEY;
 }
@@ -77,6 +84,7 @@ export async function createCheckoutSession(params: {
     cancel_url: params.cancelUrl,
     "subscription_data[metadata][accountId]": params.accountId,
     allow_promotion_codes: "true",
+    locale: STRIPE_LOCALE,
   });
   return { url: String(doc.url) };
 }
@@ -97,6 +105,7 @@ export async function createEmbeddedCheckoutSession(params: {
     return_url: params.returnUrl,
     "subscription_data[metadata][accountId]": params.accountId,
     allow_promotion_codes: "true",
+    locale: STRIPE_LOCALE,
   });
   return { clientSecret: String(doc.client_secret) };
 }
@@ -108,6 +117,7 @@ export async function createPortalSession(params: {
   const doc = await stripePost("/billing_portal/sessions", {
     customer: params.customer,
     return_url: params.returnUrl,
+    locale: STRIPE_LOCALE,
   });
   return { url: String(doc.url) };
 }
@@ -160,6 +170,7 @@ export async function createSetupCheckoutSession(params: {
     customer: params.customer,
     success_url: params.successUrl,
     cancel_url: params.cancelUrl,
+    locale: STRIPE_LOCALE,
   });
   return { url: String(doc.url) };
 }
