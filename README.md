@@ -63,3 +63,4 @@ Abra [http://localhost:3000](http://localhost:3000) no navegador. Use **"Ver das
 - TypeScript
 - Tailwind CSS 4
 # loopsale
+# portifoliougc
