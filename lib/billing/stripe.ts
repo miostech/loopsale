@@ -88,7 +88,8 @@ export async function createEmbeddedCheckoutSession(params: {
   accountId: string;
 }): Promise<{ clientSecret: string }> {
   const doc = await stripePost("/checkout/sessions", {
-    ui_mode: "embedded",
+    // A API do Stripe aposentou o valor "embedded" em favor de "embedded_page".
+    ui_mode: "embedded_page",
     mode: "subscription",
     customer: params.customer,
     "line_items[0][price]": params.priceId,
