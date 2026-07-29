@@ -120,6 +120,28 @@ export async function POST(request: Request) {
             { $setOnInsert: doc },
             { upsert: true }
           );
+
+          // Mensagem nova reabre a conversa: se ficasse resolvida, sumiria do
+          // board e ninguém responderia o cliente. Reabrir de novo não muda
+          // nada, então o reenvio do webhook é inofensivo.
+          if (accountId && msg.from) {
+            const convCol = await getCollection("conversations");
+            await convCol.updateOne(
+              {
+                accountId,
+                contact: msg.from,
+                status: { $in: ["resolved", "snoozed", "pending"] },
+              },
+              {
+                $set: {
+                  status: "open",
+                  resolvedAt: null,
+                  snoozedUntil: null,
+                  updatedAt: now,
+                },
+              }
+            );
+          }
         }
       }
     }

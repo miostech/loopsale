@@ -4,13 +4,22 @@ import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
 import { loopChatAccess, type LoopChatAccess } from "@/lib/billing/plans";
 
-type SessionUser = { accountId?: string; role?: string; email?: string | null };
+type SessionUser = {
+  id?: string;
+  accountId?: string;
+  role?: string;
+  email?: string | null;
+};
 
 export type ChatContext = {
   accountId: string;
   account: Account | null;
   access: LoopChatAccess;
   role: string;
+  /** Quem está agindo — registrado ao resolver uma conversa. */
+  email: string | null;
+  /** Id do usuário logado, para saber o que é "minha conversa". */
+  userId: string | null;
 };
 
 /**
@@ -28,6 +37,8 @@ export async function chatContext(): Promise<ChatContext | null> {
       account: null,
       access: "locked",
       role: su.role ?? "member",
+      email: su.email ?? null,
+      userId: su.id ?? null,
     };
   }
 
@@ -45,6 +56,8 @@ export async function chatContext(): Promise<ChatContext | null> {
       chatActive: account?.chatAddon?.active,
     }),
     role: su.role ?? "member",
+    email: su.email ?? null,
+    userId: su.id ?? null,
   };
 }
 

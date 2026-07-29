@@ -32,9 +32,10 @@ export async function GET(request: Request) {
     .limit(300)
     .toArray()) as (WhatsAppMessage & { _id: unknown })[];
 
+  // Nota interna não abre janela: só mensagem do cliente conta.
   const ultimaRecebida = [...rows]
     .reverse()
-    .find((m) => m.direction === "in")?.createdAt;
+    .find((m) => m.direction === "in" && !m.internal)?.createdAt;
 
   return NextResponse.json({
     contact,
@@ -42,6 +43,8 @@ export async function GET(request: Request) {
     mensagens: rows.map((m) => ({
       id: String(m._id),
       direction: m.direction,
+      internal: !!m.internal,
+      authorName: m.authorName ?? null,
       body: m.body,
       type: m.type,
       templateName: m.templateName ?? null,

@@ -328,6 +328,39 @@ export interface DemoRequest {
  * Mensagem de WhatsApp (Cloud API) — enviada (out) ou recebida (in).
  * Guarda o histórico de conversas e o status de entrega por wamid.
  */
+/**
+ * Estado de uma conversa do LoopChat (uma por conta + contato). Só existe
+ * quando alguém age sobre ela — conversa sem documento é tratada como aberta,
+ * então não é preciso criar registro para todo contato que escreve.
+ */
+export interface Conversation {
+  _id?: ObjectId;
+  accountId: string;
+  /** Telefone do contato em dígitos E.164 sem "+", igual ao das mensagens. */
+  contact: string;
+  /** open | pending | snoozed | resolved */
+  status: string;
+  resolvedAt?: Date | null;
+  resolvedBy?: string | null;
+  /**
+   * Até quando fica adiada. Passado o prazo ela volta a contar como aberta —
+   * isso é calculado na leitura, então não depende de nenhum job rodando.
+   */
+  snoozedUntil?: Date | null;
+  /** Id do usuário responsável pela conversa. null = não atribuída. */
+  assigneeId?: string | null;
+  assignedAt?: Date | null;
+  /**
+   * Etiquetas da conversa, em texto. A lista de etiquetas da conta é derivada
+   * do que está em uso — não há catálogo separado para manter em sincronia.
+   */
+  labels?: string[];
+  /** urgent | high | medium | low. Ausente/null = sem prioridade. */
+  priority?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface WhatsAppMessage {
   _id?: ObjectId;
   accountId: string;
@@ -344,6 +377,14 @@ export interface WhatsAppMessage {
   /** Status de entrega (out): accepted | sent | delivered | read | failed. */
   status?: string | null;
   error?: string | null;
+  /**
+   * true = nota interna da equipe. Nunca vai para a Meta e é ignorada nas
+   * contas de não lidas e de "não respondida" — senão uma nota faria a conversa
+   * parecer atendida sem o cliente ter recebido nada.
+   */
+  internal?: boolean;
+  /** Quem escreveu a nota (nome ou e-mail). */
+  authorName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
