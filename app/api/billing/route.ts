@@ -24,6 +24,7 @@ export async function GET() {
     features: p.features,
     highlighted: p.highlighted ?? false,
     includesSupport: p.includesSupport ?? false,
+    chatFreeConversations: p.chatFreeConversations,
     disponivel: p.id === "free" || !!p.priceId, // pagos só se houver priceId
   }));
 

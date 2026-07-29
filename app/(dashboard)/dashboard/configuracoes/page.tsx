@@ -8,7 +8,12 @@ interface Me {
   email: string;
   phone: string | null;
   role: string;
-  account: { name: string; slug: string };
+  account: {
+    name: string;
+    slug: string;
+    plano?: string;
+    maxMembers?: number | null;
+  };
   demo?: boolean;
 }
 
@@ -83,6 +88,8 @@ export default function ConfiguracoesPage() {
 
   const isAdmin = me?.role === "admin";
   const roleLabel = (r: string) => (r === "admin" ? "Administrador" : "Membro");
+  const maxMembers = me?.account?.maxMembers ?? null;
+  const noLimiteMembros = maxMembers !== null && members.length >= maxMembers;
 
   async function saveProfile() {
     setNameMsg({});
@@ -342,6 +349,13 @@ export default function ConfiguracoesPage() {
               </h2>
               <p className="text-sm text-[var(--loop-text-muted)]">
                 Quem tem acesso a esta conta.
+                {maxMembers !== null
+                  ? ` ${members.length} de ${maxMembers} ${
+                      maxMembers === 1 ? "usuário" : "membros"
+                    } do plano.`
+                  : ` ${members.length} ${
+                      members.length === 1 ? "membro" : "membros"
+                    } · plano com membros ilimitados.`}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -382,7 +396,28 @@ export default function ConfiguracoesPage() {
                 ))}
               </div>
 
-              {isAdmin && !me?.demo && (
+              {isAdmin && !me?.demo && noLimiteMembros && (
+                <div className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-4 text-sm">
+                  <p className="font-medium text-[var(--loop-text)]">
+                    Limite de membros do plano atingido
+                  </p>
+                  <p className="mt-1 text-[var(--loop-text-muted)]">
+                    {maxMembers === 1
+                      ? "Seu plano permite apenas 1 usuário."
+                      : `Seu plano permite até ${maxMembers} membros.`}{" "}
+                    Faça upgrade em{" "}
+                    <a
+                      href="/dashboard/planos"
+                      className="text-[var(--loop-primary)] hover:underline"
+                    >
+                      Planos
+                    </a>{" "}
+                    para adicionar mais.
+                  </p>
+                </div>
+              )}
+
+              {isAdmin && !me?.demo && !noLimiteMembros && (
                 <div className="rounded-lg border border-[var(--loop-border)] p-4">
                   <p className="mb-3 text-sm font-medium text-[var(--loop-text)]">
                     Adicionar membro

@@ -14,9 +14,19 @@ export default async function LoopChatPage() {
   if (ctx.access === "hidden") redirect("/dashboard");
 
   if (ctx.access === "locked") {
+    // Estourou a cota do plano (Pro/Escala) vs. plano sem chat grátis (Free).
+    const estourou =
+      ctx.chatQuota !== null &&
+      ctx.chatQuota > 0 &&
+      ctx.monthlyConversations > ctx.chatQuota;
     return (
       <div className="p-6">
-        <LoopChatLocked isAdmin={ctx.role === "admin"} />
+        <LoopChatLocked
+          isAdmin={ctx.role === "admin"}
+          motivo={estourou ? "over" : "free"}
+          cota={ctx.chatQuota}
+          usadas={ctx.monthlyConversations}
+        />
       </div>
     );
   }

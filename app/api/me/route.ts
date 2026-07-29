@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
+import { getPlan, maxMembersOf } from "@/lib/billing/plans";
 
 type SessionUser = {
   id?: string;
@@ -33,7 +34,7 @@ export async function GET() {
       name: su.name ?? "Modo demo",
       email: su.email ?? "",
       role: su.role ?? "admin",
-      account: { name: "Conta demo", slug: "demo" },
+      account: { name: "Conta demo", slug: "demo", plano: "free", maxMembers: null },
       demo: true,
     });
   }
@@ -51,8 +52,13 @@ export async function GET() {
     phone: (user as { phone?: string | null } | null)?.phone ?? null,
     role: user?.role ?? su.role ?? "member",
     account: account
-      ? { name: account.name, slug: account.slug }
-      : { name: "", slug: "" },
+      ? {
+          name: account.name,
+          slug: account.slug,
+          plano: getPlan(account.subscription?.plan).id,
+          maxMembers: maxMembersOf(account.subscription?.plan),
+        }
+      : { name: "", slug: "", plano: "free", maxMembers: maxMembersOf("free") },
   });
 }
 

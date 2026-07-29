@@ -12,7 +12,18 @@ function brl(valor: number): string {
   }).format(valor);
 }
 
-export function LoopChatLocked({ isAdmin }: { isAdmin: boolean }) {
+export function LoopChatLocked({
+  isAdmin,
+  motivo = "free",
+  cota = null,
+  usadas = 0,
+}: {
+  isAdmin: boolean;
+  /** "over" = estourou a cota do plano; "free" = plano sem chat grátis. */
+  motivo?: "over" | "free";
+  cota?: number | null;
+  usadas?: number;
+}) {
   const router = useRouter();
   const [ativando, setAtivando] = useState(false);
   const [erro, setErro] = useState("");
@@ -46,6 +57,20 @@ export function LoopChatLocked({ isAdmin }: { isAdmin: boolean }) {
           {CHAT_ADDON.description}
         </p>
       </div>
+
+      {motivo === "over" && cota !== null && (
+        <div className="rounded-lg border border-[color-mix(in_srgb,var(--loop-error)_35%,var(--loop-border))] bg-[color-mix(in_srgb,var(--loop-error)_6%,transparent)] p-4 text-sm">
+          <p className="font-medium text-[var(--loop-text)]">
+            Você passou do limite de conversas grátis deste mês
+          </p>
+          <p className="mt-1 text-[var(--loop-text-muted)]">
+            Seu plano inclui {cota.toLocaleString("pt-BR")} conversas/mês no
+            LoopChat e você já usou {usadas.toLocaleString("pt-BR")}. Para
+            continuar respondendo, contrate o LoopChat abaixo. No próximo mês a
+            cota do plano zera e o chat volta a liberar sozinho.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

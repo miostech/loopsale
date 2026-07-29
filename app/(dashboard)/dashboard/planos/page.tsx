@@ -14,6 +14,7 @@ interface PlanView {
   features: string[];
   highlighted: boolean;
   includesSupport: boolean;
+  chatFreeConversations: number | null;
   disponivel: boolean;
 }
 
@@ -283,6 +284,21 @@ export default function PlanosPage() {
                           {f}
                         </li>
                       ))}
+                      {p.chatFreeConversations === 0 ? (
+                        <li className="flex gap-2 text-[var(--loop-text-muted)]">
+                          <span className="text-[var(--loop-error)]">✗</span>
+                          LoopChat não incluído (add-on à parte)
+                        </li>
+                      ) : (
+                        <li className="flex gap-2">
+                          <span className="text-[var(--loop-success)]">✓</span>
+                          {p.chatFreeConversations === null
+                            ? "LoopChat com conversas ilimitadas"
+                            : `LoopChat grátis até ${p.chatFreeConversations.toLocaleString(
+                                "pt-BR"
+                              )} conversas/mês`}
+                        </li>
+                      )}
                     </ul>
                     {p.id !== "free" && !atual && (
                       <Button

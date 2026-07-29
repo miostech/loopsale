@@ -22,6 +22,14 @@ export type Plan = {
   includesSupport?: boolean;
   /** Comissão sobre vendas recuperadas (0..1). Ex: Free 0.4, Pro 0.1. */
   commissionRate: number;
+  /**
+   * Conversas do LoopChat incluídas grátis por mês (contatos ativos no mês).
+   * 0 = nunca grátis (precisa contratar o add-on). null = ilimitado.
+   * Passando da cota, a conta precisa contratar o LoopChat.
+   */
+  chatFreeConversations: number | null;
+  /** Máximo de membros (usuários) da conta. null = ilimitado. */
+  maxMembers: number | null;
 };
 
 export const PLANS: Plan[] = [
@@ -33,6 +41,8 @@ export const PLANS: Plan[] = [
     description: "Pague só quando recuperar. Sem mensalidade.",
     priceId: null,
     commissionRate: 0.4,
+    chatFreeConversations: 0,
+    maxMembers: 1,
     features: [
       "Sem mensalidade",
       "40% de comissão sobre vendas recuperadas",
@@ -51,6 +61,8 @@ export const PLANS: Plan[] = [
     priceId: process.env.STRIPE_PRICE_PRO ?? null,
     highlighted: true,
     commissionRate: 0.1,
+    chatFreeConversations: 500,
+    maxMembers: 3,
     features: [
       "10% de comissão sobre vendas recuperadas",
       "Até 2.000 checkouts/mês",
@@ -68,6 +80,8 @@ export const PLANS: Plan[] = [
     priceId: process.env.STRIPE_PRICE_ESCALA ?? null,
     includesSupport: true,
     commissionRate: 0,
+    chatFreeConversations: 3000,
+    maxMembers: null,
     features: [
       "0% de comissão sobre vendas",
       "Até 10.000 checkouts/mês",
@@ -85,6 +99,8 @@ export const PLANS: Plan[] = [
     priceId: process.env.STRIPE_PRICE_ENTERPRISE ?? null,
     includesSupport: true,
     commissionRate: 0,
+    chatFreeConversations: null,
+    maxMembers: null,
     features: [
       "0% de comissão sobre vendas",
       "Checkouts ilimitados",
@@ -168,18 +184,42 @@ export const CHAT_ADDON = {
 /** O que a conta pode fazer no LoopChat. */
 export type LoopChatAccess = "hidden" | "available" | "locked";
 
+/** Conversas grátis/mês do plano (contatos ativos). null = ilimitado. */
+export function chatFreeConversationsOf(
+  planId: string | null | undefined
+): number | null {
+  return getPlan(planId).chatFreeConversations;
+}
+
+/** Máximo de membros do plano. null = ilimitado. */
+export function maxMembersOf(planId: string | null | undefined): number | null {
+  return getPlan(planId).maxMembers;
+}
+
 /**
  * Regra única de acesso ao LoopChat — usada pelo menu, pela página e pela API.
  * "hidden": tem atendimento gerenciado, quem responde é a LoopSale.
- * "available": contratou o LoopChat.
- * "locked": pode contratar.
+ * "available": pode usar (add-on contratado, plano com cota ainda dentro do
+ *   limite, ou plano ilimitado).
+ * "locked": precisa contratar — Free (sem cota grátis) ou cota do mês estourada.
+ *
+ * Ordem: atendimento gerenciado > add-on contratado > cota do plano.
  */
 export function loopChatAccess(params: {
   supportActive?: boolean | null;
   chatActive?: boolean | null;
+  planId?: string | null;
+  /** Contatos ativos no mês corrente (conta pra cota grátis do plano). */
+  monthlyConversations?: number | null;
 }): LoopChatAccess {
   if (params.supportActive) return "hidden";
-  return params.chatActive ? "available" : "locked";
+  // Contratou o add-on: chat liberado sem limite de conversas.
+  if (params.chatActive) return "available";
+  const cota = chatFreeConversationsOf(params.planId);
+  if (cota === null) return "available"; // plano ilimitado (Enterprise)
+  // Free (cota 0) nunca é grátis; nos demais, vale até bater a cota do mês.
+  if (cota > 0 && (params.monthlyConversations ?? 0) <= cota) return "available";
+  return "locked";
 }
 
 export function getPlan(id: string | null | undefined): Plan {

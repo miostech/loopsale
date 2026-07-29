@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getCollection, mapDocs, isDatabaseDisabled } from "@/lib/db";
+import { getCollection, routeObjectId, mapDocs, isDatabaseDisabled } from "@/lib/db";
 import { hashPassword } from "@/lib/auth-server";
-import type { User } from "@/lib/db/types";
+import type { Account, User } from "@/lib/db/types";
+import { maxMembersOf, getPlan } from "@/lib/billing/plans";
 
 type SessionUser = { accountId?: string; role?: string; email?: string | null };
 
@@ -52,6 +53,30 @@ export async function POST(request: Request) {
       { error: "Indisponível no modo demo (DATABASE_DISABLED)." },
       { status: 503 }
     );
+  }
+
+  // Limite de membros por plano: conta o que já existe antes de deixar criar.
+  const accountsCol = await getCollection("accounts");
+  const accOid = await routeObjectId(su.accountId);
+  const account = accOid
+    ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
+    : null;
+  const planId = account?.subscription?.plan ?? null;
+  const limite = maxMembersOf(planId);
+  if (limite !== null) {
+    const usersCol = await getCollection("users");
+    const atuais = await usersCol.countDocuments({ accountId: su.accountId });
+    if (atuais >= limite) {
+      return NextResponse.json(
+        {
+          error:
+            limite === 1
+              ? `O plano ${getPlan(planId).name} permite apenas 1 usuário. Faça upgrade para adicionar membros.`
+              : `O plano ${getPlan(planId).name} permite até ${limite} membros e você já atingiu esse limite. Faça upgrade para adicionar mais.`,
+        },
+        { status: 403 }
+      );
+    }
   }
 
   const body = await request.json().catch(() => ({}));
