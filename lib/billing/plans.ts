@@ -68,7 +68,6 @@ export const PLANS: Plan[] = [
       "Até 2.000 checkouts/mês",
       "Fluxos e campanhas ilimitados",
       "Templates com variáveis",
-      "Receita em R$ e US$",
       "Até 3 membros",
     ],
   },
@@ -88,7 +87,6 @@ export const PLANS: Plan[] = [
       "Atendimento gerenciado incluído",
       "Tudo do Pro",
       "Membros ilimitados",
-      "Relatórios avançados",
     ],
   },
   {
@@ -107,7 +105,6 @@ export const PLANS: Plan[] = [
       "Atendimento gerenciado incluído",
       "Tudo do Escala",
       "Suporte prioritário dedicado",
-      "SLA e onboarding assistido",
     ],
   },
 ];

@@ -284,12 +284,7 @@ export default function PlanosPage() {
                           {f}
                         </li>
                       ))}
-                      {p.chatFreeConversations === 0 ? (
-                        <li className="flex gap-2 text-[var(--loop-text-muted)]">
-                          <span className="text-[var(--loop-error)]">✗</span>
-                          LoopChat não incluído (add-on à parte)
-                        </li>
-                      ) : (
+                      {p.chatFreeConversations !== 0 && (
                         <li className="flex gap-2">
                           <span className="text-[var(--loop-success)]">✓</span>
                           {p.chatFreeConversations === null
