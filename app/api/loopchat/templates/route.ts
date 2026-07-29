@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { isDatabaseDisabled } from "@/lib/db";
 import { chatContext } from "@/lib/loopchat/access";
-import { listTemplates } from "@/lib/whatsapp/cloud";
+import {
+  listTemplates,
+  tokenFor,
+  usesCentralWaba,
+  centralWabaId,
+} from "@/lib/whatsapp/cloud";
 
 /**
  * Templates aprovados da WABA da conta, para iniciar uma conversa nova.
@@ -22,13 +27,19 @@ export async function GET() {
     return NextResponse.json({ templates: [], connected: false });
   }
 
+  // Token e WABA seguem a origem da conta: própria (token + wabaId da conta)
+  // ou central legada (token + WABA do ambiente).
   const wa = ctx.account?.whatsapp ?? null;
-  if (!wa?.wabaId || !wa?.accessToken) {
+  const token = tokenFor(wa?.accessToken, wa?.source);
+  const wabaId = usesCentralWaba(wa?.source)
+    ? centralWabaId()
+    : wa?.wabaId ?? "";
+  if (!token || !wabaId) {
     return NextResponse.json({ templates: [], connected: false });
   }
 
   try {
-    const todos = await listTemplates(wa.wabaId, wa.accessToken);
+    const todos = await listTemplates(wabaId, token);
     const templates = todos
       .filter((t) => t.status.toUpperCase() === "APPROVED")
       .map((t) => ({

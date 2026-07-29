@@ -8,6 +8,8 @@ import {
   listTemplates,
   preencherCorpo,
   tokenFor,
+  usesCentralWaba,
+  centralWabaId,
   SEM_TOKEN,
 } from "@/lib/whatsapp/cloud";
 
@@ -59,9 +61,10 @@ export async function POST(request: Request) {
   // variáveis preenchidas. Sem isso a Meta recusa o envio.
   let language = String(body.language ?? "pt_BR").trim() || "pt_BR";
   let corpoPreenchido = "";
-  if (wa?.wabaId) {
+  const wabaId = usesCentralWaba(wa?.source) ? centralWabaId() : wa?.wabaId ?? "";
+  if (wabaId) {
     try {
-      const todos = await listTemplates(wa.wabaId, token);
+      const todos = await listTemplates(wabaId, token);
       const tpl = todos.find(
         (t) => t.name === templateName && t.status.toUpperCase() === "APPROVED"
       );

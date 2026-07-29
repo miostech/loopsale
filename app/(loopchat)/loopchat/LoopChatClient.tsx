@@ -239,6 +239,7 @@ export function LoopChatClient({
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [painelAberto, setPainelAberto] = useState(true);
+  const [sidebarAberta, setSidebarAberta] = useState(true);
   const [janelaAberta, setJanelaAberta] = useState(true);
   const [texto, setTexto] = useState("");
   const [modoNota, setModoNota] = useState(false);
@@ -648,12 +649,41 @@ export function LoopChatClient({
   return (
     <div className="flex h-full">
       {/* Coluna 1: filtros */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-[var(--loop-border)] bg-[var(--loop-bg)] lg:flex">
-        <div className="border-b border-[var(--loop-border)] px-4 py-4">
-          <h1 className="font-semibold text-[var(--loop-text)]">Conversas</h1>
-          <p className="text-xs text-[var(--loop-text-muted)]">
-            Do seu número do WhatsApp
-          </p>
+      <aside
+        className={`shrink-0 flex-col border-r border-[var(--loop-border)] bg-[var(--loop-bg)] ${
+          sidebarAberta ? "hidden w-56 lg:flex" : "hidden"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2 border-b border-[var(--loop-border)] px-4 py-4">
+          <div>
+            <h1 className="font-semibold text-[var(--loop-text)]">Conversas</h1>
+            <p className="text-xs text-[var(--loop-text-muted)]">
+              Do seu número do WhatsApp
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSidebarAberta(false)}
+            aria-label="Recolher barra lateral"
+            title="Recolher barra lateral"
+            className="mt-0.5 shrink-0 rounded-md p-1 text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)] hover:text-[var(--loop-text)]"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 3v18" />
+              <path d="m14 9-3 3 3 3" />
+            </svg>
+          </button>
         </div>
         <nav className="flex-1 overflow-y-auto p-2">
           <div className="space-y-0.5">
@@ -861,6 +891,31 @@ export function LoopChatClient({
         <div className="space-y-3 border-b border-[var(--loop-border)] px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
+              {!sidebarAberta && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarAberta(true)}
+                  aria-label="Abrir barra lateral"
+                  title="Abrir filtros e etiquetas"
+                  className="hidden shrink-0 rounded-md p-1 text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)] hover:text-[var(--loop-text)] lg:inline-flex"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M9 3v18" />
+                    <path d="m12 9 3 3-3 3" />
+                  </svg>
+                </button>
+              )}
               <h2 className="font-semibold text-[var(--loop-text)]">Conversas</h2>
               <Badge variant="default">{visiveis.length}</Badge>
             </div>

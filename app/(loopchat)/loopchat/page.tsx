@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { chatContext } from "@/lib/loopchat/access";
+import { canSendFor } from "@/lib/whatsapp/cloud";
 import { LoopChatClient } from "./LoopChatClient";
 import { LoopChatLocked } from "./LoopChatLocked";
 
@@ -20,9 +21,16 @@ export default async function LoopChatPage() {
     );
   }
 
+  // Pode enviar = tem token próprio OU está na WABA central (legado). Bater com
+  // a regra real de envio evita travar o botão de conta que envia pela central.
+  const podeEnviar = canSendFor(
+    ctx.account?.whatsapp?.accessToken,
+    ctx.account?.whatsapp?.source
+  );
+
   return (
     <LoopChatClient
-      whatsappConectado={!!ctx.account?.whatsapp?.accessToken}
+      whatsappConectado={podeEnviar}
       numeroConta={ctx.account?.whatsapp?.displayNumber ?? null}
     />
   );
