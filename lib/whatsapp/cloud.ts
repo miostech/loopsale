@@ -149,7 +149,9 @@ export function centralToken(): string {
   return process.env.WHATSAPP_ACCESS_TOKEN ?? "";
 }
 
-/** Cria um template simples (UTILITY, só corpo). Retorna o id/status. */
+/** Cria um template (só corpo) e submete à aprovação. Retorna id/status.
+ * `bodyExamples` preenche o example.body_text exigido pela Meta quando o corpo
+ * tem variáveis {{1}}, {{2}}… — sem isso a Meta recusa a submissão. */
 export async function createTemplate(params: {
   wabaId: string;
   token: string;
@@ -157,14 +159,23 @@ export async function createTemplate(params: {
   language?: string;
   category?: string;
   body: string;
+  bodyExamples?: string[];
 }): Promise<{ id?: string; status?: string }> {
+  const bodyComp: Record<string, unknown> = {
+    type: "BODY",
+    text: params.body,
+  };
+  if (params.bodyExamples && params.bodyExamples.length) {
+    // A Meta espera uma lista de conjuntos de exemplo; mandamos um conjunto.
+    bodyComp.example = { body_text: [params.bodyExamples] };
+  }
   const data = await graphPost(
     `${params.wabaId}/message_templates`,
     {
       name: params.name,
       language: params.language ?? "pt_BR",
       category: params.category ?? "UTILITY",
-      components: [{ type: "BODY", text: params.body }],
+      components: [bodyComp],
     },
     params.token
   );

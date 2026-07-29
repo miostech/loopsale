@@ -8,19 +8,39 @@ import { OnboardingGate } from "@/components/dashboard/OnboardingGate";
 import { OnboardingProvider } from "@/components/dashboard/OnboardingContext";
 import { WelcomeTourModal } from "@/components/dashboard/WelcomeTourModal";
 import { chatContext } from "@/lib/loopchat/access";
+import { commissionRateOf } from "@/lib/billing/plans";
 
-const nav = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/dashboard/integracoes", label: "Integrações" },
-  { href: "/loopchat", label: "LoopChat" },
-  { href: "/dashboard/fluxos", label: "Fluxos" },
-  { href: "/dashboard/clientes", label: "Clientes" },
-  { href: "/dashboard/vendas", label: "Vendas" },
-  { href: "/dashboard/campanhas", label: "Campanhas" },
-  { href: "/dashboard/templates", label: "Templates" },
-  { href: "/dashboard/planos", label: "Planos e assinatura" },
-  { href: "/dashboard/comissao", label: "Comissão" },
-  { href: "/dashboard/configuracoes", label: "Configurações" },
+// Menu agrupado por área, para não ser uma lista solta de 11 itens.
+const navGroups = [
+  { title: null, items: [{ href: "/dashboard", label: "Dashboard" }] },
+  {
+    title: "Operação",
+    items: [
+      { href: "/dashboard/integracoes", label: "Integrações" },
+      { href: "/loopchat", label: "LoopChat" },
+      { href: "/dashboard/fluxos", label: "Fluxos" },
+      // Campanhas oculto por enquanto: a tela existe mas não há processador que
+      // execute as campanhas (nada lê a coleção `campaigns` para enviar). Quando
+      // o motor de campanha existir, reativar esta linha.
+      // { href: "/dashboard/campanhas", label: "Campanhas" },
+      { href: "/dashboard/templates", label: "Templates" },
+    ],
+  },
+  {
+    title: "Clientes & Vendas",
+    items: [
+      { href: "/dashboard/clientes", label: "Clientes" },
+      { href: "/dashboard/vendas", label: "Vendas" },
+      { href: "/dashboard/comissao", label: "Comissão" },
+    ],
+  },
+  {
+    title: "Conta",
+    items: [
+      { href: "/dashboard/planos", label: "Planos e assinatura" },
+      { href: "/dashboard/configuracoes", label: "Configurações" },
+    ],
+  },
 ];
 
 export default async function DashboardLayout({
@@ -31,13 +51,20 @@ export default async function DashboardLayout({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  // Com atendimento gerenciado quem responde é a LoopSale, então o LoopChat
-  // nem aparece no menu — a página também redireciona, se alguém digitar a URL.
+  // Itens escondidos conforme a conta:
+  // - LoopChat some para quem tem atendimento gerenciado (quem responde é a
+  //   LoopSale); a página também redireciona por segurança.
+  // - Comissão some para planos sem comissão (Escala/Enterprise = 0%), senão
+  //   mostraria uma tela de zeros que só confunde.
   const ctx = await chatContext();
-  const navVisivel =
-    ctx?.access === "hidden"
-      ? nav.filter((n) => n.href !== "/loopchat")
-      : nav;
+  const semComissao = commissionRateOf(ctx?.account?.subscription?.plan) === 0;
+  const ocultar = new Set<string>();
+  if (ctx?.access === "hidden") ocultar.add("/loopchat");
+  if (semComissao) ocultar.add("/dashboard/comissao");
+  const navVisivel = navGroups.map((g) => ({
+    ...g,
+    items: g.items.filter((n) => !ocultar.has(n.href)),
+  }));
 
   return (
     <SidebarProvider>

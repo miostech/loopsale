@@ -10,8 +10,40 @@ interface Template {
   body: string;
   subject: string | null;
   metaTemplateName: string | null;
+  metaStatus: string | null;
   language: string | null;
   variables: string[];
+}
+
+interface MetaTemplate {
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+  body: string;
+  variableCount: number;
+}
+
+// Status da Meta → rótulo + cor do badge.
+const META_STATUS: Record<
+  string,
+  { label: string; variant: "success" | "warning" | "error" | "default" }
+> = {
+  APPROVED: { label: "Aprovado", variant: "success" },
+  PENDING: { label: "Em análise", variant: "warning" },
+  IN_APPEAL: { label: "Em recurso", variant: "warning" },
+  REJECTED: { label: "Rejeitado", variant: "error" },
+  DISABLED: { label: "Desativado", variant: "error" },
+  PAUSED: { label: "Pausado", variant: "warning" },
+};
+
+function metaBadge(status: string) {
+  return (
+    META_STATUS[status.toUpperCase()] ?? {
+      label: status,
+      variant: "default" as const,
+    }
+  );
 }
 
 const CHANNELS = [
@@ -32,6 +64,8 @@ const empty = {
   name: "",
   metaTemplateName: "",
   language: "pt_BR",
+  category: "UTILITY",
+  submitToMeta: true,
   subject: "",
   body: "",
   variablesText: "",
@@ -45,6 +79,8 @@ export default function TemplatesPage() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...empty });
+  const [metaTemplates, setMetaTemplates] = useState<MetaTemplate[] | null>(null);
+  const [metaConnected, setMetaConnected] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,9 +95,21 @@ export default function TemplatesPage() {
     }
   }, []);
 
+  const loadMeta = useCallback(async () => {
+    try {
+      const res = await fetch("/api/whatsapp/templates");
+      const data = await res.json().catch(() => ({}));
+      setMetaTemplates(Array.isArray(data.templates) ? data.templates : []);
+      setMetaConnected(data.connected !== false);
+    } catch {
+      setMetaTemplates([]);
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadMeta();
+  }, [load, loadMeta]);
 
   function openNew() {
     setForm({ ...empty });
@@ -76,6 +124,8 @@ export default function TemplatesPage() {
       name: t.name,
       metaTemplateName: t.metaTemplateName ?? "",
       language: t.language ?? "pt_BR",
+      category: "UTILITY",
+      submitToMeta: false, // editar não reenvia à Meta
       subject: t.subject ?? "",
       body: t.body,
       variablesText: (t.variables ?? []).join(", "),
@@ -99,6 +149,10 @@ export default function TemplatesPage() {
         subject: form.subject.trim(),
         metaTemplateName: form.metaTemplateName.trim(),
         language: form.language.trim(),
+        category: form.category,
+        // Só submete à Meta em criação nova de WhatsApp com a opção marcada.
+        submitToMeta:
+          !form.id && form.channel === "whatsapp" && form.submitToMeta,
         variables: form.variablesText
           .split(",")
           .map((v) => v.trim())
@@ -119,7 +173,7 @@ export default function TemplatesPage() {
       }
       setShowForm(false);
       setForm({ ...empty });
-      await load();
+      await Promise.all([load(), loadMeta()]);
     } catch {
       setError("Erro de rede ao salvar.");
     } finally {
@@ -151,8 +205,8 @@ export default function TemplatesPage() {
             Templates de mensagem
           </h1>
           <p className="text-sm text-[var(--loop-text-muted)]">
-            Mensagens reutilizáveis. No WhatsApp, referenciam o template aprovado
-            na Meta e suas variáveis.
+            Mensagens reutilizáveis. No WhatsApp, dá para enviar o template
+            direto para aprovação na Meta e acompanhar o status abaixo.
           </p>
         </div>
         <Button variant="cta" size="sm" onClick={openNew}>
@@ -196,7 +250,7 @@ export default function TemplatesPage() {
                 <>
                   <Input
                     label="Nome do template na Meta"
-                    placeholder="ex: mim1"
+                    placeholder="ex: recuperacao_carrinho"
                     value={form.metaTemplateName}
                     onChange={(e) =>
                       setForm({ ...form, metaTemplateName: e.target.value })
@@ -210,6 +264,23 @@ export default function TemplatesPage() {
                       setForm({ ...form, language: e.target.value })
                     }
                   />
+                  {!form.id && form.submitToMeta && (
+                    <div className="w-full">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--loop-text)]">
+                        Categoria (Meta)
+                      </label>
+                      <select
+                        value={form.category}
+                        onChange={(e) =>
+                          setForm({ ...form, category: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)]"
+                      >
+                        <option value="UTILITY">Utilitário (transacional)</option>
+                        <option value="MARKETING">Marketing (promocional)</option>
+                      </select>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -247,6 +318,29 @@ export default function TemplatesPage() {
                   setForm({ ...form, variablesText: e.target.value })
                 }
               />
+            )}
+
+            {isWhatsapp && !form.id && (
+              <div className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
+                <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--loop-text)]">
+                  <input
+                    type="checkbox"
+                    checked={form.submitToMeta}
+                    onChange={(e) =>
+                      setForm({ ...form, submitToMeta: e.target.checked })
+                    }
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Enviar para aprovação na Meta agora
+                    <span className="mt-0.5 block text-xs text-[var(--loop-text-muted)]">
+                      {form.submitToMeta
+                        ? "O template será criado na sua WABA e entra em análise (leva de minutos a horas). Os rótulos das variáveis viram os exemplos exigidos pela Meta."
+                        : "Desmarcado: só salva aqui e referencia um template que você já aprovou na Meta (preencha o nome exato acima)."}
+                    </span>
+                  </span>
+                </label>
+              </div>
             )}
 
             {error && <p className="text-sm text-[var(--loop-error)]">{error}</p>}
@@ -306,6 +400,11 @@ export default function TemplatesPage() {
                             {t.language ? ` (${t.language})` : ""}
                           </Badge>
                         )}
+                        {t.metaStatus && (
+                          <Badge variant={metaBadge(t.metaStatus).variant}>
+                            {metaBadge(t.metaStatus).label}
+                          </Badge>
+                        )}
                       </div>
                       <p className="mt-1 truncate text-sm text-[var(--loop-text-muted)]">
                         {t.body}
@@ -334,6 +433,61 @@ export default function TemplatesPage() {
                       </button>
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-[var(--loop-text)]">
+            Templates no WhatsApp (Meta)
+          </h2>
+          <p className="text-sm text-[var(--loop-text-muted)]">
+            O que existe na sua conta do WhatsApp, com o status de aprovação da
+            Meta.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {metaTemplates === null ? (
+            <p className="py-8 text-center text-sm text-[var(--loop-text-muted)]">
+              Carregando…
+            </p>
+          ) : !metaConnected ? (
+            <p className="py-8 text-center text-sm text-[var(--loop-text-muted)]">
+              Conecte um WhatsApp em Integrações para ver seus templates da Meta.
+            </p>
+          ) : metaTemplates.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[var(--loop-text-muted)]">
+              Nenhum template na Meta ainda. Crie um em “Novo template” com a
+              opção de enviar para aprovação.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {metaTemplates.map((m) => (
+                <div
+                  key={`${m.name}-${m.language}`}
+                  className="rounded-lg border border-[var(--loop-border)] p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-[var(--loop-text)]">
+                      {m.name}
+                    </span>
+                    <Badge variant={metaBadge(m.status).variant}>
+                      {metaBadge(m.status).label}
+                    </Badge>
+                    <Badge variant="default">{m.language}</Badge>
+                    {m.category && (
+                      <Badge variant="default">{m.category}</Badge>
+                    )}
+                  </div>
+                  {m.body && (
+                    <p className="mt-1 truncate text-sm text-[var(--loop-text-muted)]">
+                      {m.body}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

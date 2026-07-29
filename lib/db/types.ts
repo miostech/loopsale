@@ -398,6 +398,8 @@ export interface MessageTemplate {
   subject?: string | null;
   /** Nome do template aprovado na Meta (WhatsApp Cloud API), ex: "mim1". */
   metaTemplateName?: string | null;
+  /** Status na Meta quando submetido pela LoopSale: PENDING | APPROVED | ... */
+  metaStatus?: string | null;
   /** Idioma do template na Meta, ex: "pt_BR". */
   language?: string | null;
   /** Rótulos das variáveis posicionais do template ({{1}}, {{2}}...). */
