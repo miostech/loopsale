@@ -16,6 +16,7 @@ interface Etiqueta {
 interface Conversa {
   contact: string;
   status: string;
+  snoozedUntil: string | null;
   assigneeId: string | null;
   assigneeNome: string | null;
   labels: string[];
@@ -65,6 +66,8 @@ type Filtro =
   | "nao-atribuidas"
   | "nao-respondidas"
   | "janela"
+  | "pendentes"
+  | "adiadas"
   | "resolvidas";
 
 const FILTROS: { id: Filtro; label: string }[] = [
@@ -73,7 +76,22 @@ const FILTROS: { id: Filtro; label: string }[] = [
   { id: "nao-atribuidas", label: "Não atribuídas" },
   { id: "nao-respondidas", label: "Não respondidas" },
   { id: "janela", label: "Dentro das 24h" },
+  { id: "pendentes", label: "Pendentes" },
+  { id: "adiadas", label: "Adiadas" },
   { id: "resolvidas", label: "Resolvidas" },
+];
+
+/** Filtros que mostram conversas fora do board de abertas. */
+const FILTRO_STATUS: Partial<Record<Filtro, string>> = {
+  pendentes: "pending",
+  adiadas: "snoozed",
+  resolvidas: "resolved",
+};
+
+const ADIAMENTOS: { id: string; label: string }[] = [
+  { id: "1h", label: "por 1 hora" },
+  { id: "24h", label: "até amanhã" },
+  { id: "7d", label: "por 1 semana" },
 ];
 
 /** Status de entrega da Meta em símbolo, como no WhatsApp. */
@@ -170,6 +188,7 @@ export function LoopChatClient({
   const [conversas, setConversas] = useState<Conversa[] | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abertas");
   const [resolvendo, setResolvendo] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
   const [membros, setMembros] = useState<Membro[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<string | null>(null);
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
@@ -238,24 +257,29 @@ export function LoopChatClient({
 
   const contagens = useMemo(() => {
     const c = conversas ?? [];
-    const abertas = c.filter((x) => x.status !== "resolved");
+    // "Abertas" é só o que exige ação agora: pendente, adiada e resolvida têm
+    // board próprio.
+    const abertas = c.filter((x) => x.status === "open");
     return {
       abertas: abertas.length,
       minhas: abertas.filter((x) => x.assigneeId === usuarioAtual).length,
       "nao-atribuidas": abertas.filter((x) => !x.assigneeId).length,
       "nao-respondidas": abertas.filter((x) => x.ultimaDirecao === "in").length,
       janela: abertas.filter((x) => x.janelaAberta).length,
+      pendentes: c.filter((x) => x.status === "pending").length,
+      adiadas: c.filter((x) => x.status === "snoozed").length,
       resolvidas: c.filter((x) => x.status === "resolved").length,
     } as Record<Filtro, number>;
   }, [conversas, usuarioAtual]);
 
   const visiveis = useMemo(() => {
     let c = conversas ?? [];
-    // Resolvida sai do board: só aparece no filtro dela.
-    c =
-      filtro === "resolvidas"
-        ? c.filter((x) => x.status === "resolved")
-        : c.filter((x) => x.status !== "resolved");
+    // Cada status tem seu board: quem não está aberta some dos filtros do dia
+    // a dia e só aparece no filtro do próprio status.
+    const statusDoFiltro = FILTRO_STATUS[filtro];
+    c = statusDoFiltro
+      ? c.filter((x) => x.status === statusDoFiltro)
+      : c.filter((x) => x.status === "open");
     if (etiquetaFiltro) c = c.filter((x) => x.labels?.includes(etiquetaFiltro));
     if (filtro === "minhas") c = c.filter((x) => x.assigneeId === usuarioAtual);
     if (filtro === "nao-atribuidas") c = c.filter((x) => !x.assigneeId);
@@ -279,6 +303,33 @@ export function LoopChatClient({
   const conversaAtiva =
     (conversas ?? []).find((c) => c.contact === ativo) ?? null;
   const nomeAtivo = ficha?.lead?.nome ?? conversaAtiva?.nome ?? null;
+
+  async function mudarStatus(
+    action: "pendente" | "adiar",
+    prazo?: string
+  ) {
+    if (!ativo) return;
+    setErro("");
+    setMenuAberto(false);
+    setResolvendo(true);
+    try {
+      const res = await fetch("/api/loopchat/conversations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact: ativo, action, prazo }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErro(data.error ?? "Não foi possível atualizar a conversa.");
+        return;
+      }
+      await loadConversas();
+      // Sai do board atual: fecha a thread para não ficar órfã.
+      setAtivo(null);
+    } finally {
+      setResolvendo(false);
+    }
+  }
 
   async function definirPrioridade(priority: string | null) {
     if (!ativo) return;
@@ -359,8 +410,8 @@ export function LoopChatClient({
         return;
       }
       await loadConversas();
-      // Resolvida sai da lista atual: fecha a thread para não ficar órfã.
-      if (resolver && filtro !== "resolvidas") setAtivo(null);
+      // Muda de board: fecha a thread para não ficar órfã na lista atual.
+      setAtivo(null);
     } finally {
       setResolvendo(false);
     }
@@ -627,6 +678,17 @@ export function LoopChatClient({
                   WhatsApp · {telefone(ativo)}
                 </p>
               </div>
+              {conversaAtiva?.status === "pending" && (
+                <Badge variant="warning">Pendente</Badge>
+              )}
+              {conversaAtiva?.status === "snoozed" && (
+                <Badge variant="warning">
+                  Adiada até{" "}
+                  {conversaAtiva.snoozedUntil
+                    ? horaCompleta(conversaAtiva.snoozedUntil)
+                    : "—"}
+                </Badge>
+              )}
               {conversaAtiva?.priority && (
                 <span
                   className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
@@ -640,20 +702,56 @@ export function LoopChatClient({
               <Badge variant={janelaAberta ? "success" : "default"}>
                 {janelaAberta ? "Janela 24h aberta" : "Janela fechada"}
               </Badge>
-              <Button
-                variant={
-                  conversaAtiva?.status === "resolved" ? "secondary" : "cta"
-                }
-                size="sm"
-                disabled={resolvendo}
-                onClick={alternarResolucao}
-              >
-                {resolvendo
-                  ? "Salvando…"
-                  : conversaAtiva?.status === "resolved"
-                    ? "Reabrir"
-                    : "Resolver"}
-              </Button>
+              <div className="relative flex items-center">
+                <Button
+                  variant={
+                    conversaAtiva?.status === "open" ? "cta" : "secondary"
+                  }
+                  size="sm"
+                  disabled={resolvendo}
+                  onClick={alternarResolucao}
+                >
+                  {resolvendo
+                    ? "Salvando…"
+                    : conversaAtiva?.status === "open"
+                      ? "Resolver"
+                      : "Reabrir"}
+                </Button>
+                {conversaAtiva?.status === "open" && (
+                  <button
+                    type="button"
+                    aria-label="Mais ações da conversa"
+                    onClick={() => setMenuAberto((v) => !v)}
+                    className="ml-1 rounded-lg border border-[var(--loop-border)] px-2 py-1 text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                  >
+                    ▾
+                  </button>
+                )}
+                {menuAberto && (
+                  <div className="absolute right-0 top-9 z-10 w-52 rounded-xl border border-[var(--loop-border)] bg-[var(--loop-bg)] py-1 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => mudarStatus("pendente")}
+                      className="block w-full px-3 py-2 text-left text-sm text-[var(--loop-text)] hover:bg-[var(--loop-bg-alt)]"
+                    >
+                      Deixar pendente
+                    </button>
+                    <p className="px-3 pt-2 text-xs uppercase tracking-wide text-[var(--loop-text-muted)]">
+                      Adiar
+                    </p>
+                    {ADIAMENTOS.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => mudarStatus("adiar", a.id)}
+                        className="block w-full px-3 py-2 text-left text-sm text-[var(--loop-text)] hover:bg-[var(--loop-bg-alt)]"
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setPainelAberto((v) => !v)}
