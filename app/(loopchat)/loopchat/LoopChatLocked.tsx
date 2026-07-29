@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { EmbeddedCheckoutModal } from "@/components/billing/EmbeddedCheckoutModal";
 import { CHAT_ADDON } from "@/lib/billing/plans";
 
 function brl(valor: number): string {
@@ -25,29 +26,7 @@ export function LoopChatLocked({
   usadas?: number;
 }) {
   const router = useRouter();
-  const [ativando, setAtivando] = useState(false);
-  const [erro, setErro] = useState("");
-
-  // TEMPORÁRIO: libera sem pagar para testar a área de mensagens. Quando o
-  // preço existir no Stripe, volta a abrir o EmbeddedCheckoutModal com
-  // payload { addon: "chat", embedded: true }.
-  async function ativar() {
-    setErro("");
-    setAtivando(true);
-    try {
-      const res = await fetch("/api/loopchat/ativar-teste", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErro(data.error ?? "Não foi possível ativar.");
-        return;
-      }
-      router.refresh();
-    } catch {
-      setErro("Erro de rede ao ativar.");
-    } finally {
-      setAtivando(false);
-    }
-  }
+  const [checkoutAberto, setCheckoutAberto] = useState(false);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -95,23 +74,13 @@ export function LoopChatLocked({
           </div>
 
           {isAdmin ? (
-            <>
-              <Button
-                variant="cta"
-                size="sm"
-                disabled={ativando}
-                onClick={ativar}
-              >
-                {ativando ? "Ativando…" : "Contratar LoopChat"}
-              </Button>
-              <p className="text-xs text-[var(--loop-text-muted)]">
-                Modo de teste: libera sem cobrança enquanto o preço não está no
-                Stripe.
-              </p>
-              {erro && (
-                <p className="text-sm text-[var(--loop-error)]">{erro}</p>
-              )}
-            </>
+            <Button
+              variant="cta"
+              size="sm"
+              onClick={() => setCheckoutAberto(true)}
+            >
+              Contratar LoopChat
+            </Button>
           ) : (
             <p className="text-sm text-[var(--loop-text-muted)]">
               Peça ao administrador da conta para contratar.
@@ -119,6 +88,17 @@ export function LoopChatLocked({
           )}
         </CardContent>
       </Card>
+
+      {checkoutAberto && (
+        <EmbeddedCheckoutModal
+          payload={{ addon: "chat" }}
+          title="Contratar LoopChat"
+          onClose={() => {
+            setCheckoutAberto(false);
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

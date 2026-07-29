@@ -1,6 +1,5 @@
 import { sendEmail } from "./email";
 import { sendSms } from "./sms";
-import { sendWhatsApp } from "./whatsapp";
 
 export type Channel = "email" | "whatsapp" | "sms";
 
@@ -40,7 +39,13 @@ export async function sendMessage(
       return sendSms({ to, body });
     }
     case "whatsapp": {
-      return sendWhatsApp({ to, body });
+      // WhatsApp real é enviado pela Cloud API (lib/whatsapp/cloud.ts), direto
+      // por quem chama — nunca por aqui. Se cair aqui, é engano de roteamento.
+      return {
+        success: false,
+        error:
+          "WhatsApp não é enviado por este canal — use a Cloud API (lib/whatsapp/cloud.ts).",
+      };
     }
     default:
       return { success: false, error: `Canal não suportado: ${params.channel}` };

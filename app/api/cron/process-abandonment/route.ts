@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCollection } from "@/lib/db";
+import { cronAuthorized } from "@/lib/cron/auth";
 import { processAbandonmentForAccount } from "@/lib/webhooks/process-event";
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const secret = url.searchParams.get("secret");
-  if (secret !== process.env.CRON_SECRET) {
+  if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

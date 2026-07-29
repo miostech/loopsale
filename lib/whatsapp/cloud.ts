@@ -375,7 +375,11 @@ export function verifyWebhookSignature(
   signatureHeader: string | null
 ): boolean {
   const appSecret = process.env.WHATSAPP_APP_SECRET;
-  if (!appSecret) return true;
+  if (!appSecret) {
+    // Em produção, sem segredo não dá para validar — recusa (fail-closed) em
+    // vez de aceitar webhook forjado. Em dev, libera para facilitar testes.
+    return process.env.NODE_ENV !== "production";
+  }
   if (!signatureHeader) return false;
   const expected =
     "sha256=" +

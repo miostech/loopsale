@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { ObjectId } from "mongodb";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { Account, CommissionRecord } from "@/lib/db/types";
+import { cronAuthorized } from "@/lib/cron/auth";
 import { stripeConfigured, chargeInvoice } from "@/lib/billing/stripe";
 import { commissionRateOf } from "@/lib/billing/plans";
 import {
@@ -14,12 +15,7 @@ import {
 const MIN_COMMISSION_BRL = 5;
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  // Aceita ?secret= (manual) ou o header do Vercel Cron (Authorization Bearer).
-  const secretOk = url.searchParams.get("secret") === process.env.CRON_SECRET;
-  const headerOk =
-    request.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
-  if (!secretOk && !headerOk) {
+  if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (isDatabaseDisabled()) {
@@ -28,7 +24,7 @@ export async function GET(request: Request) {
 
   // Competência = quinzena que acabou de fechar (override por ?period=YYYY-MM-Q1).
   const now = new Date();
-  const override = url.searchParams.get("period");
+  const override = new URL(request.url).searchParams.get("period");
   const periodKey = override ?? previousFortnight(now).periodKey;
   const { from, to } = periodRange(periodKey);
 

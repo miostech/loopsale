@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { ObjectId } from "mongodb";
 import { getCollection, routeObjectId } from "@/lib/db";
+import { cronAuthorized } from "@/lib/cron/auth";
 import { sendMessage } from "@/lib/channels/send";
 import {
   tokenFor,
@@ -12,8 +13,7 @@ import {
 import type { Account, WhatsAppMessage } from "@/lib/db/types";
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  if (url.searchParams.get("secret") !== process.env.CRON_SECRET) {
+  if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
