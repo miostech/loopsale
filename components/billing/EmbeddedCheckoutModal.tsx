@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useEffect, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   EmbeddedCheckoutProvider,
@@ -18,18 +18,42 @@ interface Props {
 }
 
 export function EmbeddedCheckoutModal({ payload, title, onClose }: Props) {
-  const fetchClientSecret = useCallback(async () => {
-    const res = await fetch("/api/billing/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, embedded: true }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.clientSecret) {
-      throw new Error(data.error ?? "Não foi possível iniciar o checkout.");
-    }
-    return data.clientSecret as string;
-  }, [payload]);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  // Serializado para não refazer o efeito a cada render do pai.
+  const payloadKey = JSON.stringify(payload);
+
+  // O secret é buscado aqui, e não pelo fetchClientSecret do Stripe: se a
+  // criação da sessão falha, o Stripe troca a causa real por um genérico
+  // "Something went wrong" e o motivo se perde.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...JSON.parse(payloadKey), embedded: true }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.clientSecret) {
+          throw new Error(
+            data.error ?? `Não foi possível iniciar o checkout (HTTP ${res.status}).`
+          );
+        }
+        if (!cancelled) setClientSecret(data.clientSecret as string);
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof Error ? e.message : "Erro de rede ao iniciar o checkout."
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [payloadKey]);
 
   return (
     <div
@@ -56,18 +80,29 @@ export function EmbeddedCheckoutModal({ payload, title, onClose }: Props) {
           </button>
         </div>
         <div className="p-2">
-          {stripePromise ? (
-            <EmbeddedCheckoutProvider
-              stripe={stripePromise}
-              options={{ fetchClientSecret }}
-            >
-              <EmbeddedCheckout />
-            </EmbeddedCheckoutProvider>
-          ) : (
+          {!stripePromise ? (
             <p className="p-4 text-sm text-[var(--loop-error)]">
               Chave publicável do Stripe não configurada
               (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY).
             </p>
+          ) : error ? (
+            <div className="p-4">
+              <p className="text-sm font-medium text-[var(--loop-error)]">
+                Não foi possível abrir o checkout.
+              </p>
+              <p className="mt-1 text-sm text-[var(--loop-text-muted)]">{error}</p>
+            </div>
+          ) : !clientSecret ? (
+            <p className="p-4 text-sm text-[var(--loop-text-muted)]">
+              Carregando checkout…
+            </p>
+          ) : (
+            <EmbeddedCheckoutProvider
+              stripe={stripePromise}
+              options={{ clientSecret }}
+            >
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
           )}
         </div>
       </div>
