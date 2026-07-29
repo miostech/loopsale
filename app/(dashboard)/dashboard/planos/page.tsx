@@ -131,19 +131,7 @@ export default function PlanosPage() {
     }
   }
 
-  function ativarAtendimento() {
-    setError("");
-    setCheckout({
-      payload: { addon: "support" },
-      title: "Ativar atendimento gerenciado",
-    });
-  }
-
   const isAdmin = billing?.isAdmin;
-  const currentPlan = billing?.plans.find((p) => p.id === billing.planoAtual);
-  const planIncludesSupport = !!currentPlan?.includesSupport;
-  // Atendimento ativo = add-on contratado OU incluído no plano atual.
-  const supportActive = !!billing?.support.active || planIncludesSupport;
 
   return (
     <div className="space-y-6">
@@ -284,16 +272,6 @@ export default function PlanosPage() {
                           {f}
                         </li>
                       ))}
-                      {p.chatFreeConversations !== 0 && (
-                        <li className="flex gap-2">
-                          <span className="text-[var(--loop-success)]">✓</span>
-                          {p.chatFreeConversations === null
-                            ? "LoopChat com conversas ilimitadas"
-                            : `LoopChat grátis até ${p.chatFreeConversations.toLocaleString(
-                                "pt-BR"
-                              )} conversas/mês`}
-                        </li>
-                      )}
                     </ul>
                     {p.id !== "free" && !atual && (
                       <Button
@@ -333,94 +311,21 @@ export default function PlanosPage() {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {/* Você atende */}
-                <div
-                  className={`rounded-lg border p-4 ${
-                    supportActive
-                      ? "border-[var(--loop-border)]"
-                      : "border-2 border-[var(--loop-primary)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-[var(--loop-text)]">
-                      Você atende
-                    </p>
-                    {!supportActive && (
-                      <Badge variant="success">Ativo</Badge>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
-                    Incluído em todos os planos. As respostas vão para o seu
-                    WhatsApp/time.
+              <div className="rounded-lg border-2 border-[var(--loop-primary)] p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-[var(--loop-text)]">
+                    Atendimento gerenciado pela LoopSale
                   </p>
-                  <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
-                    Grátis
-                  </p>
+                  <Badge variant="success">Incluído</Badge>
                 </div>
-
-                {/* LoopSale atende */}
-                <div
-                  className={`rounded-lg border p-4 ${
-                    supportActive
-                      ? "border-2 border-[var(--loop-primary)]"
-                      : "border-[var(--loop-border)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-[var(--loop-text)]">
-                      {billing.support.name}
-                    </p>
-                    {supportActive && (
-                      <Badge variant="success">Ativo</Badge>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
-                    {billing.support.description}
-                  </p>
-                  <ul className="mt-2 space-y-1 text-sm text-[var(--loop-text)]">
-                    {billing.support.features.map((f) => (
-                      <li key={f} className="flex gap-2">
-                        <span className="text-[var(--loop-success)]">✓</span>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  {billing.support.scopeNote && (
-                    <p className="mt-2 rounded-md bg-[var(--loop-bg-alt)] p-2 text-xs text-[var(--loop-text-muted)]">
-                      {billing.support.scopeNote}
-                    </p>
-                  )}
-                  {planIncludesSupport ? (
-                    <p className="mt-3 text-sm font-medium text-[var(--loop-success)]">
-                      Incluído no seu plano {currentPlan?.name}.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
-                        {formatMoney(billing.support.priceMonthly)}
-                        <span className="text-sm font-normal text-[var(--loop-text-muted)]">
-                          /mês
-                        </span>
-                      </p>
-                      {billing.support.active ? (
-                        <p className="mt-2 text-sm text-[var(--loop-text-muted)]">
-                          Gerencie ou cancele em “Gerenciar assinatura”.
-                        </p>
-                      ) : (
-                        <Button
-                          variant="cta"
-                          size="sm"
-                          className="mt-3 w-full justify-center"
-                          disabled={!isAdmin}
-                          onClick={ativarAtendimento}
-                        >
-                          Ativar atendimento
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
+                <p className="mt-1 text-sm text-[var(--loop-text-muted)]">
+                  Nosso time responde e fecha as vendas do fluxo de recuperação
+                  no WhatsApp por você. Incluído em todos os planos, sem custo
+                  extra.
+                </p>
+                <p className="mt-3 text-lg font-bold text-[var(--loop-text)]">
+                  Grátis
+                </p>
               </div>
             </CardContent>
           </Card>

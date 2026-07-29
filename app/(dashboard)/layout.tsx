@@ -17,7 +17,9 @@ const navGroups = [
     title: "Operação",
     items: [
       { href: "/dashboard/integracoes", label: "Integrações" },
-      { href: "/loopchat", label: "LoopChat" },
+      // LoopChat oculto por enquanto: com atendimento gerenciado para todos,
+      // o self-service está em revisão. Reativar quando o formato for definido.
+      // { href: "/loopchat", label: "LoopChat" },
       { href: "/dashboard/fluxos", label: "Fluxos" },
       // Campanhas oculto por enquanto: a tela existe mas não há processador que
       // execute as campanhas (nada lê a coleção `campaigns` para enviar). Quando
@@ -51,15 +53,12 @@ export default async function DashboardLayout({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  // Itens escondidos conforme a conta:
-  // - LoopChat some para quem tem atendimento gerenciado (quem responde é a
-  //   LoopSale); a página também redireciona por segurança.
-  // - Comissão some para planos sem comissão (Escala/Enterprise = 0%), senão
-  //   mostraria uma tela de zeros que só confunde.
+  // Comissão some para planos sem comissão (0%), senão mostraria uma tela de
+  // zeros que só confunde. (Hoje todos os planos cobram comissão, então some
+  // só se um plano 0% voltar a existir.)
   const ctx = await chatContext();
   const semComissao = commissionRateOf(ctx?.account?.subscription?.plan) === 0;
   const ocultar = new Set<string>();
-  if (ctx?.access === "hidden") ocultar.add("/loopchat");
   if (semComissao) ocultar.add("/dashboard/comissao");
   const navVisivel = navGroups.map((g) => ({
     ...g,
