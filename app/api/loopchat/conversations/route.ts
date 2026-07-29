@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Conversation } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
+import { isDemoContext, demoConversasPayload } from "@/lib/loopchat/demo";
 import { normalizePhone } from "@/lib/whatsapp/cloud";
 
 /** Ordem também é a de urgência, usada para ordenar a lista. */
@@ -53,6 +54,9 @@ export async function GET() {
   }
   if (ctx.access === "locked") {
     return NextResponse.json({ error: "LoopChat não contratado." }, { status: 402 });
+  }
+  if (isDemoContext(ctx)) {
+    return NextResponse.json(demoConversasPayload(ctx.userId));
   }
   if (isDatabaseDisabled()) return NextResponse.json({ conversas: [] });
 
@@ -193,6 +197,8 @@ export async function PATCH(request: Request) {
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
   }
+  // Demo é só vitrine: aceita a ação mas não persiste nada.
+  if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
 
   const body = await request.json().catch(() => ({}));
   const contact = normalizePhone(String(body.contact ?? ""));

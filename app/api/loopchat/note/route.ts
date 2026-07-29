@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext } from "@/lib/loopchat/access";
+import { isDemoContext } from "@/lib/loopchat/demo";
 import { normalizePhone } from "@/lib/whatsapp/cloud";
 
 /**
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
   }
+  if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
   if (isDatabaseDisabled()) {
     return NextResponse.json({ error: "Indisponível no modo demo." }, { status: 503 });
   }

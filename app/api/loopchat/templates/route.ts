@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDatabaseDisabled } from "@/lib/db";
 import { chatContext } from "@/lib/loopchat/access";
+import { isDemoContext, demoTemplates } from "@/lib/loopchat/demo";
 import {
   listTemplates,
   tokenFor,
@@ -22,6 +23,9 @@ export async function GET() {
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
+  }
+  if (isDemoContext(ctx)) {
+    return NextResponse.json({ templates: demoTemplates(), connected: true });
   }
   if (isDatabaseDisabled()) {
     return NextResponse.json({ templates: [], connected: false });

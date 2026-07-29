@@ -3,6 +3,7 @@ import type { Collection } from "mongodb";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { Conversation } from "@/lib/db/types";
 import { chatContext } from "@/lib/loopchat/access";
+import { isDemoContext } from "@/lib/loopchat/demo";
 
 /**
  * Apaga uma etiqueta da conta inteira: tira o rótulo de todas as conversas que
@@ -20,6 +21,7 @@ export async function DELETE(request: Request) {
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
   }
+  if (isDemoContext(ctx)) return NextResponse.json({ ok: true, removidas: 0 });
   if (isDatabaseDisabled()) {
     return NextResponse.json({ error: "Indisponível no modo demo." }, { status: 503 });
   }

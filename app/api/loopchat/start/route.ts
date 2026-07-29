@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext } from "@/lib/loopchat/access";
+import { isDemoContext } from "@/lib/loopchat/demo";
 import {
   normalizePhone,
   sendTemplate,
@@ -49,6 +50,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  // Demo: finge que enviou e devolve o contato para abrir a "conversa".
+  if (isDemoContext(ctx)) return NextResponse.json({ ok: true, contact });
 
   const wa = ctx.account?.whatsapp ?? null;
   const token = tokenFor(wa?.accessToken, wa?.source);

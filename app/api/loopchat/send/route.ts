@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
+import { isDemoContext } from "@/lib/loopchat/demo";
 import { normalizePhone, sendText, tokenFor, SEM_TOKEN } from "@/lib/whatsapp/cloud";
 
 /** Resposta manual do cliente (ou da equipe dele) numa conversa. */
@@ -21,6 +22,8 @@ export async function POST(request: Request) {
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
   }
+  // Demo é vitrine: aceita o envio sem tocar na Meta nem no banco.
+  if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
   if (isDatabaseDisabled()) {
     return NextResponse.json({ error: "Indisponível no modo demo." }, { status: 503 });
   }

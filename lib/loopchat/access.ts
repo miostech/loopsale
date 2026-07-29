@@ -51,10 +51,13 @@ export async function chatContext(): Promise<ChatContext | null> {
   return {
     accountId: su.accountId,
     account,
-    access: loopChatAccess({
-      supportActive: account?.support?.active,
-      chatActive: account?.chatAddon?.active,
-    }),
+    // Conta demo sempre entra no LoopChat (com dados falsos) — é uma vitrine.
+    access: account?.isDemo
+      ? "available"
+      : loopChatAccess({
+          supportActive: account?.support?.active,
+          chatActive: account?.chatAddon?.active,
+        }),
     role: su.role ?? "member",
     email: su.email ?? null,
     userId: su.id ?? null,

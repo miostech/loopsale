@@ -23,10 +23,13 @@ export default async function LoopChatPage() {
 
   // Pode enviar = tem token próprio OU está na WABA central (legado). Bater com
   // a regra real de envio evita travar o botão de conta que envia pela central.
-  const podeEnviar = canSendFor(
-    ctx.account?.whatsapp?.accessToken,
-    ctx.account?.whatsapp?.source
-  );
+  // A conta demo é vitrine: libera o envio (que é simulado no backend).
+  const podeEnviar =
+    !!ctx.account?.isDemo ||
+    canSendFor(
+      ctx.account?.whatsapp?.accessToken,
+      ctx.account?.whatsapp?.source
+    );
 
   return (
     <LoopChatClient

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
+import { isDemoContext, demoMensagensPayload } from "@/lib/loopchat/demo";
 import { normalizePhone } from "@/lib/whatsapp/cloud";
 
 /** Histórico de uma conversa (um contato). */
@@ -16,14 +17,17 @@ export async function GET(request: Request) {
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
   }
-  if (isDatabaseDisabled()) return NextResponse.json({ mensagens: [] });
-
   const contact = normalizePhone(
     new URL(request.url).searchParams.get("contact") ?? ""
   );
   if (!contact) {
     return NextResponse.json({ error: "Contato inválido." }, { status: 400 });
   }
+
+  if (isDemoContext(ctx)) {
+    return NextResponse.json(demoMensagensPayload(contact));
+  }
+  if (isDatabaseDisabled()) return NextResponse.json({ mensagens: [] });
 
   const waCol = await getCollection("whatsappMessages");
   const rows = (await waCol
