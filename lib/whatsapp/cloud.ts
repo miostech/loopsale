@@ -1,9 +1,16 @@
 import crypto from "crypto";
 
 /**
- * WhatsApp Cloud API (Meta) — WABA central da LoopSale.
- * O token de acesso é único (system user), no ambiente. Cada cliente tem um
- * Phone Number ID próprio, guardado em account.whatsapp.phoneNumberId.
+ * WhatsApp Cloud API (Meta).
+ *
+ * Padrão para conta nova: WABA do próprio cliente, conectada pelo Embedded
+ * Signup (LoopSale como Tech Provider). O token fica em
+ * account.whatsapp.accessToken e é o cliente quem paga a Meta.
+ *
+ * A WABA central da LoopSale (WHATSAPP_ACCESS_TOKEN no ambiente) é legado: só
+ * atende contas marcadas com whatsapp.source = "central". Sem essa marca, conta
+ * sem token não envia — antes o código caía na central em silêncio, e o custo
+ * das mensagens ia parar na LoopSale sem ninguém perceber.
  */
 
 const GRAPH = "https://graph.facebook.com";
@@ -19,9 +26,45 @@ export function whatsappConfigured(): boolean {
   return !!process.env.WHATSAPP_ACCESS_TOKEN;
 }
 
-/** true se dá pra enviar por esta conta: token próprio (Embedded Signup) ou central. */
-export function canSendFor(accountToken?: string | null): boolean {
-  return !!accountToken || whatsappConfigured();
+/**
+ * Origem do número da conta. Ausente = "own" (padrão para conta nova): o
+ * cliente traz a própria WABA e paga a Meta. "central" é a marca explícita das
+ * contas legadas que ainda usam a WABA da LoopSale.
+ */
+export type WhatsappSource = "own" | "central";
+
+/** Motivo único de recusa, para o dashboard e os logs dizerem a mesma coisa. */
+export const SEM_TOKEN =
+  "Conta sem WhatsApp conectado: conclua o Embedded Signup em Integrações.";
+
+/** true se a conta é atendida pela WABA central da LoopSale (legado). */
+export function usesCentralWaba(source?: string | null): boolean {
+  return source === "central";
+}
+
+/**
+ * true se dá pra enviar por esta conta. Token próprio sempre vale; o token
+ * central só para conta legada marcada como "central".
+ */
+export function canSendFor(
+  accountToken?: string | null,
+  source?: string | null
+): boolean {
+  if (accountToken) return true;
+  return usesCentralWaba(source) && whatsappConfigured();
+}
+
+/**
+ * Token que esta conta deve usar, ou null se ela não pode enviar. Resolver aqui
+ * (e não no graphPost) mantém o uso da WABA central explícito em quem chama.
+ */
+export function tokenFor(
+  accountToken?: string | null,
+  source?: string | null
+): string | null {
+  if (accountToken) return accountToken;
+  if (usesCentralWaba(source) && whatsappConfigured()) return accessToken();
+  return null;
 }
 
 /** Normaliza para dígitos E.164 sem "+". Assume Brasil se vier sem DDI. */
@@ -205,11 +248,11 @@ export async function sendTemplate(params: {
   templateName: string;
   language?: string;
   variables?: string[];
-  /** Token da conta (Embedded Signup). Se ausente, usa o central. */
+  /** Token da conta, já resolvido por tokenFor(). Sem ele não envia. */
   token?: string | null;
 }): Promise<SendResult> {
-  if (!canSendFor(params.token)) {
-    return { success: false, error: "WhatsApp Cloud API não configurado." };
+  if (!params.token) {
+    return { success: false, error: SEM_TOKEN };
   }
   if (!params.phoneNumberId) {
     return { success: false, error: "Conta sem Phone Number ID do WhatsApp." };
@@ -239,7 +282,7 @@ export async function sendTemplate(params: {
           ...(components ? { components } : {}),
         },
       },
-      params.token ?? undefined
+      params.token
     );
     return { success: true, wamid: wamidOf(data) };
   } catch (e) {
@@ -254,10 +297,11 @@ export async function sendText(params: {
   phoneNumberId: string;
   to: string;
   body: string;
+  /** Token da conta, já resolvido por tokenFor(). Sem ele não envia. */
   token?: string | null;
 }): Promise<SendResult> {
-  if (!canSendFor(params.token)) {
-    return { success: false, error: "WhatsApp Cloud API não configurado." };
+  if (!params.token) {
+    return { success: false, error: SEM_TOKEN };
   }
   if (!params.phoneNumberId) {
     return { success: false, error: "Conta sem Phone Number ID do WhatsApp." };
@@ -271,7 +315,7 @@ export async function sendText(params: {
         type: "text",
         text: { body: params.body, preview_url: true },
       },
-      params.token ?? undefined
+      params.token
     );
     return { success: true, wamid: wamidOf(data) };
   } catch (e) {

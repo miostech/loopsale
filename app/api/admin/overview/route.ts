@@ -16,6 +16,7 @@ import {
   subscriptionRevenueOf,
 } from "@/lib/billing/plans";
 import { computeCommission, currentFortnight } from "@/lib/billing/commission";
+import { usesCentralWaba } from "@/lib/whatsapp/cloud";
 
 type SessionUser = { email?: string | null };
 const ABERTO = ["failed", "no_card", "pending", "invoiced"];
@@ -127,8 +128,13 @@ export async function GET() {
     const emAberto = abertoBy[accountId] ?? 0;
     const ev = evBy[accountId] ?? { lastAt: null, msgs: 0 };
     const mensagens = ev.msgs;
-    const custoMetaEur = Math.round(mensagens * metaCostEur * 100) / 100;
-    const custoMeta = Math.round(mensagens * metaCostBrl * 100) / 100;
+    // Só custa à LoopSale o que passa pela WABA central (legado). Conta com
+    // WABA própria paga a Meta direto — debitar aqui subestimaria a margem.
+    const mensagensNaCentral = usesCentralWaba(acc.whatsapp?.source)
+      ? mensagens
+      : 0;
+    const custoMetaEur = Math.round(mensagensNaCentral * metaCostEur * 100) / 100;
+    const custoMeta = Math.round(mensagensNaCentral * metaCostBrl * 100) / 100;
     const assinaturaMensal = subscriptionRevenueOf(
       acc.subscription?.plan,
       !!acc.support?.active

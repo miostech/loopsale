@@ -4,12 +4,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { PLANS, SUPPORT_ADDON } from "@/lib/billing/plans";
+import { PLANS, SUPPORT_ADDON, NUMBER_ADDON } from "@/lib/billing/plans";
 import {
   stripeConfigured,
   createCustomer,
   createCheckoutSession,
   createEmbeddedCheckoutSession,
+  createNumberAddonCheckoutSession,
 } from "@/lib/billing/stripe";
 
 type SessionUser = {
@@ -48,14 +49,22 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  // Aceita { plan } (assinatura do plano) ou { addon: "support" } (atendimento).
-  const priceId =
-    body.addon === "support"
+  // Aceita { plan }, { addon: "support" } ou { addon: "number" }.
+  const isNumberAddon = body.addon === "number";
+  const priceId = isNumberAddon
+    ? NUMBER_ADDON.priceIdMonthly
+    : body.addon === "support"
       ? SUPPORT_ADDON.priceId
       : PLANS.find((p) => p.id === body.plan)?.priceId ?? null;
   if (!priceId) {
     return NextResponse.json(
       { error: "Plano/add-on inválido ou sem preço configurado." },
+      { status: 400 }
+    );
+  }
+  if (isNumberAddon && !NUMBER_ADDON.priceIdActivation) {
+    return NextResponse.json(
+      { error: "Taxa de ativação do número sem preço configurado no Stripe." },
       { status: 400 }
     );
   }
@@ -93,6 +102,17 @@ export async function POST(request: Request) {
     }
 
     const returnBase = `${baseUrl()}/dashboard/planos`;
+
+    // Número gerenciado: mensalidade + ativação, sem redirecionar no fim.
+    if (isNumberAddon) {
+      const { clientSecret } = await createNumberAddonCheckoutSession({
+        customer: customerId,
+        monthlyPriceId: priceId,
+        activationPriceId: NUMBER_ADDON.priceIdActivation as string,
+        accountId: su.accountId,
+      });
+      return NextResponse.json({ clientSecret });
+    }
 
     // Modo embedded: checkout dentro da própria página (iframe do Stripe).
     if (body.embedded) {

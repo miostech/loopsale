@@ -5,7 +5,7 @@ import {
   getSetupIntent,
   setDefaultPaymentMethod,
 } from "@/lib/billing/stripe";
-import { planByPriceId } from "@/lib/billing/plans";
+import { planByPriceId, NUMBER_ADDON } from "@/lib/billing/plans";
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -78,7 +78,52 @@ export async function POST(request: Request) {
       !!process.env.STRIPE_PRICE_SUPPORT &&
       priceId === process.env.STRIPE_PRICE_SUPPORT;
 
-    if (isSupport) {
+    const isNumber =
+      !!NUMBER_ADDON.priceIdMonthly &&
+      priceId === NUMBER_ADDON.priceIdMonthly;
+
+    if (isNumber) {
+      // Add-on de número gerenciado: o pagamento da ativação é que abre o
+      // pedido — antes disso não existe nada para o time provisionar.
+      const account = (await accountsCol.findOne({
+        "subscription.stripeCustomerId": customerId,
+      })) as { _id: unknown } | null;
+      await accountsCol.updateOne(
+        { "subscription.stripeCustomerId": customerId },
+        {
+          $set: {
+            "numberAddon.active": active,
+            "numberAddon.status": status,
+            "numberAddon.stripeSubscriptionId": String(obj.id ?? ""),
+            "numberAddon.currentPeriodEnd": cpe,
+            updatedAt: new Date(),
+          },
+        }
+      );
+      if (account) {
+        const accountId = String(account._id);
+        const reqCol = await getCollection("numberRequests");
+        const now = new Date();
+        const aberto = await reqCol.findOne({
+          accountId,
+          status: { $in: ["pending", "provisioning"] },
+        });
+        if (active && !aberto) {
+          await reqCol.insertOne({
+            accountId,
+            requestedBy: "",
+            status: "provisioning",
+            createdAt: now,
+            updatedAt: now,
+          } as never);
+        } else if (!active && aberto) {
+          await reqCol.updateOne(
+            { _id: (aberto as { _id: unknown })._id as never },
+            { $set: { status: "canceled", updatedAt: now } }
+          );
+        }
+      }
+    } else if (isSupport) {
       // Add-on de atendimento gerenciado.
       await accountsCol.updateOne(
         { "subscription.stripeCustomerId": customerId },

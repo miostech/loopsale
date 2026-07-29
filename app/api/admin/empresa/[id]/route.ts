@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
 import { isSuperAdmin, metaCostPerMessageEur, eurToBrlRate } from "@/lib/admin";
+import { usesCentralWaba } from "@/lib/whatsapp/cloud";
 import {
   commissionRateOf,
   getPlan,
@@ -196,11 +197,17 @@ export async function GET(
     !!account.support?.active
   );
   // Custo Meta em EUR (moeda que a LoopSale paga) e convertido pra R$ (margem).
+  // Só conta se a empresa está na WABA central: com WABA própria, quem paga a
+  // Meta é o cliente e esse custo não é da LoopSale.
+  const mensagensNaCentral = usesCentralWaba(account.whatsapp?.source)
+    ? mensagensTotal
+    : 0;
   const custoMetaEur =
-    Math.round(mensagensTotal * metaCostPerMessageEur() * 100) / 100;
+    Math.round(mensagensNaCentral * metaCostPerMessageEur() * 100) / 100;
   const custoMeta =
-    Math.round(mensagensTotal * metaCostPerMessageEur() * eurToBrlRate() * 100) /
-    100;
+    Math.round(
+      mensagensNaCentral * metaCostPerMessageEur() * eurToBrlRate() * 100
+    ) / 100;
   // Margem = comissão gerada (recebida + a receber) menos o custo Meta (R$).
   const margem =
     Math.round((recebido + calc.comissaoBrl - custoMeta) * 100) / 100;

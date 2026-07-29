@@ -110,6 +110,36 @@ export async function createEmbeddedCheckoutSession(params: {
   return { clientSecret: String(doc.client_secret) };
 }
 
+/**
+ * Checkout do add-on de número: mensalidade (recorrente) + taxa de ativação
+ * (avulsa) na mesma sessão — em modo subscription, o preço avulso entra como
+ * item da primeira fatura.
+ *
+ * redirect_on_completion "never" mantém o cliente no modal depois de pagar,
+ * para a própria tela avisar que o time entra em contato.
+ */
+export async function createNumberAddonCheckoutSession(params: {
+  customer: string;
+  monthlyPriceId: string;
+  activationPriceId: string;
+  accountId: string;
+}): Promise<{ clientSecret: string }> {
+  const doc = await stripePost("/checkout/sessions", {
+    ui_mode: "embedded_page",
+    mode: "subscription",
+    customer: params.customer,
+    "line_items[0][price]": params.monthlyPriceId,
+    "line_items[0][quantity]": "1",
+    "line_items[1][price]": params.activationPriceId,
+    "line_items[1][quantity]": "1",
+    redirect_on_completion: "never",
+    "subscription_data[metadata][accountId]": params.accountId,
+    "subscription_data[metadata][addon]": "number",
+    locale: STRIPE_LOCALE,
+  });
+  return { clientSecret: String(doc.client_secret) };
+}
+
 export async function createPortalSession(params: {
   customer: string;
   returnUrl: string;

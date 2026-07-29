@@ -27,6 +27,7 @@ const COLLECTIONS = {
   commissions: "commissions",
   demoRequests: "demo_requests",
   whatsappMessages: "whatsapp_messages",
+  numberRequests: "number_requests",
 } as const;
 
 /** Converte documento MongoDB para formato da API: id (string) em vez de _id. */

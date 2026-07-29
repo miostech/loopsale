@@ -15,9 +15,20 @@ interface Props {
   payload: Record<string, unknown>;
   title?: string;
   onClose: () => void;
+  /**
+   * Chamado quando o pagamento conclui — só dispara em sessão criada com
+   * redirect_on_completion "never" (hoje, o add-on de número). Nas demais o
+   * Stripe redireciona para a return_url e este callback não roda.
+   */
+  onComplete?: () => void;
 }
 
-export function EmbeddedCheckoutModal({ payload, title, onClose }: Props) {
+export function EmbeddedCheckoutModal({
+  payload,
+  title,
+  onClose,
+  onComplete,
+}: Props) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [error, setError] = useState("");
   // Serializado para não refazer o efeito a cada render do pai.
@@ -99,7 +110,7 @@ export function EmbeddedCheckoutModal({ payload, title, onClose }: Props) {
           ) : (
             <EmbeddedCheckoutProvider
               stripe={stripePromise}
-              options={{ clientSecret }}
+              options={{ clientSecret, onComplete }}
             >
               <EmbeddedCheckout />
             </EmbeddedCheckoutProvider>

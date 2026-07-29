@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { WhatsAppSetupModal } from "@/components/whatsapp/WhatsAppSetupModal";
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_WHATSAPP_CONFIG_ID;
@@ -17,6 +18,8 @@ declare global {
 
 interface Status {
   connected: boolean;
+  /** false = os passos de WhatsApp dos fluxos não vão ser enviados. */
+  canSend?: boolean;
   wabaId: string | null;
   phoneNumberId: string | null;
   displayNumber: string | null;
@@ -43,6 +46,10 @@ export function WhatsAppConnectCard() {
   const [tplError, setTplError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
+  const [setupAberto, setSetupAberto] = useState(false);
+  const [pedidoNumero, setPedidoNumero] = useState<{ status: string } | null>(
+    null
+  );
   const sessionInfo = useRef<{ waba_id?: string; phone_number_id?: string }>({});
 
   const loadStatus = useCallback(async () => {
@@ -55,9 +62,17 @@ export function WhatsAppConnectCard() {
     }
   }, []);
 
+  const loadPedido = useCallback(async () => {
+    const res = await fetch("/api/whatsapp/number-request");
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    setPedidoNumero(data.request ?? null);
+  }, []);
+
   useEffect(() => {
     loadStatus();
-  }, [loadStatus]);
+    loadPedido();
+  }, [loadStatus, loadPedido]);
 
   // Carrega o SDK do Facebook uma vez.
   useEffect(() => {
@@ -128,7 +143,9 @@ export function WhatsAppConnectCard() {
     }
   }
 
+  // Chamado pelo modal, já com o aviso sobre os apps do WhatsApp aceito.
   function connect() {
+    setSetupAberto(false);
     setError("");
     if (!window.FB) {
       setError("SDK do Facebook ainda carregando. Tente de novo em instantes.");
@@ -196,11 +213,23 @@ export function WhatsAppConnectCard() {
           </p>
         ) : !connected ? (
           <>
+            {status && !status.canSend && (
+              <p className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3 text-sm text-[var(--loop-text-muted)]">
+                Enquanto o WhatsApp não estiver conectado, os passos de WhatsApp
+                dos seus fluxos de recuperação <strong>não são enviados</strong>.
+              </p>
+            )}
+            {pedidoNumero && (
+              <p className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3 text-sm text-[var(--loop-text)]">
+                Pedido de número LoopSale em andamento. Nosso time entra em
+                contato para concluir a ativação.
+              </p>
+            )}
             <Button
               variant="cta"
               size="sm"
               disabled={connecting}
-              onClick={connect}
+              onClick={() => setSetupAberto(true)}
             >
               {connecting ? "Conectando…" : "Conectar WhatsApp"}
             </Button>
@@ -261,6 +290,16 @@ export function WhatsAppConnectCard() {
           </>
         )}
       </CardContent>
+
+      {setupAberto && (
+        <WhatsAppSetupModal
+          onConectarProprio={connect}
+          onClose={() => {
+            setSetupAberto(false);
+            loadPedido();
+          }}
+        />
+      )}
     </Card>
   );
 }

@@ -3,9 +3,10 @@ import type { ObjectId } from "mongodb";
 import { getCollection, routeObjectId } from "@/lib/db";
 import { sendMessage } from "@/lib/channels/send";
 import {
-  canSendFor,
+  tokenFor,
   sendTemplate,
   sendText,
+  SEM_TOKEN,
   type SendResult,
 } from "@/lib/whatsapp/cloud";
 import type { Account, WhatsAppMessage } from "@/lib/db/types";
@@ -63,16 +64,29 @@ export async function GET(request: Request) {
     let result: SendResult;
     let wamid: string | null = null;
 
-    // WhatsApp via Cloud API (WABA do cliente conectada via Embedded Signup;
-    // token central como fallback).
+    // WhatsApp via Cloud API: token da WABA do próprio cliente (Embedded
+    // Signup). A WABA central só entra para conta legada marcada "central".
     const accountsCol = await getCollection("accounts");
     const accOid = await routeObjectId(String(abandoned.accountId));
     const account = accOid
       ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
       : null;
-    const waToken = account?.whatsapp?.accessToken ?? null;
+    const waToken = tokenFor(
+      account?.whatsapp?.accessToken,
+      account?.whatsapp?.source
+    );
 
-    if (step.channel === "whatsapp" && canSendFor(waToken)) {
+    // Passo de WhatsApp sem token não cai em outro canal: falha dizendo o
+    // porquê, senão o cliente fica achando que a recuperação está rodando.
+    if (step.channel === "whatsapp" && !waToken) {
+      await scheduledCol.updateOne(
+        { _id: row._id as ObjectId },
+        { $set: { status: "failed", failReason: SEM_TOKEN, sentAt: now } }
+      );
+      continue;
+    }
+
+    if (step.channel === "whatsapp") {
       const phoneNumberId = account?.whatsapp?.phoneNumberId ?? "";
 
       const metaTemplate = (step as { metaTemplateName?: string })
@@ -131,6 +145,7 @@ export async function GET(request: Request) {
         $set: {
           status: result.success ? "sent" : "failed",
           sentAt: now,
+          ...(result.success ? {} : { failReason: result.error ?? "Erro no envio." }),
           ...(wamid ? { whatsappMessageId: wamid } : {}),
         },
       }

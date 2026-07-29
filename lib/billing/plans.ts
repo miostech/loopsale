@@ -117,6 +117,34 @@ export const SUPPORT_ADDON = {
     "Cobre apenas as conversas do fluxo de recuperação. Não inclui suporte ao curso, dúvidas do produto, pós-venda ou atendimento geral ao cliente.",
 };
 
+/**
+ * Add-on de número gerenciado: a LoopSale fornece e mantém a linha, mas ela é
+ * registrada na WABA do próprio cliente — o custo das mensagens da Meta segue
+ * sendo dele. Cobra taxa de ativação (única) + mensalidade (manutenção).
+ *
+ * VALORES PROVISÓRIOS: confirmar antes de abrir para clientes.
+ */
+export const NUMBER_ADDON = {
+  name: "Número WhatsApp gerenciado",
+  description:
+    "A LoopSale fornece a linha, ativa na Meta e mantém o número usado nas suas recuperações.",
+  /** Taxa única de ativação (aquisição da linha, verificação, configuração). */
+  activationFee: Number(process.env.NUMBER_ADDON_ACTIVATION_BRL) || 199,
+  /** Mensalidade de manutenção da linha. */
+  priceMonthly: Number(process.env.NUMBER_ADDON_MONTHLY_BRL) || 49.9,
+  priceIdActivation: process.env.STRIPE_PRICE_NUMBER_ACTIVATION ?? null,
+  priceIdMonthly: process.env.STRIPE_PRICE_NUMBER_MONTHLY ?? null,
+  features: [
+    "Linha exclusiva fornecida pela LoopSale",
+    "Ativação e verificação na Meta",
+    "Registrado na sua conta do WhatsApp Business",
+    "Manutenção e suporte em caso de bloqueio ou troca",
+  ],
+  /** Deixa explícito o que NÃO está incluído, para não virar reclamação. */
+  scopeNote:
+    "As mensagens da Meta continuam sendo pagas por você, no cartão da sua conta. O número é disponibilizado enquanto o add-on estiver ativo.",
+};
+
 export function getPlan(id: string | null | undefined): Plan {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }

@@ -45,6 +45,15 @@ export interface AccountSupport {
   currentPeriodEnd?: Date | null;
 }
 
+/** Add-on de número gerenciado (assinatura Stripe separada do plano). */
+export interface AccountNumberAddon {
+  /** true = a LoopSale fornece e mantém a linha desta conta. */
+  active: boolean;
+  status?: string;
+  stripeSubscriptionId?: string | null;
+  currentPeriodEnd?: Date | null;
+}
+
 export interface Account {
   _id?: ObjectId;
   name: string;
@@ -65,6 +74,12 @@ export interface Account {
    * O phoneNumberId ainda pode ser preenchido manualmente pelo admin.
    */
   whatsapp?: {
+    /**
+     * "own" (padrão, inclusive quando ausente): WABA do próprio cliente, ele
+     * paga a Meta. "central": legado na WABA da LoopSale, que paga a Meta —
+     * só essas contas entram no custo Meta das telas de admin.
+     */
+    source?: "own" | "central" | null;
     wabaId?: string | null;
     phoneNumberId?: string | null;
     /** Número exibido, ex: "+55 11 99999-8888". Informativo. */
@@ -75,6 +90,7 @@ export interface Account {
   } | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
+  numberAddon?: AccountNumberAddon | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -225,6 +241,24 @@ export interface RecoveryFlowStep {
   updatedAt: Date;
 }
 
+/**
+ * Pedido de número gerenciado pela LoopSale. A linha é fornecida por nós, mas
+ * registrada na WABA do próprio cliente — quem paga a Meta continua sendo ele.
+ */
+export interface NumberRequest {
+  _id?: ObjectId;
+  accountId: string;
+  /** E-mail de quem solicitou (admin da conta). */
+  requestedBy: string;
+  /** pending | provisioning | delivered | canceled */
+  status: string;
+  /** Número entregue, quando houver. */
+  deliveredNumber?: string | null;
+  notes?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ScheduledRecoveryMessage {
   _id?: ObjectId;
   abandonedCheckoutId: string;
@@ -232,6 +266,9 @@ export interface ScheduledRecoveryMessage {
   runAt: Date;
   sentAt?: Date | null;
   status: string;
+  /** Motivo quando status = "failed" (ex.: conta sem WhatsApp conectado). */
+  failReason?: string | null;
+  whatsappMessageId?: string | null;
   createdAt: Date;
 }
 
