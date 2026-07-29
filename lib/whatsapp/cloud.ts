@@ -207,24 +207,67 @@ export async function getPhoneNumbers(
   }));
 }
 
-/** Lista os templates da WABA com status. */
+export type TemplateResumo = {
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+  /** Texto do componente BODY, com os {{1}}, {{2}}... ainda no lugar. */
+  body: string;
+  /** Quantas variáveis posicionais o corpo espera (maior {{n}}). */
+  variableCount: number;
+};
+
+/** Maior índice {{n}} no texto — é quantas variáveis o corpo pede. */
+function contarVariaveis(texto: string): number {
+  let maior = 0;
+  for (const m of texto.matchAll(/\{\{\s*(\d+)\s*\}\}/g)) {
+    const n = Number(m[1]);
+    if (n > maior) maior = n;
+  }
+  return maior;
+}
+
+/** Extrai o texto do componente BODY dos components do template. */
+function corpoDoTemplate(components: unknown): string {
+  const lista = Array.isArray(components)
+    ? (components as Record<string, unknown>[])
+    : [];
+  const body = lista.find(
+    (c) => String(c.type ?? "").toUpperCase() === "BODY"
+  );
+  return String(body?.text ?? "");
+}
+
+/** Lista os templates da WABA com status, corpo e nº de variáveis. */
 export async function listTemplates(
   wabaId: string,
   token: string
-): Promise<
-  { name: string; status: string; language: string; category: string }[]
-> {
+): Promise<TemplateResumo[]> {
   const data = await graphGet(
-    `${wabaId}/message_templates?fields=name,status,language,category&limit=100`,
+    `${wabaId}/message_templates?fields=name,status,language,category,components&limit=100`,
     token
   );
   const rows = (data.data as Record<string, unknown>[]) ?? [];
-  return rows.map((r) => ({
-    name: String(r.name ?? ""),
-    status: String(r.status ?? ""),
-    language: String(r.language ?? ""),
-    category: String(r.category ?? ""),
-  }));
+  return rows.map((r) => {
+    const body = corpoDoTemplate(r.components);
+    return {
+      name: String(r.name ?? ""),
+      status: String(r.status ?? ""),
+      language: String(r.language ?? ""),
+      category: String(r.category ?? ""),
+      body,
+      variableCount: contarVariaveis(body),
+    };
+  });
+}
+
+/** Substitui {{1}}, {{2}}... pelos valores dados (para preview e histórico). */
+export function preencherCorpo(body: string, variables: string[]): string {
+  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_all, n) => {
+    const idx = Number(n) - 1;
+    return variables[idx] ?? `{{${n}}}`;
+  });
 }
 
 function wamidOf(data: Record<string, unknown>): string | null {

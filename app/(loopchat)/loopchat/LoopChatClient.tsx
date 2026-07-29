@@ -59,6 +59,17 @@ interface Ficha {
   } | null;
   checkouts: Checkout[];
 }
+interface TemplateWA {
+  name: string;
+  language: string;
+  body: string;
+  variableCount: number;
+}
+interface LeadBusca {
+  id: string;
+  nome: string | null;
+  telefone: string | null;
+}
 
 type Filtro =
   | "abertas"
@@ -172,6 +183,14 @@ function corDaEtiqueta(nome: string): string {
   return CORES_ETIQUETA[h % CORES_ETIQUETA.length];
 }
 
+/** Preview do corpo do template: troca {{1}}, {{2}}... pelo que foi digitado. */
+function preencherPreview(body: string, variables: string[]): string {
+  return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_all, n) => {
+    const v = variables[Number(n) - 1];
+    return v && v.trim() ? v : `{{${n}}}`;
+  });
+}
+
 function iniciais(nome: string | null, contato: string): string {
   if (nome) {
     const p = nome.trim().split(/\s+/);
@@ -182,8 +201,10 @@ function iniciais(nome: string | null, contato: string): string {
 
 export function LoopChatClient({
   whatsappConectado,
+  numeroConta,
 }: {
   whatsappConectado: boolean;
+  numeroConta?: string | null;
 }) {
   const [conversas, setConversas] = useState<Conversa[] | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abertas");
@@ -194,6 +215,25 @@ export function LoopChatClient({
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([]);
   const [etiquetaFiltro, setEtiquetaFiltro] = useState<string | null>(null);
   const [novaEtiqueta, setNovaEtiqueta] = useState("");
+  const [criandoEtiqueta, setCriandoEtiqueta] = useState(false);
+  const [nomeNovaEtiqueta, setNomeNovaEtiqueta] = useState("");
+  // Etiqueta aguardando confirmação de exclusão (confirmação inline, não usa
+  // window.confirm — que o navegador pode bloquear silenciosamente).
+  const [etiquetaApagar, setEtiquetaApagar] = useState<string | null>(null);
+  const [apagandoEtiqueta, setApagandoEtiqueta] = useState(false);
+  const [erroEtiqueta, setErroEtiqueta] = useState("");
+  // Compositor de nova conversa (envio de template).
+  const [novaConversa, setNovaConversa] = useState(false);
+  const [ncTelefone, setNcTelefone] = useState("");
+  const [ncNome, setNcNome] = useState("");
+  const [ncBuscaContato, setNcBuscaContato] = useState("");
+  const [ncLeads, setNcLeads] = useState<LeadBusca[]>([]);
+  const [ncTemplates, setNcTemplates] = useState<TemplateWA[] | null>(null);
+  const [ncBuscaModelo, setNcBuscaModelo] = useState("");
+  const [ncTemplate, setNcTemplate] = useState<TemplateWA | null>(null);
+  const [ncVars, setNcVars] = useState<string[]>([]);
+  const [ncEnviando, setNcEnviando] = useState(false);
+  const [ncErro, setNcErro] = useState("");
   const [busca, setBusca] = useState("");
   const [ativo, setAtivo] = useState<string | null>(null);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
@@ -254,6 +294,40 @@ export function LoopChatClient({
   useEffect(() => {
     fimRef.current?.scrollIntoView({ block: "end" });
   }, [mensagens]);
+
+  // Busca leads pelo nome/telefone enquanto digita no "Para" da nova conversa.
+  useEffect(() => {
+    const q = ncBuscaContato.trim();
+    if (!novaConversa || q.length < 2) {
+      setNcLeads([]);
+      return;
+    }
+    let ativo = true;
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/leads?search=${encodeURIComponent(q)}&status=all&limit=6`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!ativo) return;
+        const leads = (data.leads ?? [])
+          .filter((l: { phone?: string | null }) => l.phone)
+          .map((l: { id: string; name?: string | null; phone?: string | null }) => ({
+            id: l.id,
+            nome: l.name ?? null,
+            telefone: l.phone ?? null,
+          }));
+        setNcLeads(leads);
+      } catch {
+        /* silencioso */
+      }
+    }, 250);
+    return () => {
+      ativo = false;
+      clearTimeout(t);
+    };
+  }, [ncBuscaContato, novaConversa]);
 
   const contagens = useMemo(() => {
     const c = conversas ?? [];
@@ -374,6 +448,118 @@ export function LoopChatClient({
     salvarEtiquetas([...conversaAtiva.labels, nova]);
   }
 
+  // Cria etiqueta pela sidebar: como etiqueta só existe colada numa conversa,
+  // aplica a nova na conversa aberta (o botão fica travado sem conversa).
+  function criarEtiquetaSidebar() {
+    const nova = nomeNovaEtiqueta.trim().toLowerCase();
+    if (!nova || !conversaAtiva) return;
+    setNomeNovaEtiqueta("");
+    setCriandoEtiqueta(false);
+    if (conversaAtiva.labels.includes(nova)) return;
+    salvarEtiquetas([...conversaAtiva.labels, nova]);
+  }
+
+  async function apagarEtiqueta(nome: string) {
+    setErroEtiqueta("");
+    setApagandoEtiqueta(true);
+    try {
+      const res = await fetch(
+        `/api/loopchat/labels?nome=${encodeURIComponent(nome)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErroEtiqueta(data.error ?? "Não foi possível apagar a etiqueta.");
+        return;
+      }
+      if (etiquetaFiltro === nome) setEtiquetaFiltro(null);
+      setEtiquetaApagar(null);
+      await loadConversas();
+    } catch {
+      setErroEtiqueta("Erro de rede ao apagar a etiqueta.");
+    } finally {
+      setApagandoEtiqueta(false);
+    }
+  }
+
+  function abrirNovaConversa() {
+    setNovaConversa(true);
+    setNcTelefone("");
+    setNcNome("");
+    setNcBuscaContato("");
+    setNcLeads([]);
+    setNcBuscaModelo("");
+    setNcTemplate(null);
+    setNcVars([]);
+    setNcErro("");
+    if (ncTemplates === null) carregarTemplates();
+  }
+
+  async function carregarTemplates() {
+    try {
+      const res = await fetch("/api/loopchat/templates");
+      const data = await res.json().catch(() => ({}));
+      setNcTemplates(Array.isArray(data.templates) ? data.templates : []);
+      if (!res.ok && data.error) setNcErro(data.error);
+    } catch {
+      setNcTemplates([]);
+    }
+  }
+
+  function selecionarLead(lead: LeadBusca) {
+    setNcTelefone(lead.telefone ?? "");
+    setNcNome(lead.nome ?? "");
+    setNcBuscaContato("");
+    setNcLeads([]);
+  }
+
+  function selecionarTemplate(tpl: TemplateWA) {
+    setNcTemplate(tpl);
+    setNcVars(Array.from({ length: tpl.variableCount }, () => ""));
+  }
+
+  async function enviarNovaConversa() {
+    setNcErro("");
+    const telefone = ncTelefone.trim();
+    if (!telefone) {
+      setNcErro("Informe o número do contato.");
+      return;
+    }
+    if (!ncTemplate) {
+      setNcErro("Escolha um modelo.");
+      return;
+    }
+    if (ncVars.some((v) => !v.trim())) {
+      setNcErro("Preencha todas as variáveis do modelo.");
+      return;
+    }
+    setNcEnviando(true);
+    try {
+      const res = await fetch("/api/loopchat/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact: telefone,
+          templateName: ncTemplate.name,
+          language: ncTemplate.language,
+          variables: ncVars,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNcErro(data.error ?? "Não foi possível enviar.");
+        return;
+      }
+      setNovaConversa(false);
+      await loadConversas();
+      if (data.contact) setAtivo(data.contact);
+    } catch {
+      setNcErro("Erro de rede ao enviar.");
+    } finally {
+      setNcEnviando(false);
+    }
+  }
+
   async function atribuir(assigneeId: string | null) {
     if (!ativo) return;
     setErro("");
@@ -488,49 +674,175 @@ export function LoopChatClient({
           ))}
           </div>
 
-          {etiquetas.length > 0 && (
-            <div className="mt-4">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--loop-text-muted)]">
+          <div className="mt-4">
+            <div className="flex items-center justify-between gap-2 px-3 pb-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--loop-text-muted)]">
                 Etiquetas
               </p>
-              <div className="space-y-0.5">
-                {etiquetas.map((e) => (
-                  <button
-                    key={e.nome}
-                    type="button"
-                    onClick={() =>
-                      setEtiquetaFiltro(
-                        etiquetaFiltro === e.nome ? null : e.nome
-                      )
+              <button
+                type="button"
+                onClick={() => {
+                  if (!conversaAtiva) return;
+                  setCriandoEtiqueta((v) => !v);
+                  setNomeNovaEtiqueta("");
+                }}
+                disabled={!conversaAtiva}
+                title={
+                  conversaAtiva
+                    ? "Criar nova etiqueta na conversa aberta"
+                    : "Abra uma conversa para criar uma etiqueta"
+                }
+                className="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-[var(--loop-primary)] hover:bg-[var(--loop-primary-muted)] disabled:cursor-not-allowed disabled:text-[var(--loop-text-muted)] disabled:opacity-60 disabled:hover:bg-transparent"
+              >
+                + Nova
+              </button>
+            </div>
+
+            {criandoEtiqueta && conversaAtiva && (
+              <div className="mb-1 flex gap-1 px-3">
+                <input
+                  autoFocus
+                  list="etiquetas-existentes"
+                  value={nomeNovaEtiqueta}
+                  placeholder="Nome da etiqueta"
+                  onChange={(e) => setNomeNovaEtiqueta(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      criarEtiquetaSidebar();
                     }
-                    className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
-                      etiquetaFiltro === e.nome
-                        ? "bg-[var(--loop-bg-alt)] font-medium text-[var(--loop-text)]"
-                        : "text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)]"
-                    }`}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: corDaEtiqueta(e.nome) }}
-                      />
-                      <span className="truncate">{e.nome}</span>
-                    </span>
-                    <span className="text-xs">{e.total}</span>
-                  </button>
-                ))}
-              </div>
-              {etiquetaFiltro && (
+                    if (e.key === "Escape") {
+                      setCriandoEtiqueta(false);
+                      setNomeNovaEtiqueta("");
+                    }
+                  }}
+                  className="min-w-0 flex-1 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2 py-1 text-xs text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                />
                 <button
                   type="button"
-                  onClick={() => setEtiquetaFiltro(null)}
-                  className="mt-1 px-3 text-xs text-[var(--loop-primary)]"
+                  onClick={criarEtiquetaSidebar}
+                  disabled={!nomeNovaEtiqueta.trim()}
+                  className="rounded-lg border border-[var(--loop-border)] px-2 py-1 text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-text)] disabled:opacity-50"
                 >
-                  Limpar etiqueta
+                  Add
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+
+            {etiquetas.length > 0 ? (
+              <div className="space-y-0.5">
+                {etiquetas.map((e) => (
+                  <div key={e.nome}>
+                    <div
+                      className={`group flex items-center gap-1 rounded-lg pr-1 transition-colors ${
+                        etiquetaFiltro === e.nome
+                          ? "bg-[var(--loop-bg-alt)]"
+                          : "hover:bg-[var(--loop-bg-alt)]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEtiquetaFiltro(
+                            etiquetaFiltro === e.nome ? null : e.nome
+                          )
+                        }
+                        className={`flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${
+                          etiquetaFiltro === e.nome
+                            ? "font-medium text-[var(--loop-text)]"
+                            : "text-[var(--loop-text-muted)]"
+                        }`}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: corDaEtiqueta(e.nome) }}
+                          />
+                          <span className="truncate">{e.nome}</span>
+                        </span>
+                        <span className="text-xs">{e.total}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setErroEtiqueta("");
+                          setEtiquetaApagar(
+                            etiquetaApagar === e.nome ? null : e.nome
+                          );
+                        }}
+                        aria-label={`Apagar etiqueta ${e.nome}`}
+                        title="Apagar etiqueta de todas as conversas"
+                        className={`shrink-0 rounded-md p-1 transition-opacity hover:text-[var(--loop-error)] focus:opacity-100 group-hover:opacity-100 ${
+                          etiquetaApagar === e.nome
+                            ? "text-[var(--loop-error)] opacity-100"
+                            : "text-[var(--loop-text-muted)] opacity-0"
+                        }`}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    </div>
+                    {etiquetaApagar === e.nome && (
+                      <div className="mx-1 mb-1 mt-0.5 rounded-lg border border-[color-mix(in_srgb,var(--loop-error)_35%,var(--loop-border))] bg-[color-mix(in_srgb,var(--loop-error)_6%,transparent)] p-2">
+                        <p className="text-xs text-[var(--loop-text)]">
+                          Apagar <b>{e.nome}</b> de {e.total}{" "}
+                          {e.total === 1 ? "conversa" : "conversas"}?
+                        </p>
+                        {erroEtiqueta && (
+                          <p className="mt-1 text-xs text-[var(--loop-error)]">
+                            {erroEtiqueta}
+                          </p>
+                        )}
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEtiquetaApagar(null)}
+                            disabled={apagandoEtiqueta}
+                            className="rounded-md px-2 py-1 text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-text)] disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => apagarEtiqueta(e.nome)}
+                            disabled={apagandoEtiqueta}
+                            className="rounded-md bg-[var(--loop-error)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {apagandoEtiqueta ? "Apagando…" : "Apagar"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="px-3 py-1 text-xs text-[var(--loop-text-muted)]">
+                Nenhuma etiqueta ainda.
+              </p>
+            )}
+            {etiquetaFiltro && (
+              <button
+                type="button"
+                onClick={() => setEtiquetaFiltro(null)}
+                className="mt-1 px-3 text-xs text-[var(--loop-primary)]"
+              >
+                Limpar etiqueta
+              </button>
+            )}
+          </div>
         </nav>
         {!whatsappConectado && (
           <p className="m-2 rounded-lg border border-[color-mix(in_srgb,var(--loop-error)_35%,var(--loop-border))] bg-[color-mix(in_srgb,var(--loop-error)_6%,transparent)] p-3 text-xs text-[var(--loop-text)]">
@@ -547,9 +859,37 @@ export function LoopChatClient({
         }`}
       >
         <div className="space-y-3 border-b border-[var(--loop-border)] px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-[var(--loop-text)]">Conversas</h2>
-            <Badge variant="default">{visiveis.length}</Badge>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-[var(--loop-text)]">Conversas</h2>
+              <Badge variant="default">{visiveis.length}</Badge>
+            </div>
+            <button
+              type="button"
+              onClick={abrirNovaConversa}
+              disabled={!whatsappConectado}
+              title={
+                whatsappConectado
+                  ? "Nova conversa por template"
+                  : "Conecte um WhatsApp para iniciar conversas"
+              }
+              className="inline-flex items-center gap-1 rounded-lg bg-[var(--loop-primary)] px-2.5 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Nova
+            </button>
           </div>
           <Input
             placeholder="Buscar por nome ou número"
@@ -1113,6 +1453,221 @@ export function LoopChatClient({
           </>
         )}
       </section>
+
+      {novaConversa && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-20"
+          onClick={() => !ncEnviando && setNovaConversa(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-[var(--loop-border)] bg-[var(--loop-bg)] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--loop-border)] px-4 py-3">
+              <h3 className="font-semibold text-[var(--loop-text)]">
+                Nova conversa
+              </h3>
+              <button
+                type="button"
+                onClick={() => setNovaConversa(false)}
+                aria-label="Fechar"
+                className="text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto p-4 text-sm">
+              {/* Para: contato */}
+              <div>
+                <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                  Para
+                </label>
+                {ncNome || ncTelefone ? (
+                  <div className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] px-3 py-2">
+                    <span className="min-w-0 truncate text-[var(--loop-text)]">
+                      {ncNome ? `${ncNome} · ` : ""}
+                      {ncTelefone}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNcTelefone("");
+                        setNcNome("");
+                      }}
+                      className="shrink-0 text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                      aria-label="Trocar contato"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative mt-1">
+                    <input
+                      autoFocus
+                      value={ncBuscaContato}
+                      placeholder="Nome ou número (ex: 5511999998888)"
+                      onChange={(e) => {
+                        setNcBuscaContato(e.target.value);
+                        // Se digitou algo que parece número, já vira o telefone.
+                        const so = e.target.value.replace(/\D/g, "");
+                        if (so.length >= 10) setNcTelefone(e.target.value);
+                        else setNcTelefone("");
+                      }}
+                      className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                    />
+                    {ncLeads.length > 0 && (
+                      <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] shadow-lg">
+                        {ncLeads.map((l) => (
+                          <li key={l.id}>
+                            <button
+                              type="button"
+                              onClick={() => selecionarLead(l)}
+                              className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-[var(--loop-bg-alt)]"
+                            >
+                              <span className="text-[var(--loop-text)]">
+                                {l.nome ?? "Sem nome"}
+                              </span>
+                              <span className="text-xs text-[var(--loop-text-muted)]">
+                                {l.telefone}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Via: número da conta */}
+              <div>
+                <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                  Via
+                </label>
+                <div className="mt-1 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] px-3 py-2 text-[var(--loop-text)]">
+                  WhatsApp{numeroConta ? ` · ${numeroConta}` : ""}
+                </div>
+              </div>
+
+              {/* Modelo */}
+              <div>
+                <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                  Modelo
+                </label>
+                {ncTemplate ? (
+                  <div className="mt-1 rounded-lg border border-[var(--loop-border)] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-[var(--loop-text)]">
+                        {ncTemplate.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNcTemplate(null);
+                          setNcVars([]);
+                        }}
+                        className="text-xs text-[var(--loop-primary)]"
+                      >
+                        Trocar
+                      </button>
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-[var(--loop-text-muted)]">
+                      {preencherPreview(ncTemplate.body, ncVars)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-1">
+                    <input
+                      value={ncBuscaModelo}
+                      placeholder="Pesquisar modelos"
+                      onChange={(e) => setNcBuscaModelo(e.target.value)}
+                      className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                    />
+                    <div className="mt-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--loop-border)]">
+                      {ncTemplates === null ? (
+                        <p className="p-3 text-xs text-[var(--loop-text-muted)]">
+                          Carregando modelos…
+                        </p>
+                      ) : ncTemplates.length === 0 ? (
+                        <p className="p-3 text-xs text-[var(--loop-text-muted)]">
+                          Nenhum modelo aprovado. Crie e aprove templates na Meta.
+                        </p>
+                      ) : (
+                        ncTemplates
+                          .filter((t) =>
+                            t.name
+                              .toLowerCase()
+                              .includes(ncBuscaModelo.trim().toLowerCase())
+                          )
+                          .map((t) => (
+                            <button
+                              key={`${t.name}-${t.language}`}
+                              type="button"
+                              onClick={() => selecionarTemplate(t)}
+                              className="flex w-full flex-col items-start gap-0.5 border-b border-[var(--loop-border)] px-3 py-2 text-left last:border-b-0 hover:bg-[var(--loop-bg-alt)]"
+                            >
+                              <span className="font-medium text-[var(--loop-text)]">
+                                {t.name}
+                              </span>
+                              <span className="line-clamp-2 text-xs text-[var(--loop-text-muted)]">
+                                {t.body}
+                              </span>
+                            </button>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Variáveis do modelo */}
+              {ncTemplate && ncTemplate.variableCount > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                    Variáveis
+                  </label>
+                  {ncVars.map((v, i) => (
+                    <input
+                      key={i}
+                      value={v}
+                      placeholder={`Variável {{${i + 1}}}`}
+                      onChange={(e) => {
+                        const novo = [...ncVars];
+                        novo[i] = e.target.value;
+                        setNcVars(novo);
+                      }}
+                      className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {ncErro && (
+                <p className="rounded-lg border border-[color-mix(in_srgb,var(--loop-error)_35%,var(--loop-border))] bg-[color-mix(in_srgb,var(--loop-error)_6%,transparent)] p-2 text-xs text-[var(--loop-text)]">
+                  {ncErro}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-[var(--loop-border)] px-4 py-3">
+              <Button
+                variant="ghost"
+                onClick={() => setNovaConversa(false)}
+                disabled={ncEnviando}
+              >
+                Descartar
+              </Button>
+              <Button
+                onClick={enviarNovaConversa}
+                disabled={ncEnviando || !ncTelefone.trim() || !ncTemplate}
+              >
+                {ncEnviando ? "Enviando…" : "Enviar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

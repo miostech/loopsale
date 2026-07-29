@@ -23,6 +23,7 @@ export default async function LoopChatPage() {
   return (
     <LoopChatClient
       whatsappConectado={!!ctx.account?.whatsapp?.accessToken}
+      numeroConta={ctx.account?.whatsapp?.displayNumber ?? null}
     />
   );
 }
