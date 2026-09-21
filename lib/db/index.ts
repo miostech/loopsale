@@ -30,6 +30,7 @@ const COLLECTIONS = {
   numberRequests: "number_requests",
   conversations: "conversations",
   settings: "settings",
+  pushSubscriptions: "push_subscriptions",
 } as const;
 
 /** Converte documento MongoDB para formato da API: id (string) em vez de _id. */

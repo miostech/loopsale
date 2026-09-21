@@ -4,6 +4,7 @@ import { verifyWebhookSignature, sendText } from "@/lib/whatsapp/cloud";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
 import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
 import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
+import { enviarPush } from "@/lib/push";
 
 /**
  * Webhook do WhatsApp Cloud API (Meta).
@@ -118,6 +119,8 @@ export async function POST(request: Request) {
   // Conversas que receberam mensagem nova de texto e têm o robô ligado — o bot
   // responde depois de a Meta receber o 200 (via after), pra não travar o webhook.
   const paraResponder = new Map<string, { account: Account; contact: string }>();
+  // Notificações push a enviar depois do 200 (uma por mensagem nova recebida).
+  const paraNotificar: { accountId: string; title: string; body: string }[] = [];
 
   try {
     const accountsCol = await getCollection("accounts");
@@ -208,6 +211,15 @@ export async function POST(request: Request) {
             });
           }
 
+          // Notifica (push) em qualquer mensagem nova recebida.
+          if (up.upsertedId && accountId && msg.from) {
+            paraNotificar.push({
+              accountId,
+              title: pushName || msg.from,
+              body: corpo || "Nova mensagem",
+            });
+          }
+
           // Mensagem nova reabre a conversa: se ficasse resolvida, sumiria do
           // board e ninguém responderia o cliente. Reabrir de novo não muda
           // nada, então o reenvio do webhook é inofensivo.
@@ -253,14 +265,26 @@ export async function POST(request: Request) {
     console.error("whatsapp webhook:", e);
   }
 
-  // Responde o cliente com o robô depois do 200 (não bloqueia a Meta).
-  if (paraResponder.size) {
+  // Responde o cliente com o robô e envia os pushes depois do 200 (não bloqueia
+  // a Meta).
+  if (paraResponder.size || paraNotificar.length) {
     after(async () => {
       for (const { account, contact } of paraResponder.values()) {
         try {
           await responderComBot(account, contact);
         } catch (e) {
           console.error("bot atendimento:", e);
+        }
+      }
+      for (const n of paraNotificar) {
+        try {
+          await enviarPush(n.accountId, {
+            title: n.title,
+            body: n.body.slice(0, 120),
+            url: "/loopchat",
+          });
+        } catch (e) {
+          console.error("push:", e);
         }
       }
     });

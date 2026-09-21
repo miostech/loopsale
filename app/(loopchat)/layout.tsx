@@ -1,9 +1,19 @@
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { LoopSaleLogo } from "@/components/brand/LoopSaleLogo";
 import { SignOutButton } from "@/components/dashboard/SignOutButton";
+import { LoopChatPWA } from "./LoopChatPWA";
+
+// PWA: nome do app, ícone do iOS e barra em tela cheia.
+export const metadata: Metadata = {
+  title: "LoopChat",
+  appleWebApp: { capable: true, title: "LoopChat", statusBarStyle: "default" },
+  icons: { apple: "/pwa/apple-180.png" },
+};
+export const viewport: Viewport = { themeColor: "#6d28d9" };
 
 /**
  * O LoopChat roda fora do shell do dashboard: é uma tela de trabalho, e a
@@ -37,6 +47,7 @@ export default async function LoopChatLayout({
         </div>
       </header>
       <main className="min-h-0 flex-1">{children}</main>
+      <LoopChatPWA />
     </div>
   );
 }
