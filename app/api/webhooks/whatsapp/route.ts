@@ -46,6 +46,12 @@ type WaMessage = {
   document?: WaMedia;
   sticker?: WaMedia;
   reaction?: { message_id?: string; emoji?: string };
+  button?: { text?: string; payload?: string };
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string };
+  };
   location?: {
     latitude?: number;
     longitude?: number;
@@ -72,6 +78,12 @@ function corpoDaMensagem(msg: WaMessage, caption?: string | null): string | null
   if (caption) return caption;
   if (msg.reaction) {
     return msg.reaction.emoji ? `Reagiu ${msg.reaction.emoji}` : "Removeu a reação";
+  }
+  // Resposta de botão (quick-reply de template) ou mensagem interativa.
+  if (msg.button?.text) return msg.button.text;
+  if (msg.interactive) {
+    const r = msg.interactive.button_reply ?? msg.interactive.list_reply;
+    if (r?.title) return r.title;
   }
   if (msg.location) {
     const l = msg.location;
@@ -195,14 +207,17 @@ export async function POST(request: Request) {
             { upsert: true }
           )) as { upsertedId?: unknown };
 
-          // Só dispara o robô em mensagem NOVA de texto (não em reenvio do
-          // webhook) e com o bot ligado para a conta.
+          // Dispara o robô em mensagem NOVA de texto ou clique de botão (não em
+          // reenvio do webhook), com o bot ligado — mídia/reação não disparam.
+          const tipoResposta = ["text", "button", "interactive"].includes(
+            msg.type ?? "text"
+          );
           if (
             up.upsertedId &&
             accountId &&
             msg.from &&
-            (msg.type ?? "text") === "text" &&
-            msg.text?.body &&
+            tipoResposta &&
+            corpo &&
             account?.attendantBot?.enabled
           ) {
             paraResponder.set(`${accountId}:${msg.from}`, {
