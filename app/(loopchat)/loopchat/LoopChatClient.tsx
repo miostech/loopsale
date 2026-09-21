@@ -332,6 +332,29 @@ export function LoopChatClient({
     return () => clearInterval(id);
   }, [ativo, loadConversas, loadMensagens]);
 
+  // No PWA do iOS os timers congelam quando o app vai pro segundo plano — ao
+  // voltar, o setInterval pode não disparar sem um reload. Então, sempre que o
+  // app volta ao foco (visível de novo, ganha foco, ou restaura da bfcache),
+  // atualiza na hora em vez de esperar o próximo tick.
+  useEffect(() => {
+    const atualizarAgora = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadConversas();
+      if (ativo) loadMensagens(ativo);
+    };
+    const aoVisivel = () => {
+      if (!document.hidden) atualizarAgora();
+    };
+    document.addEventListener("visibilitychange", aoVisivel);
+    window.addEventListener("focus", atualizarAgora);
+    window.addEventListener("pageshow", atualizarAgora);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVisivel);
+      window.removeEventListener("focus", atualizarAgora);
+      window.removeEventListener("pageshow", atualizarAgora);
+    };
+  }, [ativo, loadConversas, loadMensagens]);
+
   // Rola pro fim só quando a última mensagem muda (mensagem nova) — assim o
   // polling não fica puxando a tela pra baixo enquanto você lê o histórico.
   useEffect(() => {
