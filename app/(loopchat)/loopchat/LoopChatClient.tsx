@@ -526,9 +526,10 @@ export function LoopChatClient({
 
   async function enviarNovaConversa() {
     setNcErro("");
-    const telefone = ncTelefone.trim();
-    if (!telefone) {
-      setNcErro("Informe o número do contato.");
+    // Contato = lead selecionado (ncTelefone) ou o que foi digitado no campo.
+    const telefone = (ncTelefone.trim() || ncBuscaContato.trim());
+    if (telefone.replace(/\D/g, "").length < 8) {
+      setNcErro("Informe um número de telefone válido (com DDI e DDD).");
       return;
     }
     if (!ncTemplate) {
@@ -1571,14 +1572,8 @@ export function LoopChatClient({
                     <input
                       autoFocus
                       value={ncBuscaContato}
-                      placeholder="Nome ou número (ex: 5511999998888)"
-                      onChange={(e) => {
-                        setNcBuscaContato(e.target.value);
-                        // Se digitou algo que parece número, já vira o telefone.
-                        const so = e.target.value.replace(/\D/g, "");
-                        if (so.length >= 10) setNcTelefone(e.target.value);
-                        else setNcTelefone("");
-                      }}
+                      placeholder="Nome ou número com DDI (ex: 5511999998888)"
+                      onChange={(e) => setNcBuscaContato(e.target.value)}
                       className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
                     />
                     {ncLeads.length > 0 && (
@@ -1725,7 +1720,12 @@ export function LoopChatClient({
               </Button>
               <Button
                 onClick={enviarNovaConversa}
-                disabled={ncEnviando || !ncTelefone.trim() || !ncTemplate}
+                disabled={
+                  ncEnviando ||
+                  !ncTemplate ||
+                  (!ncTelefone.trim() &&
+                    ncBuscaContato.replace(/\D/g, "").length < 8)
+                }
               >
                 {ncEnviando ? "Enviando…" : "Enviar"}
               </Button>
