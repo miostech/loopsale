@@ -7,6 +7,12 @@ import type { User } from "@/lib/db/types";
 const DEMO_EMAIL = process.env.DEMO_LOGIN_EMAIL ?? "demo@loopsale.com.br";
 const DEMO_PASSWORD = process.env.DEMO_LOGIN_PASSWORD ?? "demo123";
 
+// Cookie compartilhado entre subdomínios (ex: ".loopsale.com.br") para o login
+// valer em www e chat ao mesmo tempo. Só liga quando COOKIE_DOMAIN está setado
+// (produção) — em localhost/preview fica indefinido e o NextAuth usa o padrão.
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN;
+const SECURE_COOKIES = process.env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
   providers: [
     Credentials({
@@ -105,4 +111,32 @@ export const authOptions: NextAuthOptions = {
   },
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   secret: process.env.NEXTAUTH_SECRET,
+  // Compartilha a sessão entre www e chat quando COOKIE_DOMAIN está setado.
+  // O csrf-token (prefixo __Host-) fica por host de propósito — só é usado no
+  // próprio login e não pode ter Domain.
+  ...(COOKIE_DOMAIN
+    ? {
+        cookies: {
+          sessionToken: {
+            name: `${SECURE_COOKIES ? "__Secure-" : ""}next-auth.session-token`,
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              secure: SECURE_COOKIES,
+              domain: COOKIE_DOMAIN,
+            },
+          },
+          callbackUrl: {
+            name: `${SECURE_COOKIES ? "__Secure-" : ""}next-auth.callback-url`,
+            options: {
+              sameSite: "lax" as const,
+              path: "/",
+              secure: SECURE_COOKIES,
+              domain: COOKIE_DOMAIN,
+            },
+          },
+        },
+      }
+    : {}),
 };
