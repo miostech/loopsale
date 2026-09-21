@@ -389,6 +389,10 @@ export interface WhatsAppMessage {
   contact?: string | null;
   type?: string;
   body?: string | null;
+  /** ID da mídia na Meta (imagem/vídeo/áudio/documento). Buscada via proxy. */
+  mediaId?: string | null;
+  /** MIME da mídia, ex: image/jpeg. */
+  mimeType?: string | null;
   templateName?: string | null;
   /** Status de entrega (out): accepted | sent | delivered | read | failed. */
   status?: string | null;

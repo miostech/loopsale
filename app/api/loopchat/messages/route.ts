@@ -51,6 +51,8 @@ export async function GET(request: Request) {
       authorName: m.authorName ?? null,
       body: m.body,
       type: m.type,
+      mediaId: m.mediaId ?? null,
+      mimeType: m.mimeType ?? null,
       templateName: m.templateName ?? null,
       status: m.status ?? null,
       error: m.error ?? null,

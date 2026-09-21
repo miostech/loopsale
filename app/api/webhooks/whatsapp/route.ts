@@ -28,11 +28,22 @@ type WaStatus = {
   timestamp?: string;
   errors?: { title?: string; message?: string }[];
 };
+type WaMedia = {
+  id?: string;
+  mime_type?: string;
+  caption?: string;
+  filename?: string;
+};
 type WaMessage = {
   id?: string;
   from?: string;
   type?: string;
   text?: { body?: string };
+  image?: WaMedia;
+  video?: WaMedia;
+  audio?: WaMedia;
+  document?: WaMedia;
+  sticker?: WaMedia;
   timestamp?: string;
 };
 type WaValue = {
@@ -108,6 +119,10 @@ export async function POST(request: Request) {
         // 2) Mensagens recebidas (respostas do cliente final).
         for (const msg of value.messages ?? []) {
           if (!msg.id) continue;
+          // Mídia (imagem/vídeo/áudio/documento/figurinha): guarda o media ID
+          // pra buscar depois na Meta, e usa a legenda como corpo quando houver.
+          const midia =
+            msg.image ?? msg.video ?? msg.audio ?? msg.document ?? msg.sticker;
           const doc: WhatsAppMessage = {
             accountId: accountId ?? "",
             direction: "in",
@@ -115,7 +130,9 @@ export async function POST(request: Request) {
             phoneNumberId,
             contact: msg.from ?? null,
             type: msg.type ?? "text",
-            body: msg.text?.body ?? null,
+            body: msg.text?.body ?? midia?.caption ?? null,
+            mediaId: midia?.id ?? null,
+            mimeType: midia?.mime_type ?? null,
             status: "received",
             createdAt: now,
             updatedAt: now,

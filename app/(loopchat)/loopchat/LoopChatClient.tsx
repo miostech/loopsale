@@ -37,6 +37,8 @@ interface Mensagem {
   authorName?: string | null;
   body: string | null;
   type?: string;
+  mediaId?: string | null;
+  mimeType?: string | null;
   templateName?: string | null;
   status: string | null;
   error: string | null;
@@ -1214,12 +1216,55 @@ export function LoopChatClient({
                               {m.authorName ? ` · ${m.authorName}` : ""}
                             </p>
                           )}
-                          <p className="whitespace-pre-wrap">
-                            {m.body ??
-                              (m.templateName
-                                ? `[template: ${m.templateName}]`
-                                : `[${m.type ?? "mensagem"}]`)}
-                          </p>
+                          {m.mediaId ? (
+                            <div className="space-y-1">
+                              {m.type === "image" || m.type === "sticker" ? (
+                                <a
+                                  href={`/api/loopchat/media/${m.mediaId}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={`/api/loopchat/media/${m.mediaId}`}
+                                    alt={m.body ?? "imagem"}
+                                    className="max-h-64 max-w-full rounded-lg"
+                                  />
+                                </a>
+                              ) : m.type === "video" ? (
+                                <video
+                                  controls
+                                  src={`/api/loopchat/media/${m.mediaId}`}
+                                  className="max-h-64 max-w-full rounded-lg"
+                                />
+                              ) : m.type === "audio" ? (
+                                <audio
+                                  controls
+                                  src={`/api/loopchat/media/${m.mediaId}`}
+                                  className="w-full"
+                                />
+                              ) : (
+                                <a
+                                  href={`/api/loopchat/media/${m.mediaId}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[var(--loop-primary)] underline"
+                                >
+                                  Baixar {m.type ?? "arquivo"}
+                                </a>
+                              )}
+                              {m.body && (
+                                <p className="whitespace-pre-wrap">{m.body}</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap">
+                              {m.body ??
+                                (m.templateName
+                                  ? `[template: ${m.templateName}]`
+                                  : `[${m.type ?? "mensagem"}]`)}
+                            </p>
+                          )}
                           <p
                             className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
                               nota ? "opacity-70" : "text-[var(--loop-text-muted)]"
