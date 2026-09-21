@@ -24,6 +24,7 @@ type DemoConversa = {
   naoLidas: number;
   total: number;
   snoozeMs?: number;
+  botPaused?: boolean;
 };
 
 /**
@@ -65,12 +66,13 @@ const CONVERSAS: DemoConversa[] = [
     naoAtribuida: true,
     labels: [],
     priority: null,
-    ultimoTexto: "Enviamos o link de pagamento atualizado 👍",
-    ultimaDirecao: "out",
-    haMs: 2 * HORA,
+    ultimoTexto: "Quero falar com um atendente, por favor.",
+    ultimaDirecao: "in",
+    haMs: 12 * MIN,
     janelaAberta: true,
-    naoLidas: 0,
+    naoLidas: 1,
     total: 4,
+    botPaused: true,
   },
   {
     contact: "5511998877004",
@@ -139,6 +141,7 @@ export function demoConversasPayload(usuarioAtual: string | null) {
           : "Luiza (equipe)",
       labels: c.labels,
       priority: c.priority,
+      botPaused: !!c.botPaused,
       nome: c.nome,
       ultimaEm: new Date(agora - c.haMs),
       ultimoTexto: c.ultimoTexto,
