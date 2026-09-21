@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -27,22 +28,29 @@ export default async function LoopChatLayout({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  // No subdomínio dedicado (chat.<domínio>) o LoopChat é o app inteiro — não há
+  // painel para "voltar", então esconde o link e o logo aponta pro próprio chat.
+  const host = (await headers()).get("host") ?? "";
+  const dedicado = host.startsWith("chat.");
+
   return (
     <div className="flex h-screen flex-col bg-[var(--loop-bg)]">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--loop-border)] px-4">
         <div className="flex items-center gap-3">
-          <LoopSaleLogo href="/dashboard" variant="full" />
+          <LoopSaleLogo href={dedicado ? "/loopchat" : "/dashboard"} variant="full" />
           <span className="rounded-full bg-[var(--loop-primary-muted)] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[var(--loop-primary)]">
             LoopChat
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="whitespace-nowrap text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
-          >
-            ← Voltar ao painel
-          </Link>
+          {!dedicado && (
+            <Link
+              href="/dashboard"
+              className="whitespace-nowrap text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              ← Voltar ao painel
+            </Link>
+          )}
           <SignOutButton />
         </div>
       </header>
