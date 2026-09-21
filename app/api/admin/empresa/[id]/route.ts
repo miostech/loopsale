@@ -233,7 +233,9 @@ export async function GET(
         deliveredAt: account.numberAddon?.deliveredAt ?? null,
         addonAtivo: !!account.numberAddon?.active,
         conectado: !!account.whatsapp?.accessToken,
-        source: account.whatsapp?.source ?? "own",
+        source: account.whatsapp?.source ?? "central",
+        wabaId: account.whatsapp?.wabaId ?? "",
+        hasOwnToken: !!account.whatsapp?.accessToken,
       },
       bot: {
         enabled: !!account.attendantBot?.enabled,

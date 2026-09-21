@@ -27,6 +27,8 @@ interface Detalhe {
       addonAtivo: boolean;
       conectado: boolean;
       source: string;
+      wabaId: string;
+      hasOwnToken: boolean;
     };
     bot: {
       enabled: boolean;
@@ -284,10 +286,9 @@ export default function EmpresaDetalhe({
         companyId={e.id}
         initialPhoneNumberId={e.whatsapp.phoneNumberId}
         initialDisplayNumber={e.whatsapp.displayNumber}
-        deliveredNumber={e.whatsapp.deliveredNumber}
-        deliveredAt={e.whatsapp.deliveredAt}
-        addonAtivo={e.whatsapp.addonAtivo}
-        conectado={e.whatsapp.conectado}
+        initialSource={e.whatsapp.source}
+        initialWabaId={e.whatsapp.wabaId}
+        hasOwnToken={e.whatsapp.hasOwnToken}
       />
 
       <BotConfigCard

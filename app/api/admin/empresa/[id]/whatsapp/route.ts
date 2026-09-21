@@ -25,25 +25,34 @@ export async function PATCH(
   if (!oid) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
 
   const body = await request.json().catch(() => ({}));
+  const own = body.source === "own";
   const phoneNumberId =
     typeof body.phoneNumberId === "string" ? body.phoneNumberId.trim() : "";
   const displayNumber =
     typeof body.displayNumber === "string" ? body.displayNumber.trim() : "";
+  const wabaId = typeof body.wabaId === "string" ? body.wabaId.trim() : "";
+  const accessToken =
+    typeof body.accessToken === "string" ? body.accessToken.trim() : "";
+
+  // "own" = WABA própria do cliente (token/WABA dele). "central" = número na
+  // WABA da LoopSale (usa o token central). O envio resolve o token por aqui.
+  const set: Record<string, unknown> = {
+    "whatsapp.source": own ? "own" : "central",
+    "whatsapp.phoneNumberId": phoneNumberId || null,
+    "whatsapp.displayNumber": displayNumber || null,
+    "whatsapp.wabaId": own ? wabaId || null : null,
+    "whatsapp.connectedAt": phoneNumberId ? new Date() : null,
+    updatedAt: new Date(),
+  };
+  if (own) {
+    // Token é write-only: só troca se veio um valor novo (não apaga o atual).
+    if (accessToken) set["whatsapp.accessToken"] = accessToken;
+  } else {
+    // Central: não usa token próprio.
+    set["whatsapp.accessToken"] = null;
+  }
 
   const accountsCol = await getCollection("accounts");
-  await accountsCol.updateOne(
-    { _id: oid },
-    {
-      $set: {
-        "whatsapp.phoneNumberId": phoneNumberId || null,
-        "whatsapp.displayNumber": displayNumber || null,
-        // Número vive na WABA central da LoopSale: marca a origem para o envio
-        // usar o token central (a LoopSale paga a Meta). Sem número, limpa.
-        "whatsapp.source": phoneNumberId ? "central" : null,
-        "whatsapp.connectedAt": phoneNumberId ? new Date() : null,
-        updatedAt: new Date(),
-      },
-    }
-  );
-  return NextResponse.json({ ok: true, phoneNumberId, displayNumber });
+  await accountsCol.updateOne({ _id: oid }, { $set: set });
+  return NextResponse.json({ ok: true });
 }
