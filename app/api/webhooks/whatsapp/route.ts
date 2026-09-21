@@ -44,6 +44,7 @@ type WaMessage = {
   audio?: WaMedia;
   document?: WaMedia;
   sticker?: WaMedia;
+  reaction?: { message_id?: string; emoji?: string };
   timestamp?: string;
 };
 type WaValue = {
@@ -123,6 +124,16 @@ export async function POST(request: Request) {
           // pra buscar depois na Meta, e usa a legenda como corpo quando houver.
           const midia =
             msg.image ?? msg.video ?? msg.audio ?? msg.document ?? msg.sticker;
+          // Reação = emoji que o cliente colou numa mensagem. Guarda o emoji
+          // como corpo (emoji vazio = reação removida).
+          const corpo =
+            msg.text?.body ??
+            midia?.caption ??
+            (msg.reaction
+              ? msg.reaction.emoji
+                ? `Reagiu ${msg.reaction.emoji}`
+                : "Removeu a reação"
+              : null);
           const doc: WhatsAppMessage = {
             accountId: accountId ?? "",
             direction: "in",
@@ -130,7 +141,7 @@ export async function POST(request: Request) {
             phoneNumberId,
             contact: msg.from ?? null,
             type: msg.type ?? "text",
-            body: msg.text?.body ?? midia?.caption ?? null,
+            body: corpo,
             mediaId: midia?.id ?? null,
             mimeType: midia?.mime_type ?? null,
             status: "received",
