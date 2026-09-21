@@ -249,6 +249,8 @@ export function LoopChatClient({
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const fimRef = useRef<HTMLDivElement>(null);
+  // Última mensagem já vista — evita rolar a tela a cada polling.
+  const ultimaMsgRef = useRef<string | null>(null);
 
   const loadConversas = useCallback(async () => {
     const res = await fetch("/api/loopchat/conversations");
@@ -295,8 +297,25 @@ export function LoopChatClient({
     loadFicha(ativo);
   }, [ativo, loadMensagens, loadFicha]);
 
+  // Atualização automática (quase tempo real): repolla a lista e a conversa
+  // aberta a cada poucos segundos, sem incomodar quando a aba está oculta.
   useEffect(() => {
-    fimRef.current?.scrollIntoView({ block: "end" });
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      loadConversas();
+      if (ativo) loadMensagens(ativo);
+    }, 6000);
+    return () => clearInterval(id);
+  }, [ativo, loadConversas, loadMensagens]);
+
+  // Rola pro fim só quando a última mensagem muda (mensagem nova) — assim o
+  // polling não fica puxando a tela pra baixo enquanto você lê o histórico.
+  useEffect(() => {
+    const ultimaId = mensagens[mensagens.length - 1]?.id ?? null;
+    if (ultimaId !== ultimaMsgRef.current) {
+      ultimaMsgRef.current = ultimaId;
+      fimRef.current?.scrollIntoView({ block: "end" });
+    }
   }, [mensagens]);
 
   // Busca leads pelo nome/telefone enquanto digita no "Para" da nova conversa.
