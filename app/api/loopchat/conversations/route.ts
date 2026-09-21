@@ -173,6 +173,7 @@ export async function GET() {
       assigneeNome: assigneeId ? membroPorId.get(assigneeId) ?? null : null,
       labels: conv?.labels ?? [],
       priority: conv?.priority ?? null,
+      botPaused: !!conv?.botPaused,
       nome: nomePorTelefone.get(r._id) ?? null,
       ultimaEm: r.ultimaEm,
       ultimoTexto: r.ultimoTexto,

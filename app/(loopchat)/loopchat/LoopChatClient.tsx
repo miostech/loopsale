@@ -21,6 +21,7 @@ interface Conversa {
   assigneeNome: string | null;
   labels: string[];
   priority: string | null;
+  botPaused: boolean;
   nome: string | null;
   ultimaEm: string;
   ultimoTexto: string | null;
@@ -73,6 +74,7 @@ interface LeadBusca {
 
 type Filtro =
   | "abertas"
+  | "aguardando-humano"
   | "minhas"
   | "nao-atribuidas"
   | "nao-respondidas"
@@ -83,6 +85,7 @@ type Filtro =
 
 const FILTROS: { id: Filtro; label: string }[] = [
   { id: "abertas", label: "Abertas" },
+  { id: "aguardando-humano", label: "Aguardando humano" },
   { id: "minhas", label: "Minhas" },
   { id: "nao-atribuidas", label: "Não atribuídas" },
   { id: "nao-respondidas", label: "Não respondidas" },
@@ -337,6 +340,7 @@ export function LoopChatClient({
     const abertas = c.filter((x) => x.status === "open");
     return {
       abertas: abertas.length,
+      "aguardando-humano": abertas.filter((x) => x.botPaused).length,
       minhas: abertas.filter((x) => x.assigneeId === usuarioAtual).length,
       "nao-atribuidas": abertas.filter((x) => !x.assigneeId).length,
       "nao-respondidas": abertas.filter((x) => x.ultimaDirecao === "in").length,
@@ -356,6 +360,7 @@ export function LoopChatClient({
       ? c.filter((x) => x.status === statusDoFiltro)
       : c.filter((x) => x.status === "open");
     if (etiquetaFiltro) c = c.filter((x) => x.labels?.includes(etiquetaFiltro));
+    if (filtro === "aguardando-humano") c = c.filter((x) => x.botPaused);
     if (filtro === "minhas") c = c.filter((x) => x.assigneeId === usuarioAtual);
     if (filtro === "nao-atribuidas") c = c.filter((x) => !x.assigneeId);
     if (filtro === "nao-respondidas") c = c.filter((x) => x.ultimaDirecao === "in");
@@ -1012,6 +1017,11 @@ export function LoopChatClient({
                               {l}
                             </span>
                           ))}
+                        </span>
+                      )}
+                      {c.botPaused && (
+                        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--loop-warning)_16%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--loop-warning)]">
+                          Aguardando humano
                         </span>
                       )}
                       {c.assigneeNome && (

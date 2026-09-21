@@ -17,9 +17,7 @@ const navGroups = [
     title: "Operação",
     items: [
       { href: "/dashboard/integracoes", label: "Integrações" },
-      // LoopChat oculto por enquanto: com atendimento gerenciado para todos,
-      // o self-service está em revisão. Reativar quando o formato for definido.
-      // { href: "/loopchat", label: "LoopChat" },
+      { href: "/loopchat", label: "LoopChat" },
       { href: "/dashboard/fluxos", label: "Fluxos" },
       // Campanhas oculto por enquanto: a tela existe mas não há processador que
       // execute as campanhas (nada lê a coleção `campaigns` para enviar). Quando
@@ -60,6 +58,9 @@ export default async function DashboardLayout({
   const semComissao = commissionRateOf(ctx?.account?.subscription?.plan) === 0;
   const ocultar = new Set<string>();
   if (semComissao) ocultar.add("/dashboard/comissao");
+  // LoopChat some para quem tem atendimento gerenciado (quem responde é a
+  // LoopSale) — a página também redireciona por segurança.
+  if (ctx?.access === "hidden") ocultar.add("/loopchat");
   const navVisivel = navGroups.map((g) => ({
     ...g,
     items: g.items.filter((n) => !ocultar.has(n.href)),

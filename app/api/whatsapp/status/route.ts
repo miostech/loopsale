@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { tokenFor } from "@/lib/whatsapp/cloud";
+import { resolveSendToken } from "@/lib/whatsapp/central-config";
 
 type SessionUser = { accountId?: string };
 
@@ -25,11 +25,14 @@ export async function GET() {
     : null;
   const wa = account?.whatsapp ?? null;
 
+  // canSend = tem token (próprio ou central, resolvido do banco) E número.
+  // É o que decide se os fluxos/robô de WhatsApp saem do papel.
+  const token = await resolveSendToken(wa);
+  const canSend = !!token && !!wa?.phoneNumberId;
+
   return NextResponse.json({
-    connected: !!(wa?.wabaId && wa?.accessToken),
-    // canSend diz se o cron consegue disparar: token próprio, ou conta legada
-    // na WABA central. É o que decide se os fluxos de WhatsApp saem do papel.
-    canSend: !!tokenFor(wa?.accessToken, wa?.source),
+    connected: canSend,
+    canSend,
     source: wa?.source ?? "own",
     wabaId: wa?.wabaId ?? null,
     phoneNumberId: wa?.phoneNumberId ?? null,

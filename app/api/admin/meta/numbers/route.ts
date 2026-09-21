@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import {
-  centralWabaId,
-  centralToken,
-  getPhoneNumbers,
-} from "@/lib/whatsapp/cloud";
+import { getPhoneNumbers } from "@/lib/whatsapp/cloud";
+import { getCentralToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
 // Basta estar logado — serve a /meta-review, aberta a qualquer usuário.
 export async function GET() {
@@ -13,8 +10,8 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
-  const wabaId = centralWabaId();
-  const token = centralToken();
+  const wabaId = await getCentralWabaId();
+  const token = await getCentralToken();
   if (!wabaId || !token) {
     return NextResponse.json(
       { error: "WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN não configurados." },

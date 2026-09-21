@@ -2,36 +2,41 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
+import { isSuperAdmin } from "@/lib/admin";
 import type { Account } from "@/lib/db/types";
 import { listTemplates, usesCentralWaba } from "@/lib/whatsapp/cloud";
 import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
-type SessionUser = { accountId?: string };
+type SessionUser = { email?: string | null };
 
-/** Lista os templates da WABA do cliente, com status. */
-export async function GET() {
+/** Templates da WABA desta empresa (própria ou central). Só super-admin. */
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await getServerSession(authOptions);
-  const su = session?.user as SessionUser | undefined;
-  if (!su?.accountId) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  const email = (session?.user as SessionUser | undefined)?.email;
+  if (!isSuperAdmin(email)) {
+    return NextResponse.json({ error: "Acesso restrito" }, { status: 403 });
   }
   if (isDatabaseDisabled()) {
-    return NextResponse.json({ templates: [] });
+    return NextResponse.json({ templates: [], connected: false });
   }
 
+  const { id } = await params;
+  const oid = await routeObjectId(id);
+  if (!oid) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
   const accountsCol = await getCollection("accounts");
-  const accOid = await routeObjectId(su.accountId);
-  const account = accOid
-    ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
-    : null;
-  // Token e WABA seguem a origem da conta: própria (dados da conta) ou central
-  // legada (dados do ambiente).
+  const account = (await accountsCol.findOne({ _id: oid })) as Account | null;
   const wa = account?.whatsapp ?? null;
-  const token = await resolveSendToken(wa);
+
+  // Origem da conta define o WABA e o token (próprio ou central).
   const wabaId = usesCentralWaba(wa?.source)
     ? await getCentralWabaId()
     : wa?.wabaId ?? "";
-  if (!token || !wabaId) {
+  const token = await resolveSendToken(wa);
+  if (!wabaId || !token) {
     return NextResponse.json({ templates: [], connected: false });
   }
 

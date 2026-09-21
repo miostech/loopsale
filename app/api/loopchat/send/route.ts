@@ -3,7 +3,8 @@ import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
-import { normalizePhone, sendText, tokenFor, SEM_TOKEN } from "@/lib/whatsapp/cloud";
+import { normalizePhone, sendText, SEM_TOKEN } from "@/lib/whatsapp/cloud";
+import { resolveSendToken } from "@/lib/whatsapp/central-config";
 
 /** Resposta manual do cliente (ou da equipe dele) numa conversa. */
 export async function POST(request: Request) {
@@ -38,10 +39,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = tokenFor(
-    ctx.account?.whatsapp?.accessToken,
-    ctx.account?.whatsapp?.source
-  );
+  const token = await resolveSendToken(ctx.account?.whatsapp);
   const phoneNumberId = ctx.account?.whatsapp?.phoneNumberId ?? "";
   if (!token) {
     return NextResponse.json({ error: SEM_TOKEN }, { status: 400 });

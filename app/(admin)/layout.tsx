@@ -70,6 +70,12 @@ export default async function AdminLayout({
               )}
             </Link>
             <Link
+              href="/admin/whatsapp"
+              className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+            >
+              WhatsApp
+            </Link>
+            <Link
               href="/meta-review"
               className="text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
             >
