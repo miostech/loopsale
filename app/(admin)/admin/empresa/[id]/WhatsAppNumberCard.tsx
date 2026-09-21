@@ -3,6 +3,13 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader, Input } from "@/components/ui";
 
+interface MetaTemplate {
+  name: string;
+  status: string;
+  language: string;
+  category: string;
+}
+
 /**
  * Config de WhatsApp da empresa (individual). A empresa pode estar na WABA
  * CENTRAL da LoopSale (só o Phone Number ID, usa o token central) ou ter WABA
@@ -30,6 +37,9 @@ export function WhatsAppNumberCard({
   const [accessToken, setAccessToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
+  const [templates, setTemplates] = useState<MetaTemplate[] | null>(null);
+  const [tplErro, setTplErro] = useState("");
+  const [sincronizando, setSincronizando] = useState(false);
 
   const own = source === "own";
   const connected = !!phoneNumberId;
@@ -60,6 +70,25 @@ export function WhatsAppNumberCard({
       setMsg({ err: "Erro de rede." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function sincronizar() {
+    setTplErro("");
+    setTemplates(null);
+    setSincronizando(true);
+    try {
+      const res = await fetch(`/api/admin/empresa/${companyId}/whatsapp/templates`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setTplErro(data.error ?? "Não foi possível sincronizar.");
+      else {
+        setTemplates(Array.isArray(data.templates) ? data.templates : []);
+        if (data.error) setTplErro(data.error);
+      }
+    } catch {
+      setTplErro("Erro de rede ao sincronizar.");
+    } finally {
+      setSincronizando(false);
     }
   }
 
@@ -150,6 +179,49 @@ export function WhatsAppNumberCard({
           {msg.err && (
             <span className="text-sm text-[var(--loop-error)]">{msg.err}</span>
           )}
+        </div>
+
+        {/* Modelos (templates) desta WABA */}
+        <div className="border-t border-[var(--loop-border)] pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-[var(--loop-text)]">Modelos</p>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={sincronizando || !connected}
+              onClick={sincronizar}
+            >
+              {sincronizando ? "Sincronizando…" : "Sincronizar modelos"}
+            </Button>
+          </div>
+          {tplErro && (
+            <p className="mt-2 text-sm text-[var(--loop-error)]">{tplErro}</p>
+          )}
+          {templates !== null &&
+            (templates.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--loop-text-muted)]">
+                Nenhum modelo encontrado nesta WABA.
+              </p>
+            ) : (
+              <div className="mt-2 divide-y divide-[var(--loop-border)] rounded-lg border border-[var(--loop-border)]">
+                {templates.map((t) => (
+                  <div
+                    key={`${t.name}-${t.language}`}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <span className="text-[var(--loop-text)]">
+                      {t.name}
+                      <span className="ml-2 text-xs text-[var(--loop-text-muted)]">
+                        {t.language} · {t.category}
+                      </span>
+                    </span>
+                    <span className="text-xs text-[var(--loop-text-muted)]">
+                      {t.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
         </div>
       </CardContent>
     </Card>
