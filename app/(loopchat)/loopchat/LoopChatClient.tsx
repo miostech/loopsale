@@ -263,6 +263,9 @@ export function LoopChatClient({
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [painelAberto, setPainelAberto] = useState(true);
+  // No celular o painel de contato abre como camada em tela cheia (a coluna
+  // lateral não cabe); começa fechado pra não cobrir a conversa ao entrar.
+  const [verContato, setVerContato] = useState(false);
   const [sidebarAberta, setSidebarAberta] = useState(true);
   const [janelaAberta, setJanelaAberta] = useState(true);
   const [texto, setTexto] = useState("");
@@ -1107,7 +1110,10 @@ export function LoopChatClient({
             <header className="flex items-center gap-3 border-b border-[var(--loop-border)] bg-[var(--loop-bg)] px-4 py-2.5">
               <button
                 type="button"
-                onClick={() => setAtivo(null)}
+                onClick={() => {
+                  setVerContato(false);
+                  setAtivo(null);
+                }}
                 className="text-sm text-[var(--loop-text-muted)] md:hidden"
                 aria-label="Voltar para a lista"
               >
@@ -1116,14 +1122,19 @@ export function LoopChatClient({
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--loop-primary-muted)] text-xs font-semibold text-[var(--loop-primary)]">
                 {iniciais(nomeAtivo, ativo)}
               </span>
-              <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => setVerContato(true)}
+                className="min-w-0 flex-1 text-left"
+                title="Ver dados do contato"
+              >
                 <p className="truncate font-medium text-[var(--loop-text)]">
                   {nomeAtivo ?? telefone(ativo)}
                 </p>
                 <p className="truncate text-xs text-[var(--loop-text-muted)]">
                   WhatsApp · {telefone(ativo)}
                 </p>
-              </div>
+              </button>
               {/* Badges informativos: escondidos no celular pra caber a linha */}
               <div className="hidden items-center gap-2 md:flex">
                 {conversaAtiva?.status === "pending" && (
@@ -1399,9 +1410,34 @@ export function LoopChatClient({
                 </div>
               </div>
 
-              {/* Painel do contato */}
-              {painelAberto && (
-                <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-[var(--loop-border)] bg-[var(--loop-bg)] p-4 lg:block">
+              {/* Painel do contato: coluna lateral no desktop; no celular abre
+                  como camada em tela cheia (verContato). */}
+              {(painelAberto || verContato) && (
+                <aside
+                  className={`overflow-y-auto border-[var(--loop-border)] bg-[var(--loop-bg)] p-4 ${
+                    verContato
+                      ? "fixed inset-0 z-40 block"
+                      : "hidden"
+                  } ${
+                    painelAberto
+                      ? "lg:static lg:z-auto lg:block lg:w-72 lg:shrink-0 lg:border-l"
+                      : "lg:hidden"
+                  }`}
+                >
+                  {/* Cabeçalho só do celular: fechar a camada */}
+                  <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-3 flex items-center justify-between border-b border-[var(--loop-border)] bg-[var(--loop-bg)] px-4 py-3 lg:hidden">
+                    <span className="text-sm font-semibold text-[var(--loop-text)]">
+                      Dados do contato
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVerContato(false)}
+                      aria-label="Fechar"
+                      className="rounded-lg border border-[var(--loop-border)] px-3 py-1 text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                   <div className="flex flex-col items-center text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--loop-primary-muted)] text-base font-semibold text-[var(--loop-primary)]">
                       {iniciais(nomeAtivo, ativo)}
