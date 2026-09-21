@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
 import { CompanyKeysButton } from "./CompanyKeysButton";
 import { WhatsAppNumberCard } from "./WhatsAppNumberCard";
+import { BotConfigCard } from "./BotConfigCard";
 
 interface Detalhe {
   empresa: {
@@ -26,6 +27,11 @@ interface Detalhe {
       addonAtivo: boolean;
       conectado: boolean;
       source: string;
+    };
+    bot: {
+      enabled: boolean;
+      instructions: string;
+      knowledge: string;
     };
     assinaturaMensal: number;
     ultimaAtividade: string | null;
@@ -282,6 +288,13 @@ export default function EmpresaDetalhe({
         deliveredAt={e.whatsapp.deliveredAt}
         addonAtivo={e.whatsapp.addonAtivo}
         conectado={e.whatsapp.conectado}
+      />
+
+      <BotConfigCard
+        companyId={e.id}
+        initialEnabled={e.bot.enabled}
+        initialInstructions={e.bot.instructions}
+        initialKnowledge={e.bot.knowledge}
       />
 
       {/* Quinzena atual */}

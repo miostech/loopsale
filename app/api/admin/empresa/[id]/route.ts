@@ -235,6 +235,11 @@ export async function GET(
         conectado: !!account.whatsapp?.accessToken,
         source: account.whatsapp?.source ?? "own",
       },
+      bot: {
+        enabled: !!account.attendantBot?.enabled,
+        instructions: account.attendantBot?.instructions ?? "",
+        knowledge: account.attendantBot?.knowledge ?? "",
+      },
       assinaturaMensal,
       ultimaAtividade,
     },

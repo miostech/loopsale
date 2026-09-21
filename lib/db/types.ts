@@ -99,6 +99,17 @@ export interface Account {
   numberAddon?: AccountNumberAddon | null;
   /** Add-on LoopChat (caixa de entrada). Indisponível se support.active. */
   chatAddon?: AccountSupport | null;
+  /**
+   * Robô de atendimento (IA) que responde as conversas do WhatsApp. Camada
+   * gerenciada pela LoopSale, configurada no admin. Nasce desligado.
+   */
+  attendantBot?: {
+    enabled?: boolean;
+    /** Persona + regras: o que dizer, tom, o que não fazer. */
+    instructions?: string | null;
+    /** Base de conhecimento (produto, FAQ, preços) que o bot pode usar. */
+    knowledge?: string | null;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -357,6 +368,11 @@ export interface Conversation {
   labels?: string[];
   /** urgent | high | medium | low. Ausente/null = sem prioridade. */
   priority?: string | null;
+  /**
+   * Bot pausado nesta conversa: foi repassada a um humano (o próprio bot pediu
+   * transferência ou alguém assumiu). Enquanto true, o robô não responde.
+   */
+  botPaused?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

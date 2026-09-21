@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
-import { verifyWebhookSignature } from "@/lib/whatsapp/cloud";
-import type { WhatsAppMessage } from "@/lib/db/types";
+import { verifyWebhookSignature, sendText, tokenFor } from "@/lib/whatsapp/cloud";
+import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
+import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
 
 /**
  * Webhook do WhatsApp Cloud API (Meta).
@@ -56,6 +57,10 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ received: true });
   }
+
+  // Conversas que receberam mensagem nova de texto e têm o robô ligado — o bot
+  // responde depois de a Meta receber o 200 (via after), pra não travar o webhook.
+  const paraResponder = new Map<string, { account: Account; contact: string }>();
 
   try {
     const accountsCol = await getCollection("accounts");
@@ -115,11 +120,27 @@ export async function POST(request: Request) {
             updatedAt: now,
           };
           // Idempotência por wamid.
-          await waCol.updateOne(
+          const up = (await waCol.updateOne(
             { wamid: msg.id },
             { $setOnInsert: doc },
             { upsert: true }
-          );
+          )) as { upsertedId?: unknown };
+
+          // Só dispara o robô em mensagem NOVA de texto (não em reenvio do
+          // webhook) e com o bot ligado para a conta.
+          if (
+            up.upsertedId &&
+            accountId &&
+            msg.from &&
+            (msg.type ?? "text") === "text" &&
+            msg.text?.body &&
+            account?.attendantBot?.enabled
+          ) {
+            paraResponder.set(`${accountId}:${msg.from}`, {
+              account: account as unknown as Account,
+              contact: msg.from,
+            });
+          }
 
           // Mensagem nova reabre a conversa: se ficasse resolvida, sumiria do
           // board e ninguém responderia o cliente. Reabrir de novo não muda
@@ -149,5 +170,94 @@ export async function POST(request: Request) {
     console.error("whatsapp webhook:", e);
   }
 
+  // Responde o cliente com o robô depois do 200 (não bloqueia a Meta).
+  if (paraResponder.size) {
+    after(async () => {
+      for (const { account, contact } of paraResponder.values()) {
+        try {
+          await responderComBot(account, contact);
+        } catch (e) {
+          console.error("bot atendimento:", e);
+        }
+      }
+    });
+  }
+
   return NextResponse.json({ received: true });
+}
+
+/** Gera e envia a resposta do robô para uma conversa, com os guarda-corpos. */
+async function responderComBot(account: Account, contact: string): Promise<void> {
+  const bot = account.attendantBot;
+  if (!bot?.enabled) return;
+
+  const token = tokenFor(account.whatsapp?.accessToken, account.whatsapp?.source);
+  const phoneNumberId = account.whatsapp?.phoneNumberId ?? "";
+  if (!token || !phoneNumberId) return;
+
+  const accountId = String(account._id);
+  const convCol = await getCollection("conversations");
+  const conv = (await convCol.findOne({ accountId, contact })) as Conversation | null;
+  // Humano assumiu (atribuída) ou já foi repassada: bot fica quieto.
+  if (conv?.assigneeId || conv?.botPaused) return;
+
+  // Histórico recente da conversa (sem notas internas), em ordem cronológica.
+  const waCol = await getCollection("whatsappMessages");
+  const rows = (await waCol
+    .find({ accountId, contact, internal: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .limit(15)
+    .toArray()) as WhatsAppMessage[];
+  const history: AttendantTurn[] = rows
+    .reverse()
+    .map((m) => ({
+      role: (m.direction === "in" ? "customer" : "assistant") as AttendantTurn["role"],
+      text: (m.body ?? "").trim(),
+    }))
+    .filter((t) => t.text.length > 0);
+
+  // Última precisa ser do cliente; se já respondemos, não responde de novo.
+  if (!history.length || history[history.length - 1].role !== "customer") return;
+
+  const out = await generateAttendantReply({
+    instructions: bot.instructions,
+    knowledge: bot.knowledge,
+    history,
+  });
+  if (out.error || !out.reply) return; // erro/sem resposta: deixa para o humano
+
+  const result = await sendText({
+    phoneNumberId,
+    to: contact,
+    body: out.reply,
+    token,
+  });
+
+  const now = new Date();
+  await waCol.insertOne({
+    accountId,
+    direction: "out",
+    wamid: result.wamid ?? null,
+    phoneNumberId,
+    contact,
+    type: "text",
+    body: out.reply,
+    authorName: "Robô de atendimento",
+    status: result.success ? "accepted" : "failed",
+    error: result.error ?? null,
+    createdAt: now,
+    updatedAt: now,
+  } as WhatsAppMessage & { _id?: unknown });
+
+  // Repasse a humano: pausa o bot e mantém a conversa aberta para o time pegar.
+  if (out.handoff) {
+    await convCol.updateOne(
+      { accountId, contact },
+      {
+        $set: { botPaused: true, status: "open", updatedAt: now },
+        $setOnInsert: { accountId, contact, createdAt: now },
+      },
+      { upsert: true }
+    );
+  }
 }
