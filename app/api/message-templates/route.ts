@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, mapDoc, mapDocs } from "@/lib/db";
 import type { Account, MessageTemplate } from "@/lib/db/types";
-import { createTemplate, usesCentralWaba, centralWabaId } from "@/lib/whatsapp/cloud";
-import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { createTemplate, usesCentralWaba } from "@/lib/whatsapp/cloud";
+import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
 /** Nome de template da Meta: só minúsculas, números e underscore. */
 function normalizeMetaName(s: string): string {
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     const wa = account?.whatsapp ?? null;
     const token = await resolveSendToken(wa);
     const wabaId = usesCentralWaba(wa?.source)
-      ? centralWabaId()
+      ? await getCentralWabaId()
       : wa?.wabaId ?? "";
     if (!token || !wabaId) {
       return NextResponse.json(

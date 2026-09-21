@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Account } from "@/lib/db/types";
-import { listTemplates, usesCentralWaba, centralWabaId } from "@/lib/whatsapp/cloud";
-import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { listTemplates, usesCentralWaba } from "@/lib/whatsapp/cloud";
+import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
 type SessionUser = { accountId?: string };
 
@@ -28,7 +28,9 @@ export async function GET() {
   // legada (dados do ambiente).
   const wa = account?.whatsapp ?? null;
   const token = await resolveSendToken(wa);
-  const wabaId = usesCentralWaba(wa?.source) ? centralWabaId() : wa?.wabaId ?? "";
+  const wabaId = usesCentralWaba(wa?.source)
+    ? await getCentralWabaId()
+    : wa?.wabaId ?? "";
   if (!token || !wabaId) {
     return NextResponse.json({ templates: [], connected: false });
   }

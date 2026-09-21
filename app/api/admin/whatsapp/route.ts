@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/admin";
-import { centralWabaId } from "@/lib/whatsapp/cloud";
-import { setCentralToken, centralTokenFromDb } from "@/lib/whatsapp/central-config";
+import {
+  setCentralConfig,
+  centralTokenFromDb,
+  getCentralWabaId,
+} from "@/lib/whatsapp/central-config";
 
 type SessionUser = { email?: string | null };
 
@@ -24,7 +27,7 @@ export async function GET() {
   const temEnv = !!(process.env.WHATSAPP_ACCESS_TOKEN ?? "").trim();
   return NextResponse.json({
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN ?? "",
-    wabaId: centralWabaId(),
+    wabaId: await getCentralWabaId(),
     webhookUrl: `${process.env.NEXTAUTH_URL ?? ""}/api/webhooks/whatsapp`,
     tokenSource: noBanco ? "banco" : temEnv ? "env" : "nenhum",
   });
@@ -39,9 +42,13 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const token = typeof body.accessToken === "string" ? body.accessToken.trim() : "";
-  if (!token) {
-    return NextResponse.json({ error: "Informe o token da API." }, { status: 400 });
+  const wabaId = typeof body.wabaId === "string" ? body.wabaId.trim() : undefined;
+  if (!token && wabaId === undefined) {
+    return NextResponse.json(
+      { error: "Informe o token da API e/ou o WABA ID." },
+      { status: 400 }
+    );
   }
-  await setCentralToken(token);
-  return NextResponse.json({ ok: true, tokenSource: "banco" });
+  await setCentralConfig({ accessToken: token, wabaId });
+  return NextResponse.json({ ok: true });
 }

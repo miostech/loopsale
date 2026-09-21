@@ -60,13 +60,17 @@ export default function AdminWhatsAppPage() {
 
   const [templates, setTemplates] = useState<MetaTemplate[] | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
+  const [wabaIdInput, setWabaIdInput] = useState("");
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/whatsapp");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setErro(data.error ?? "Não foi possível carregar.");
-      else setCfg(data);
+      else {
+        setCfg(data);
+        setWabaIdInput(data.wabaId ?? "");
+      }
     } catch {
       setErro("Erro de rede.");
     }
@@ -76,10 +80,10 @@ export default function AdminWhatsAppPage() {
     load();
   }, [load]);
 
-  async function salvarToken() {
+  async function salvar() {
     setMsg({});
-    if (!novoToken.trim()) {
-      setMsg({ err: "Cole o token novo." });
+    if (!novoToken.trim() && !wabaIdInput.trim()) {
+      setMsg({ err: "Informe o token e/ou o WABA ID." });
       return;
     }
     setSalvando(true);
@@ -87,12 +91,12 @@ export default function AdminWhatsAppPage() {
       const res = await fetch("/api/admin/whatsapp", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken: novoToken }),
+        body: JSON.stringify({ accessToken: novoToken, wabaId: wabaIdInput }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setMsg({ err: data.error ?? "Não foi possível salvar." });
       else {
-        setMsg({ ok: "Token atualizado." });
+        setMsg({ ok: "Configuração salva." });
         setNovoToken("");
         load();
       }
@@ -144,7 +148,6 @@ export default function AdminWhatsAppPage() {
         <CardContent className="space-y-3">
           <Campo label="Token de verificação do webhook" value={cfg?.verifyToken ?? ""} />
           <Campo label="URL do webhook" value={cfg?.webhookUrl ?? ""} />
-          <Campo label="WABA ID (central)" value={cfg?.wabaId ?? ""} />
         </CardContent>
       </Card>
 
@@ -152,32 +155,41 @@ export default function AdminWhatsAppPage() {
         <CardHeader className="flex flex-row items-start justify-between space-y-0">
           <div>
             <h2 className="font-semibold text-[var(--loop-text)]">
-              Chave da API (token)
+              WABA central (WABA ID + token)
             </h2>
             <p className="text-sm text-[var(--loop-text-muted)]">
-              Token de acesso da WABA central. Atualize aqui quando expirar — vale
-              na hora, sem redeploy. Recomendado usar um token de System User (não
+              Conta WhatsApp central da LoopSale. O WABA ID define de qual conta
+              vêm os modelos; o token é a chave de acesso. Atualize aqui quando
+              expirar — vale na hora, sem redeploy (use System User, que não
               expira).
             </p>
           </div>
           {src && <Badge variant={src.variant}>{src.label}</Badge>}
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-[var(--loop-text-muted)]">
-            Por segurança, o token atual não é exibido. Cole o novo token para
-            substituir.
-          </p>
           <Input
-            label="Novo token da API"
-            type="password"
-            autoComplete="off"
-            placeholder="EAAG..."
-            value={novoToken}
-            onChange={(e) => setNovoToken(e.target.value)}
+            label="WABA ID (central)"
+            placeholder="ex: 123456789012345"
+            value={wabaIdInput}
+            onChange={(e) => setWabaIdInput(e.target.value)}
           />
+          <div>
+            <Input
+              label="Novo token da API"
+              type="password"
+              autoComplete="off"
+              placeholder="EAAG… (deixe em branco p/ manter)"
+              value={novoToken}
+              onChange={(e) => setNovoToken(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
+              Por segurança, o token atual não é exibido. Cole um novo só para
+              trocar.
+            </p>
+          </div>
           <div className="flex items-center gap-3">
-            <Button variant="cta" size="sm" disabled={salvando} onClick={salvarToken}>
-              {salvando ? "Salvando…" : "Atualizar chave de API"}
+            <Button variant="cta" size="sm" disabled={salvando} onClick={salvar}>
+              {salvando ? "Salvando…" : "Salvar"}
             </Button>
             {msg.ok && (
               <span className="text-sm text-[var(--loop-success)]">{msg.ok}</span>

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { isDatabaseDisabled } from "@/lib/db";
 import { chatContext } from "@/lib/loopchat/access";
 import { isDemoContext, demoTemplates } from "@/lib/loopchat/demo";
-import { listTemplates, usesCentralWaba, centralWabaId } from "@/lib/whatsapp/cloud";
-import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { listTemplates, usesCentralWaba } from "@/lib/whatsapp/cloud";
+import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
 /**
  * Templates aprovados da WABA da conta, para iniciar uma conversa nova.
@@ -32,7 +32,7 @@ export async function GET() {
   const wa = ctx.account?.whatsapp ?? null;
   const token = await resolveSendToken(wa);
   const wabaId = usesCentralWaba(wa?.source)
-    ? centralWabaId()
+    ? await getCentralWabaId()
     : wa?.wabaId ?? "";
   if (!token || !wabaId) {
     return NextResponse.json({ templates: [], connected: false });

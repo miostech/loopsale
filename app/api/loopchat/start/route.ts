@@ -9,10 +9,9 @@ import {
   listTemplates,
   preencherCorpo,
   usesCentralWaba,
-  centralWabaId,
   SEM_TOKEN,
 } from "@/lib/whatsapp/cloud";
-import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
 /**
  * Inicia uma conversa nova mandando um template aprovado (business-initiated,
@@ -64,7 +63,9 @@ export async function POST(request: Request) {
   // variáveis preenchidas. Sem isso a Meta recusa o envio.
   let language = String(body.language ?? "pt_BR").trim() || "pt_BR";
   let corpoPreenchido = "";
-  const wabaId = usesCentralWaba(wa?.source) ? centralWabaId() : wa?.wabaId ?? "";
+  const wabaId = usesCentralWaba(wa?.source)
+    ? await getCentralWabaId()
+    : wa?.wabaId ?? "";
   if (wabaId) {
     try {
       const todos = await listTemplates(wabaId, token);

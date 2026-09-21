@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/admin";
 import type { Account } from "@/lib/db/types";
-import { listTemplates, usesCentralWaba, centralWabaId } from "@/lib/whatsapp/cloud";
-import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { listTemplates, usesCentralWaba } from "@/lib/whatsapp/cloud";
+import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
 
 type SessionUser = { email?: string | null };
 
@@ -32,7 +32,9 @@ export async function GET(
   const wa = account?.whatsapp ?? null;
 
   // Origem da conta define o WABA e o token (próprio ou central).
-  const wabaId = usesCentralWaba(wa?.source) ? centralWabaId() : wa?.wabaId ?? "";
+  const wabaId = usesCentralWaba(wa?.source)
+    ? await getCentralWabaId()
+    : wa?.wabaId ?? "";
   const token = await resolveSendToken(wa);
   if (!wabaId || !token) {
     return NextResponse.json({ templates: [], connected: false });

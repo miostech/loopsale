@@ -9,28 +9,50 @@ import { usesCentralWaba } from "@/lib/whatsapp/cloud";
  */
 const CONFIG_ID = "whatsapp-central";
 
-type CentralDoc = { accessToken?: string; updatedAt?: Date };
+type CentralDoc = { accessToken?: string; wabaId?: string; updatedAt?: Date };
+
+async function centralDoc(): Promise<CentralDoc | null> {
+  if (isDatabaseDisabled()) return null;
+  try {
+    const col = await getCollection("settings");
+    return (await col.findOne({ _id: CONFIG_ID as never })) as CentralDoc | null;
+  } catch {
+    return null;
+  }
+}
 
 /** Token central efetivo: banco tem prioridade; env é o fallback. */
 export async function getCentralToken(): Promise<string> {
   const envToken = process.env.WHATSAPP_ACCESS_TOKEN ?? "";
-  if (isDatabaseDisabled()) return envToken;
-  try {
-    const col = await getCollection("settings");
-    const doc = (await col.findOne({ _id: CONFIG_ID as never })) as CentralDoc | null;
-    const dbToken = doc?.accessToken?.trim();
-    return dbToken || envToken;
-  } catch {
-    return envToken;
-  }
+  const dbToken = (await centralDoc())?.accessToken?.trim();
+  return dbToken || envToken;
 }
 
-/** Salva/atualiza o token central no banco (renovação sem redeploy). */
-export async function setCentralToken(token: string): Promise<void> {
+/** WABA ID central efetivo: banco tem prioridade; env é o fallback. */
+export async function getCentralWabaId(): Promise<string> {
+  const envWaba = process.env.WHATSAPP_WABA_ID ?? "";
+  const dbWaba = (await centralDoc())?.wabaId?.trim();
+  return dbWaba || envWaba;
+}
+
+/** Salva token e/ou WABA ID central no banco (sem redeploy). */
+export async function setCentralConfig(params: {
+  accessToken?: string;
+  wabaId?: string;
+}): Promise<void> {
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  // Token é write-only: só grava se veio um valor (não apaga o atual).
+  if (params.accessToken && params.accessToken.trim()) {
+    set.accessToken = params.accessToken.trim();
+  }
+  // WABA ID pode ser definido ou limpo.
+  if (params.wabaId !== undefined) {
+    set.wabaId = params.wabaId.trim() || null;
+  }
   const col = await getCollection("settings");
   await col.updateOne(
     { _id: CONFIG_ID as never },
-    { $set: { accessToken: token.trim(), updatedAt: new Date() } },
+    { $set: set },
     { upsert: true }
   );
 }
