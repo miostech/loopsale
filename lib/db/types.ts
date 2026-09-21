@@ -373,6 +373,8 @@ export interface Conversation {
    * transferência ou alguém assumiu). Enquanto true, o robô não responde.
    */
   botPaused?: boolean;
+  /** Nome do perfil do WhatsApp do cliente (do webhook). Fallback de exibição. */
+  waName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -45,13 +45,57 @@ type WaMessage = {
   document?: WaMedia;
   sticker?: WaMedia;
   reaction?: { message_id?: string; emoji?: string };
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    name?: string;
+    address?: string;
+  };
+  contacts?: {
+    name?: { formatted_name?: string };
+    phones?: { phone?: string }[];
+  }[];
   timestamp?: string;
 };
 type WaValue = {
   metadata?: { phone_number_id?: string };
   statuses?: WaStatus[];
   messages?: WaMessage[];
+  /** Perfil de quem enviou — traz o nome do WhatsApp do cliente. */
+  contacts?: { profile?: { name?: string }; wa_id?: string }[];
 };
+
+/** Texto que representa a mensagem no histórico, por tipo. */
+function corpoDaMensagem(msg: WaMessage, caption?: string | null): string | null {
+  if (msg.text?.body) return msg.text.body;
+  if (caption) return caption;
+  if (msg.reaction) {
+    return msg.reaction.emoji ? `Reagiu ${msg.reaction.emoji}` : "Removeu a reação";
+  }
+  if (msg.location) {
+    const l = msg.location;
+    const partes = ["📍 Localização"];
+    if (l.name) partes.push(l.name);
+    if (l.address) partes.push(l.address);
+    if (l.latitude != null && l.longitude != null) {
+      partes.push(`https://www.google.com/maps?q=${l.latitude},${l.longitude}`);
+    }
+    return partes.join("\n");
+  }
+  if (msg.contacts?.length) {
+    return msg.contacts
+      .map((c) => {
+        const nome = c.name?.formatted_name ?? "Contato";
+        const tels = (c.phones ?? [])
+          .map((p) => p.phone)
+          .filter(Boolean)
+          .join(", ");
+        return `👤 ${nome}${tels ? ` — ${tels}` : ""}`;
+      })
+      .join("\n");
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -94,6 +138,8 @@ export async function POST(request: Request) {
             })
           : null;
         const accountId = account?._id ? String(account._id) : null;
+        // Nome do perfil de quem escreveu (o WhatsApp manda no value.contacts).
+        const pushName = value.contacts?.[0]?.profile?.name ?? null;
 
         // 1) Status de entrega (mensagens que a LoopSale enviou).
         for (const st of value.statuses ?? []) {
@@ -124,16 +170,7 @@ export async function POST(request: Request) {
           // pra buscar depois na Meta, e usa a legenda como corpo quando houver.
           const midia =
             msg.image ?? msg.video ?? msg.audio ?? msg.document ?? msg.sticker;
-          // Reação = emoji que o cliente colou numa mensagem. Guarda o emoji
-          // como corpo (emoji vazio = reação removida).
-          const corpo =
-            msg.text?.body ??
-            midia?.caption ??
-            (msg.reaction
-              ? msg.reaction.emoji
-                ? `Reagiu ${msg.reaction.emoji}`
-                : "Removeu a reação"
-              : null);
+          const corpo = corpoDaMensagem(msg, midia?.caption);
           const doc: WhatsAppMessage = {
             accountId: accountId ?? "",
             direction: "in",
@@ -191,6 +228,23 @@ export async function POST(request: Request) {
                 },
               }
             );
+            // Guarda o nome do perfil do WhatsApp (cria a conversa se não existir),
+            // para exibir o nome quando não há lead casado pelo telefone.
+            if (pushName) {
+              await convCol.updateOne(
+                { accountId, contact: msg.from },
+                {
+                  $set: { waName: pushName, updatedAt: now },
+                  $setOnInsert: {
+                    accountId,
+                    contact: msg.from,
+                    status: "open",
+                    createdAt: now,
+                  },
+                },
+                { upsert: true }
+              );
+            }
           }
         }
       }

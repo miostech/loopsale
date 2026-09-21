@@ -174,7 +174,7 @@ export async function GET() {
       labels: conv?.labels ?? [],
       priority: conv?.priority ?? null,
       botPaused: !!conv?.botPaused,
-      nome: nomePorTelefone.get(r._id) ?? null,
+      nome: nomePorTelefone.get(r._id) ?? conv?.waName ?? null,
       ultimaEm: r.ultimaEm,
       ultimoTexto: r.ultimoTexto,
       ultimaDirecao: r.ultimaDirecao,

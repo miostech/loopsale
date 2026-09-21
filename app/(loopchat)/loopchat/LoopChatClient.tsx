@@ -188,6 +188,25 @@ function corDaEtiqueta(nome: string): string {
   return CORES_ETIQUETA[h % CORES_ETIQUETA.length];
 }
 
+/** Deixa URLs do texto clicáveis (ex: link do Google Maps em localização). */
+function linkificar(texto: string) {
+  return texto.split(/(https?:\/\/[^\s]+)/g).map((parte, i) =>
+    /^https?:\/\//.test(parte) ? (
+      <a
+        key={i}
+        href={parte}
+        target="_blank"
+        rel="noreferrer"
+        className="underline"
+      >
+        {parte}
+      </a>
+    ) : (
+      parte
+    )
+  );
+}
+
 /** Preview do corpo do template: troca {{1}}, {{2}}... pelo que foi digitado. */
 function preencherPreview(body: string, variables: string[]): string {
   return body.replace(/\{\{\s*(\d+)\s*\}\}/g, (_all, n) => {
@@ -1254,15 +1273,18 @@ export function LoopChatClient({
                                 </a>
                               )}
                               {m.body && (
-                                <p className="whitespace-pre-wrap">{m.body}</p>
+                                <p className="whitespace-pre-wrap">
+                                  {linkificar(m.body)}
+                                </p>
                               )}
                             </div>
                           ) : (
                             <p className="whitespace-pre-wrap">
-                              {m.body ??
-                                (m.templateName
+                              {m.body != null
+                                ? linkificar(m.body)
+                                : m.templateName
                                   ? `[template: ${m.templateName}]`
-                                  : `[${m.type ?? "mensagem"}]`)}
+                                  : `[${m.type ?? "mensagem"}]`}
                             </p>
                           )}
                           <p
