@@ -693,7 +693,7 @@ export function LoopChatClient({
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-x-hidden">
       {/* Coluna 1: filtros */}
       <aside
         className={`shrink-0 flex-col border-r border-[var(--loop-border)] bg-[var(--loop-bg)] ${
@@ -1124,31 +1124,34 @@ export function LoopChatClient({
                   WhatsApp · {telefone(ativo)}
                 </p>
               </div>
-              {conversaAtiva?.status === "pending" && (
-                <Badge variant="warning">Pendente</Badge>
-              )}
-              {conversaAtiva?.status === "snoozed" && (
-                <Badge variant="warning">
-                  Adiada até{" "}
-                  {conversaAtiva.snoozedUntil
-                    ? horaCompleta(conversaAtiva.snoozedUntil)
-                    : "—"}
+              {/* Badges informativos: escondidos no celular pra caber a linha */}
+              <div className="hidden items-center gap-2 md:flex">
+                {conversaAtiva?.status === "pending" && (
+                  <Badge variant="warning">Pendente</Badge>
+                )}
+                {conversaAtiva?.status === "snoozed" && (
+                  <Badge variant="warning">
+                    Adiada até{" "}
+                    {conversaAtiva.snoozedUntil
+                      ? horaCompleta(conversaAtiva.snoozedUntil)
+                      : "—"}
+                  </Badge>
+                )}
+                {conversaAtiva?.priority && (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                    style={{
+                      backgroundColor: PRIORIDADES[conversaAtiva.priority]?.cor,
+                    }}
+                  >
+                    {PRIORIDADES[conversaAtiva.priority]?.label}
+                  </span>
+                )}
+                <Badge variant={janelaAberta ? "success" : "default"}>
+                  {janelaAberta ? "Janela 24h aberta" : "Janela fechada"}
                 </Badge>
-              )}
-              {conversaAtiva?.priority && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
-                  style={{
-                    backgroundColor: PRIORIDADES[conversaAtiva.priority]?.cor,
-                  }}
-                >
-                  {PRIORIDADES[conversaAtiva.priority]?.label}
-                </span>
-              )}
-              <Badge variant={janelaAberta ? "success" : "default"}>
-                {janelaAberta ? "Janela 24h aberta" : "Janela fechada"}
-              </Badge>
-              <div className="relative flex items-center">
+              </div>
+              <div className="relative flex shrink-0 items-center">
                 <Button
                   variant={
                     conversaAtiva?.status === "open" ? "cta" : "secondary"
@@ -1221,7 +1224,7 @@ export function LoopChatClient({
                         }`}
                       >
                         <div
-                          className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+                          className={`max-w-[85%] overflow-hidden break-words md:max-w-[70%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
                             nota
                               ? "border border-dashed border-[#f59e0b] bg-[#fffbeb] text-[#78350f]"
                               : meu

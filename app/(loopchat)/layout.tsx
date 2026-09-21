@@ -34,7 +34,7 @@ export default async function LoopChatLayout({
   const dedicado = host.startsWith("chat.");
 
   return (
-    <div className="flex h-screen flex-col bg-[var(--loop-bg)]">
+    <div className="flex h-[100dvh] flex-col bg-[var(--loop-bg)]">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--loop-border)] px-4">
         <div className="flex items-center gap-3">
           <LoopSaleLogo href={dedicado ? "/loopchat" : "/dashboard"} variant="full" />
