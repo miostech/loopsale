@@ -14,7 +14,13 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "LoopChat", statusBarStyle: "default" },
   icons: { apple: "/pwa/apple-180.png" },
 };
-export const viewport: Viewport = { themeColor: "#6d28d9" };
+// interactiveWidget "resizes-content": quando o teclado do celular sobe, o
+// navegador encolhe a área da página (em vez de deixar 100dvh cheio), então o
+// compositor e o botão Enviar continuam visíveis acima do teclado.
+export const viewport: Viewport = {
+  themeColor: "#6d28d9",
+  interactiveWidget: "resizes-content",
+};
 
 /**
  * O LoopChat roda fora do shell do dashboard: é uma tela de trabalho, e a
