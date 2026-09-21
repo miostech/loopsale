@@ -37,6 +37,10 @@ export async function PATCH(
       $set: {
         "whatsapp.phoneNumberId": phoneNumberId || null,
         "whatsapp.displayNumber": displayNumber || null,
+        // Número vive na WABA central da LoopSale: marca a origem para o envio
+        // usar o token central (a LoopSale paga a Meta). Sem número, limpa.
+        "whatsapp.source": phoneNumberId ? "central" : null,
+        "whatsapp.connectedAt": phoneNumberId ? new Date() : null,
         updatedAt: new Date(),
       },
     }

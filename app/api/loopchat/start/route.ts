@@ -8,11 +8,11 @@ import {
   sendTemplate,
   listTemplates,
   preencherCorpo,
-  tokenFor,
   usesCentralWaba,
   centralWabaId,
   SEM_TOKEN,
 } from "@/lib/whatsapp/cloud";
+import { resolveSendToken } from "@/lib/whatsapp/central-config";
 
 /**
  * Inicia uma conversa nova mandando um template aprovado (business-initiated,
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true, contact });
 
   const wa = ctx.account?.whatsapp ?? null;
-  const token = tokenFor(wa?.accessToken, wa?.source);
+  const token = await resolveSendToken(wa);
   const phoneNumberId = wa?.phoneNumberId ?? "";
   if (!token) {
     return NextResponse.json({ error: SEM_TOKEN }, { status: 400 });

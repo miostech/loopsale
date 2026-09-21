@@ -4,12 +4,12 @@ import { getCollection, routeObjectId } from "@/lib/db";
 import { cronAuthorized } from "@/lib/cron/auth";
 import { sendMessage } from "@/lib/channels/send";
 import {
-  tokenFor,
   sendTemplate,
   sendText,
   SEM_TOKEN,
   type SendResult,
 } from "@/lib/whatsapp/cloud";
+import { resolveSendToken } from "@/lib/whatsapp/central-config";
 import type { Account, WhatsAppMessage } from "@/lib/db/types";
 
 export async function GET(request: Request) {
@@ -71,10 +71,7 @@ export async function GET(request: Request) {
     const account = accOid
       ? ((await accountsCol.findOne({ _id: accOid })) as Account | null)
       : null;
-    const waToken = tokenFor(
-      account?.whatsapp?.accessToken,
-      account?.whatsapp?.source
-    );
+    const waToken = await resolveSendToken(account?.whatsapp);
 
     // Passo de WhatsApp sem token não cai em outro canal: falha dizendo o
     // porquê, senão o cliente fica achando que a recuperação está rodando.

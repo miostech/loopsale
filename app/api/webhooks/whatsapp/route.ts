@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
-import { verifyWebhookSignature, sendText, tokenFor } from "@/lib/whatsapp/cloud";
+import { verifyWebhookSignature, sendText } from "@/lib/whatsapp/cloud";
+import { resolveSendToken } from "@/lib/whatsapp/central-config";
 import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
 import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
 
@@ -191,7 +192,7 @@ async function responderComBot(account: Account, contact: string): Promise<void>
   const bot = account.attendantBot;
   if (!bot?.enabled) return;
 
-  const token = tokenFor(account.whatsapp?.accessToken, account.whatsapp?.source);
+  const token = await resolveSendToken(account.whatsapp);
   const phoneNumberId = account.whatsapp?.phoneNumberId ?? "";
   if (!token || !phoneNumberId) return;
 

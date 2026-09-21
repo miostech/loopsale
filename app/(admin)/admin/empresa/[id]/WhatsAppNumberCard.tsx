@@ -82,15 +82,15 @@ export function WhatsAppNumberCard({
           </div>
           <div className="rounded-lg border border-[var(--loop-border)] p-3">
             <p className="text-xs text-[var(--loop-text-muted)]">
-              WABA do cliente
+              Envio (WABA central)
             </p>
             <p className="font-medium text-[var(--loop-text)]">
-              {conectado ? "Conectada" : "Não conectada"}
+              {connected ? "Pronto para enviar" : "Sem número"}
             </p>
             <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
-              {conectado
-                ? "Embedded Signup concluído — o cliente paga a Meta."
-                : "Sem Embedded Signup, os fluxos de WhatsApp não são enviados."}
+              {connected
+                ? "Número na WABA central da LoopSale — a LoopSale paga a Meta."
+                : "Defina o Phone Number ID abaixo para habilitar o envio."}
             </p>
           </div>
         </div>

@@ -2,12 +2,8 @@ import { NextResponse } from "next/server";
 import { isDatabaseDisabled } from "@/lib/db";
 import { chatContext } from "@/lib/loopchat/access";
 import { isDemoContext, demoTemplates } from "@/lib/loopchat/demo";
-import {
-  listTemplates,
-  tokenFor,
-  usesCentralWaba,
-  centralWabaId,
-} from "@/lib/whatsapp/cloud";
+import { listTemplates, usesCentralWaba, centralWabaId } from "@/lib/whatsapp/cloud";
+import { resolveSendToken } from "@/lib/whatsapp/central-config";
 
 /**
  * Templates aprovados da WABA da conta, para iniciar uma conversa nova.
@@ -34,7 +30,7 @@ export async function GET() {
   // Token e WABA seguem a origem da conta: própria (token + wabaId da conta)
   // ou central legada (token + WABA do ambiente).
   const wa = ctx.account?.whatsapp ?? null;
-  const token = tokenFor(wa?.accessToken, wa?.source);
+  const token = await resolveSendToken(wa);
   const wabaId = usesCentralWaba(wa?.source)
     ? centralWabaId()
     : wa?.wabaId ?? "";
