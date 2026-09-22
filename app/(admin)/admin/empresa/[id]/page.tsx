@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
 import { CompanyKeysButton } from "./CompanyKeysButton";
-import { WhatsAppNumberCard } from "./WhatsAppNumberCard";
+import { WhatsAppNumberCard, type ChannelForm } from "./WhatsAppNumberCard";
 import { BotConfigCard } from "./BotConfigCard";
 
 interface Detalhe {
@@ -30,6 +30,7 @@ interface Detalhe {
       wabaId: string;
       hasOwnToken: boolean;
     };
+    channels: ChannelForm[];
     bot: {
       enabled: boolean;
       instructions: string;
@@ -281,15 +282,8 @@ export default function EmpresaDetalhe({
         </div>
       </div>
 
-      {/* WhatsApp: número do cliente (WABA central) */}
-      <WhatsAppNumberCard
-        companyId={e.id}
-        initialPhoneNumberId={e.whatsapp.phoneNumberId}
-        initialDisplayNumber={e.whatsapp.displayNumber}
-        initialSource={e.whatsapp.source}
-        initialWabaId={e.whatsapp.wabaId}
-        hasOwnToken={e.whatsapp.hasOwnToken}
-      />
+      {/* WhatsApp: números/caixas do cliente (uma caixa por número) */}
+      <WhatsAppNumberCard companyId={e.id} initialChannels={e.channels} />
 
       <BotConfigCard
         companyId={e.id}

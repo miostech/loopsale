@@ -6,12 +6,13 @@ import { isSuperAdmin } from "@/lib/admin";
 import type { Account } from "@/lib/db/types";
 import { listTemplates, usesCentralWaba } from "@/lib/whatsapp/cloud";
 import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
+import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
 
 type SessionUser = { email?: string | null };
 
 /** Templates da WABA desta empresa (própria ou central). Só super-admin. */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
@@ -29,13 +30,15 @@ export async function GET(
 
   const accountsCol = await getCollection("accounts");
   const account = (await accountsCol.findOne({ _id: oid })) as Account | null;
-  const wa = account?.whatsapp ?? null;
+  // Canal escolhido (multi-número) ou o primeiro/legado.
+  const channel = new URL(request.url).searchParams.get("channel") || null;
+  const canal = findChannel(account, channel);
 
-  // Origem da conta define o WABA e o token (próprio ou central).
-  const wabaId = usesCentralWaba(wa?.source)
+  // Origem do canal define o WABA e o token (próprio ou central).
+  const wabaId = usesCentralWaba(canal?.source)
     ? await getCentralWabaId()
-    : wa?.wabaId ?? "";
-  const token = await resolveSendToken(wa);
+    : canal?.wabaId ?? "";
+  const token = await resolveSendToken(channelSendConfig(canal));
   if (!wabaId || !token) {
     return NextResponse.json({ templates: [], connected: false });
   }

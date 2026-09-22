@@ -10,6 +10,7 @@ import {
 import type { Account } from "@/lib/db/types";
 import { isSuperAdmin, metaCostPerMessageEur, eurToBrlRate } from "@/lib/admin";
 import { usesCentralWaba } from "@/lib/whatsapp/cloud";
+import { channelsOf } from "@/lib/whatsapp/channels";
 import {
   commissionRateOf,
   getPlan,
@@ -237,6 +238,15 @@ export async function GET(
         wabaId: account.whatsapp?.wabaId ?? "",
         hasOwnToken: !!account.whatsapp?.accessToken,
       },
+      // Canais/caixas de WhatsApp (multi-número). Token nunca sai daqui.
+      channels: channelsOf(account).map((c) => ({
+        name: c.name,
+        source: c.source === "own" ? "own" : "central",
+        phoneNumberId: c.phoneNumberId,
+        displayNumber: c.displayNumber ?? "",
+        wabaId: c.wabaId ?? "",
+        hasToken: !!c.accessToken,
+      })),
       bot: {
         enabled: !!account.attendantBot?.enabled,
         instructions: account.attendantBot?.instructions ?? "",
