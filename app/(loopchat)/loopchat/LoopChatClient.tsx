@@ -13,8 +13,14 @@ interface Etiqueta {
   nome: string;
   total: number;
 }
+interface Canal {
+  phoneNumberId: string;
+  name: string;
+  displayNumber: string | null;
+}
 interface Conversa {
   contact: string;
+  phoneNumberId: string | null;
   status: string;
   snoozedUntil: string | null;
   assigneeId: string | null;
@@ -231,6 +237,9 @@ export function LoopChatClient({
   numeroConta?: string | null;
 }) {
   const [conversas, setConversas] = useState<Conversa[] | null>(null);
+  // Canais (caixas) da conta e o canal selecionado na sidebar (null = todas).
+  const [canais, setCanais] = useState<Canal[]>([]);
+  const [canalSel, setCanalSel] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("abertas");
   const [resolvendo, setResolvendo] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
@@ -248,6 +257,8 @@ export function LoopChatClient({
   const [erroEtiqueta, setErroEtiqueta] = useState("");
   // Compositor de nova conversa (envio de template).
   const [novaConversa, setNovaConversa] = useState(false);
+  // Canal (caixa) de onde a nova conversa vai sair.
+  const [ncCanal, setNcCanal] = useState<string | null>(null);
   const [ncTelefone, setNcTelefone] = useState("");
   const [ncNome, setNcNome] = useState("");
   const [ncBuscaContato, setNcBuscaContato] = useState("");
@@ -260,6 +271,8 @@ export function LoopChatClient({
   const [ncErro, setNcErro] = useState("");
   const [busca, setBusca] = useState("");
   const [ativo, setAtivo] = useState<string | null>(null);
+  // Canal (caixa) da conversa aberta — as mensagens e ações usam ele.
+  const [ativoCanal, setAtivoCanal] = useState<string | null>(null);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [painelAberto, setPainelAberto] = useState(true);
@@ -283,6 +296,7 @@ export function LoopChatClient({
     setConversas(data.conversas ?? []);
     setUsuarioAtual(data.usuarioAtual ?? null);
     setEtiquetas(data.etiquetas ?? []);
+    setCanais(data.canais ?? []);
   }, []);
 
   const loadMembros = useCallback(async () => {
@@ -291,15 +305,18 @@ export function LoopChatClient({
     setMembros(await res.json());
   }, []);
 
-  const loadMensagens = useCallback(async (contact: string) => {
-    const res = await fetch(
-      `/api/loopchat/messages?contact=${encodeURIComponent(contact)}`
-    );
-    if (!res.ok) return;
-    const data = await res.json();
-    setMensagens(data.mensagens ?? []);
-    setJanelaAberta(!!data.janelaAberta);
-  }, []);
+  const loadMensagens = useCallback(
+    async (contact: string, channel?: string | null) => {
+      const qs = new URLSearchParams({ contact });
+      if (channel) qs.set("channel", channel);
+      const res = await fetch(`/api/loopchat/messages?${qs.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setMensagens(data.mensagens ?? []);
+      setJanelaAberta(!!data.janelaAberta);
+    },
+    []
+  );
 
   const loadFicha = useCallback(async (contact: string) => {
     setFicha(null);
@@ -317,9 +334,9 @@ export function LoopChatClient({
 
   useEffect(() => {
     if (!ativo) return;
-    loadMensagens(ativo);
+    loadMensagens(ativo, ativoCanal);
     loadFicha(ativo);
-  }, [ativo, loadMensagens, loadFicha]);
+  }, [ativo, ativoCanal, loadMensagens, loadFicha]);
 
   // Atualização automática (quase tempo real): repolla a lista e a conversa
   // aberta a cada poucos segundos, sem incomodar quando a aba está oculta.
@@ -327,10 +344,10 @@ export function LoopChatClient({
     const id = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       loadConversas();
-      if (ativo) loadMensagens(ativo);
+      if (ativo) loadMensagens(ativo, ativoCanal);
     }, 6000);
     return () => clearInterval(id);
-  }, [ativo, loadConversas, loadMensagens]);
+  }, [ativo, ativoCanal, loadConversas, loadMensagens]);
 
   // No PWA do iOS os timers congelam quando o app vai pro segundo plano — ao
   // voltar, o setInterval pode não disparar sem um reload. Então, sempre que o
@@ -340,7 +357,7 @@ export function LoopChatClient({
     const atualizarAgora = () => {
       if (typeof document !== "undefined" && document.hidden) return;
       loadConversas();
-      if (ativo) loadMensagens(ativo);
+      if (ativo) loadMensagens(ativo, ativoCanal);
     };
     const aoVisivel = () => {
       if (!document.hidden) atualizarAgora();
@@ -353,7 +370,7 @@ export function LoopChatClient({
       window.removeEventListener("focus", atualizarAgora);
       window.removeEventListener("pageshow", atualizarAgora);
     };
-  }, [ativo, loadConversas, loadMensagens]);
+  }, [ativo, ativoCanal, loadConversas, loadMensagens]);
 
   // Rola pro fim só quando a última mensagem muda (mensagem nova) — assim o
   // polling não fica puxando a tela pra baixo enquanto você lê o histórico.
@@ -400,7 +417,10 @@ export function LoopChatClient({
   }, [ncBuscaContato, novaConversa]);
 
   const contagens = useMemo(() => {
-    const c = conversas ?? [];
+    // Só a caixa selecionada (null = todas).
+    const c = (conversas ?? []).filter(
+      (x) => !canalSel || x.phoneNumberId === canalSel
+    );
     // "Abertas" é só o que exige ação agora: pendente, adiada e resolvida têm
     // board próprio.
     const abertas = c.filter((x) => x.status === "open");
@@ -415,10 +435,12 @@ export function LoopChatClient({
       adiadas: c.filter((x) => x.status === "snoozed").length,
       resolvidas: c.filter((x) => x.status === "resolved").length,
     } as Record<Filtro, number>;
-  }, [conversas, usuarioAtual]);
+  }, [conversas, usuarioAtual, canalSel]);
 
   const visiveis = useMemo(() => {
-    let c = conversas ?? [];
+    let c = (conversas ?? []).filter(
+      (x) => !canalSel || x.phoneNumberId === canalSel
+    );
     // Cada status tem seu board: quem não está aberta some dos filtros do dia
     // a dia e só aparece no filtro do próprio status.
     const statusDoFiltro = FILTRO_STATUS[filtro];
@@ -444,10 +466,12 @@ export function LoopChatClient({
       if (d !== 0) return d;
       return new Date(b.ultimaEm).getTime() - new Date(a.ultimaEm).getTime();
     });
-  }, [conversas, filtro, busca, usuarioAtual, etiquetaFiltro]);
+  }, [conversas, filtro, busca, usuarioAtual, etiquetaFiltro, canalSel]);
 
   const conversaAtiva =
-    (conversas ?? []).find((c) => c.contact === ativo) ?? null;
+    (conversas ?? []).find(
+      (c) => c.contact === ativo && c.phoneNumberId === ativoCanal
+    ) ?? null;
   const nomeAtivo = ficha?.lead?.nome ?? conversaAtiva?.nome ?? null;
 
   async function mudarStatus(
@@ -462,7 +486,7 @@ export function LoopChatClient({
       const res = await fetch("/api/loopchat/conversations", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact: ativo, action, prazo }),
+        body: JSON.stringify({ contact: ativo, channel: ativoCanal, action, prazo }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -483,7 +507,12 @@ export function LoopChatClient({
     const res = await fetch("/api/loopchat/conversations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact: ativo, action: "priorizar", priority }),
+      body: JSON.stringify({
+        contact: ativo,
+        channel: ativoCanal,
+        action: "priorizar",
+        priority,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -499,7 +528,12 @@ export function LoopChatClient({
     const res = await fetch("/api/loopchat/conversations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact: ativo, action: "etiquetar", labels }),
+      body: JSON.stringify({
+        contact: ativo,
+        channel: ativoCanal,
+        action: "etiquetar",
+        labels,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -556,6 +590,9 @@ export function LoopChatClient({
 
   function abrirNovaConversa() {
     setNovaConversa(true);
+    // Canal padrão: o selecionado na sidebar, senão a primeira caixa.
+    const canalInicial = canalSel ?? canais[0]?.phoneNumberId ?? null;
+    setNcCanal(canalInicial);
     setNcTelefone("");
     setNcNome("");
     setNcBuscaContato("");
@@ -564,18 +601,29 @@ export function LoopChatClient({
     setNcTemplate(null);
     setNcVars([]);
     setNcErro("");
-    if (ncTemplates === null) carregarTemplates();
+    carregarTemplates(canalInicial);
   }
 
-  async function carregarTemplates() {
+  async function carregarTemplates(channel?: string | null) {
+    setNcTemplates(null);
     try {
-      const res = await fetch("/api/loopchat/templates");
+      const qs = channel ? `?channel=${encodeURIComponent(channel)}` : "";
+      const res = await fetch(`/api/loopchat/templates${qs}`);
       const data = await res.json().catch(() => ({}));
       setNcTemplates(Array.isArray(data.templates) ? data.templates : []);
       if (!res.ok && data.error) setNcErro(data.error);
     } catch {
       setNcTemplates([]);
     }
+  }
+
+  // Trocar a caixa da nova conversa recarrega os modelos daquela WABA.
+  function trocarCanalNovaConversa(channel: string) {
+    setNcCanal(channel);
+    setNcTemplate(null);
+    setNcVars([]);
+    setNcBuscaModelo("");
+    carregarTemplates(channel);
   }
 
   function selecionarLead(lead: LeadBusca) {
@@ -613,6 +661,7 @@ export function LoopChatClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contact: telefone,
+          channel: ncCanal,
           templateName: ncTemplate.name,
           language: ncTemplate.language,
           variables: ncVars,
@@ -625,7 +674,10 @@ export function LoopChatClient({
       }
       setNovaConversa(false);
       await loadConversas();
-      if (data.contact) setAtivo(data.contact);
+      if (data.contact) {
+        setAtivo(data.contact);
+        setAtivoCanal(data.channel ?? ncCanal ?? null);
+      }
     } catch {
       setNcErro("Erro de rede ao enviar.");
     } finally {
@@ -639,7 +691,12 @@ export function LoopChatClient({
     const res = await fetch("/api/loopchat/conversations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact: ativo, action: "atribuir", assigneeId }),
+      body: JSON.stringify({
+        contact: ativo,
+        channel: ativoCanal,
+        action: "atribuir",
+        assigneeId,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -660,6 +717,7 @@ export function LoopChatClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contact: ativo,
+          channel: ativoCanal,
           action: resolver ? "resolver" : "reabrir",
         }),
       });
@@ -686,7 +744,7 @@ export function LoopChatClient({
         const res = await fetch("/api/loopchat/note", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contact: ativo, body: texto }),
+          body: JSON.stringify({ contact: ativo, channel: ativoCanal, body: texto }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -694,14 +752,14 @@ export function LoopChatClient({
           return;
         }
         setTexto("");
-        await loadMensagens(ativo);
+        await loadMensagens(ativo, ativoCanal);
         return;
       }
 
       const res = await fetch("/api/loopchat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact: ativo, body: texto }),
+        body: JSON.stringify({ contact: ativo, channel: ativoCanal, body: texto }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -709,7 +767,7 @@ export function LoopChatClient({
         return;
       }
       setTexto("");
-      await loadMensagens(ativo);
+      await loadMensagens(ativo, ativoCanal);
       await loadConversas();
     } catch {
       setErro("Erro de rede ao enviar.");
@@ -775,6 +833,57 @@ export function LoopChatClient({
             </button>
           ))}
           </div>
+
+          {/* Canais (caixas): filtra a lista por número. Só com +1 número. */}
+          {canais.length > 1 && (
+            <div className="mt-4">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--loop-text-muted)]">
+                Canais
+              </p>
+              <div className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => setCanalSel(null)}
+                  className={`flex w-full items-center rounded-lg px-3 py-2 text-sm transition-colors ${
+                    canalSel === null
+                      ? "bg-[var(--loop-primary-muted)] font-medium text-[var(--loop-primary)]"
+                      : "text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)]"
+                  }`}
+                >
+                  Todas as caixas
+                </button>
+                {canais.map((k) => (
+                  <button
+                    key={k.phoneNumberId}
+                    type="button"
+                    onClick={() => setCanalSel(k.phoneNumberId)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                      canalSel === k.phoneNumberId
+                        ? "bg-[var(--loop-primary-muted)] font-medium text-[var(--loop-primary)]"
+                        : "text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)]"
+                    }`}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      aria-hidden="true"
+                      className="shrink-0"
+                    >
+                      <path d="M12 2a10 10 0 0 0-8.6 15.05L2 22l5.1-1.34A10 10 0 1 0 12 2Zm5.8 14.13c-.24.68-1.4 1.3-1.94 1.34-.5.05-1.13.07-1.82-.11-.42-.11-.96-.3-1.65-.6-2.9-1.25-4.8-4.17-4.94-4.36-.15-.19-1.19-1.58-1.19-3.02 0-1.44.75-2.14 1.02-2.44.27-.3.59-.37.79-.37h.57c.18 0 .43-.07.67.51.24.6.83 2.04.9 2.19.07.15.12.32.02.51-.1.19-.15.31-.3.48-.15.17-.32.38-.45.51-.15.15-.31.31-.13.61.18.3.79 1.3 1.7 2.11 1.17 1.04 2.16 1.36 2.46 1.51.3.15.48.13.66-.08.18-.21.76-.89.96-1.19.2-.3.4-.25.67-.15.27.1 1.72.81 2.01.96.3.15.5.22.57.34.07.12.07.71-.17 1.39Z" />
+                    </svg>
+                    <span className="min-w-0 flex-1 truncate">{k.name}</span>
+                    {k.displayNumber && (
+                      <span className="shrink-0 text-[11px] text-[var(--loop-text-muted)]">
+                        {k.displayNumber}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4">
             <div className="flex items-center justify-between gap-2 px-3 pb-1">
@@ -1039,12 +1148,17 @@ export function LoopChatClient({
           ) : (
             <ul className="divide-y divide-[var(--loop-border)]">
               {visiveis.map((c) => (
-                <li key={c.contact}>
+                <li key={`${c.phoneNumberId ?? ""}|${c.contact}`}>
                   <button
                     type="button"
-                    onClick={() => setAtivo(c.contact)}
+                    onClick={() => {
+                      setAtivo(c.contact);
+                      setAtivoCanal(c.phoneNumberId);
+                    }}
                     className={`flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--loop-bg-alt)] ${
-                      ativo === c.contact ? "bg-[var(--loop-bg-alt)]" : ""
+                      ativo === c.contact && ativoCanal === c.phoneNumberId
+                        ? "bg-[var(--loop-bg-alt)]"
+                        : ""
                     }`}
                   >
                     <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--loop-primary-muted)] text-xs font-semibold text-[var(--loop-primary)]">
@@ -1084,6 +1198,13 @@ export function LoopChatClient({
                               {l}
                             </span>
                           ))}
+                        </span>
+                      )}
+                      {/* De qual caixa é — só quando vendo "Todas" e há +1. */}
+                      {!canalSel && canais.length > 1 && (
+                        <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full border border-[var(--loop-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--loop-text-muted)]">
+                          {canais.find((k) => k.phoneNumberId === c.phoneNumberId)
+                            ?.name ?? "Canal"}
                         </span>
                       )}
                       {c.botPaused && (
@@ -1692,6 +1813,27 @@ export function LoopChatClient({
             </div>
 
             <div className="max-h-[70vh] space-y-4 overflow-y-auto p-4 text-sm">
+              {/* De qual caixa (canal) enviar — só com +1 número. */}
+              {canais.length > 1 && (
+                <div>
+                  <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                    Enviar pela caixa
+                  </label>
+                  <select
+                    value={ncCanal ?? ""}
+                    onChange={(e) => trocarCanalNovaConversa(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                  >
+                    {canais.map((k) => (
+                      <option key={k.phoneNumberId} value={k.phoneNumberId}>
+                        {k.name}
+                        {k.displayNumber ? ` · ${k.displayNumber}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Para: contato */}
               <div>
                 <label className="text-xs font-medium text-[var(--loop-text-muted)]">

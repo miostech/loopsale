@@ -17,9 +17,10 @@ export async function GET(request: Request) {
       { status: ctx.access === "hidden" ? 403 : 402 }
     );
   }
-  const contact = normalizePhone(
-    new URL(request.url).searchParams.get("contact") ?? ""
-  );
+  const url = new URL(request.url);
+  const contact = normalizePhone(url.searchParams.get("contact") ?? "");
+  // Canal (caixa): filtra o histórico pelo número. Ausente = legado (todos).
+  const channel = url.searchParams.get("channel") || null;
   if (!contact) {
     return NextResponse.json({ error: "Contato inválido." }, { status: 400 });
   }
@@ -31,7 +32,11 @@ export async function GET(request: Request) {
 
   const waCol = await getCollection("whatsappMessages");
   const rows = (await waCol
-    .find({ accountId: ctx.accountId, contact })
+    .find({
+      accountId: ctx.accountId,
+      contact,
+      ...(channel ? { phoneNumberId: channel } : {}),
+    })
     .sort({ createdAt: 1 })
     .limit(300)
     .toArray()) as (WhatsAppMessage & { _id: unknown })[];

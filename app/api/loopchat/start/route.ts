@@ -12,6 +12,7 @@ import {
   SEM_TOKEN,
 } from "@/lib/whatsapp/cloud";
 import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
+import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
 
 /**
  * Inicia uma conversa nova mandando um template aprovado (business-initiated,
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const contact = normalizePhone(String(body.contact ?? ""));
+  const channel = String(body.channel ?? "") || null;
   const templateName = String(body.templateName ?? "").trim();
   const variables = Array.isArray(body.variables)
     ? body.variables.map((v: unknown) => String(v ?? "").trim())
@@ -52,10 +54,11 @@ export async function POST(request: Request) {
   // Demo: finge que enviou e devolve o contato para abrir a "conversa".
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true, contact });
 
-  const wa = ctx.account?.whatsapp ?? null;
-  const token = await resolveSendToken(wa);
-  const phoneNumberId = wa?.phoneNumberId ?? "";
-  if (!token) {
+  // Envia pelo canal (caixa) escolhido.
+  const canal = findChannel(ctx.account, channel);
+  const token = await resolveSendToken(channelSendConfig(canal));
+  const phoneNumberId = canal?.phoneNumberId ?? "";
+  if (!token || !phoneNumberId) {
     return NextResponse.json({ error: SEM_TOKEN }, { status: 400 });
   }
 
@@ -63,9 +66,9 @@ export async function POST(request: Request) {
   // variáveis preenchidas. Sem isso a Meta recusa o envio.
   let language = String(body.language ?? "pt_BR").trim() || "pt_BR";
   let corpoPreenchido = "";
-  const wabaId = usesCentralWaba(wa?.source)
+  const wabaId = usesCentralWaba(canal?.source)
     ? await getCentralWabaId()
-    : wa?.wabaId ?? "";
+    : canal?.wabaId ?? "";
   if (wabaId) {
     try {
       const todos = await listTemplates(wabaId, token);
@@ -124,5 +127,5 @@ export async function POST(request: Request) {
       { status: 502 }
     );
   }
-  return NextResponse.json({ ok: true, contact });
+  return NextResponse.json({ ok: true, contact, channel: phoneNumberId });
 }

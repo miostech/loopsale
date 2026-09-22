@@ -5,6 +5,7 @@ import { chatContext, janelaAberta } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 import { normalizePhone, sendText, SEM_TOKEN } from "@/lib/whatsapp/cloud";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
 
 /** Resposta manual do cliente (ou da equipe dele) numa conversa. */
 export async function POST(request: Request) {
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const contact = normalizePhone(String(body.contact ?? ""));
   const texto = String(body.body ?? "").trim();
+  const channel = String(body.channel ?? "") || null;
   if (!contact || !texto) {
     return NextResponse.json(
       { error: "Informe o contato e a mensagem." },
@@ -39,9 +41,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = await resolveSendToken(ctx.account?.whatsapp);
-  const phoneNumberId = ctx.account?.whatsapp?.phoneNumberId ?? "";
-  if (!token) {
+  // Envia pelo canal (caixa) da conversa.
+  const canal = findChannel(ctx.account, channel);
+  const token = await resolveSendToken(channelSendConfig(canal));
+  const phoneNumberId = canal?.phoneNumberId ?? "";
+  if (!token || !phoneNumberId) {
     return NextResponse.json({ error: SEM_TOKEN }, { status: 400 });
   }
 
@@ -49,7 +53,7 @@ export async function POST(request: Request) {
   // seria recusado pela API — melhor recusar aqui, com o motivo certo.
   const waCol = await getCollection("whatsappMessages");
   const ultima = (await waCol
-    .find({ accountId: ctx.accountId, contact, direction: "in" })
+    .find({ accountId: ctx.accountId, contact, phoneNumberId, direction: "in" })
     .sort({ createdAt: -1 })
     .limit(1)
     .toArray()) as { createdAt?: Date }[];

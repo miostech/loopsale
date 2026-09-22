@@ -2,6 +2,11 @@ import { NextResponse, after } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import { verifyWebhookSignature, sendText } from "@/lib/whatsapp/cloud";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import {
+  findChannel,
+  channelSendConfig,
+  conversationChannelKey,
+} from "@/lib/whatsapp/channels";
 import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
 import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
 import { enviarPush } from "@/lib/push";
@@ -130,7 +135,10 @@ export async function POST(request: Request) {
 
   // Conversas que receberam mensagem nova de texto e têm o robô ligado — o bot
   // responde depois de a Meta receber o 200 (via after), pra não travar o webhook.
-  const paraResponder = new Map<string, { account: Account; contact: string }>();
+  const paraResponder = new Map<
+    string,
+    { account: Account; contact: string; phoneNumberId: string | null }
+  >();
   // Notificações push a enviar depois do 200 (uma por mensagem nova recebida).
   const paraNotificar: { accountId: string; title: string; body: string }[] = [];
 
@@ -146,10 +154,14 @@ export async function POST(request: Request) {
         if (!value) continue;
         const phoneNumberId = value.metadata?.phone_number_id ?? null;
 
-        // Resolve a conta dona deste número.
+        // Resolve a conta dona deste número — pode estar num canal (multi-caixa)
+        // ou no whatsapp legado.
         const account = phoneNumberId
           ? await accountsCol.findOne({
-              "whatsapp.phoneNumberId": phoneNumberId,
+              $or: [
+                { "channels.phoneNumberId": phoneNumberId },
+                { "whatsapp.phoneNumberId": phoneNumberId },
+              ],
             })
           : null;
         const accountId = account?._id ? String(account._id) : null;
@@ -220,9 +232,10 @@ export async function POST(request: Request) {
             corpo &&
             account?.attendantBot?.enabled
           ) {
-            paraResponder.set(`${accountId}:${msg.from}`, {
+            paraResponder.set(`${accountId}:${phoneNumberId}:${msg.from}`, {
               account: account as unknown as Account,
               contact: msg.from,
+              phoneNumberId,
             });
           }
 
@@ -239,11 +252,17 @@ export async function POST(request: Request) {
           // board e ninguém responderia o cliente. Reabrir de novo não muda
           // nada, então o reenvio do webhook é inofensivo.
           if (accountId && msg.from) {
+            // Estado da conversa: só separa por canal em contas multi-número.
+            const convChannel = conversationChannelKey(
+              account as unknown as Account,
+              phoneNumberId
+            );
             const convCol = await getCollection("conversations");
             await convCol.updateOne(
               {
                 accountId,
                 contact: msg.from,
+                phoneNumberId: convChannel,
                 status: { $in: ["resolved", "snoozed", "pending"] },
               },
               {
@@ -259,12 +278,13 @@ export async function POST(request: Request) {
             // para exibir o nome quando não há lead casado pelo telefone.
             if (pushName) {
               await convCol.updateOne(
-                { accountId, contact: msg.from },
+                { accountId, contact: msg.from, phoneNumberId: convChannel },
                 {
                   $set: { waName: pushName, updatedAt: now },
                   $setOnInsert: {
                     accountId,
                     contact: msg.from,
+                    phoneNumberId: convChannel,
                     status: "open",
                     createdAt: now,
                   },
@@ -284,9 +304,9 @@ export async function POST(request: Request) {
   // a Meta).
   if (paraResponder.size || paraNotificar.length) {
     after(async () => {
-      for (const { account, contact } of paraResponder.values()) {
+      for (const { account, contact, phoneNumberId } of paraResponder.values()) {
         try {
-          await responderComBot(account, contact);
+          await responderComBot(account, contact, phoneNumberId);
         } catch (e) {
           console.error("bot atendimento:", e);
         }
@@ -309,24 +329,36 @@ export async function POST(request: Request) {
 }
 
 /** Gera e envia a resposta do robô para uma conversa, com os guarda-corpos. */
-async function responderComBot(account: Account, contact: string): Promise<void> {
+async function responderComBot(
+  account: Account,
+  contact: string,
+  phoneNumberIdMsg: string | null
+): Promise<void> {
   const bot = account.attendantBot;
   if (!bot?.enabled) return;
 
-  const token = await resolveSendToken(account.whatsapp);
-  const phoneNumberId = account.whatsapp?.phoneNumberId ?? "";
+  // Responde pelo mesmo canal (número) em que a mensagem chegou.
+  const canal = findChannel(account, phoneNumberIdMsg);
+  const token = await resolveSendToken(channelSendConfig(canal));
+  const phoneNumberId = canal?.phoneNumberId ?? "";
   if (!token || !phoneNumberId) return;
+  // Estado da conversa: só separa por canal em contas multi-número.
+  const convKey = conversationChannelKey(account, phoneNumberId);
 
   const accountId = String(account._id);
   const convCol = await getCollection("conversations");
-  const conv = (await convCol.findOne({ accountId, contact })) as Conversation | null;
+  const conv = (await convCol.findOne({
+    accountId,
+    contact,
+    phoneNumberId: convKey,
+  })) as Conversation | null;
   // Humano assumiu (atribuída) ou já foi repassada: bot fica quieto.
   if (conv?.assigneeId || conv?.botPaused) return;
 
   // Histórico recente da conversa (sem notas internas), em ordem cronológica.
   const waCol = await getCollection("whatsappMessages");
   const rows = (await waCol
-    .find({ accountId, contact, internal: { $ne: true } })
+    .find({ accountId, contact, phoneNumberId, internal: { $ne: true } })
     .sort({ createdAt: -1 })
     .limit(15)
     .toArray()) as WhatsAppMessage[];
@@ -374,10 +406,10 @@ async function responderComBot(account: Account, contact: string): Promise<void>
   // Repasse a humano: pausa o bot e mantém a conversa aberta para o time pegar.
   if (out.handoff) {
     await convCol.updateOne(
-      { accountId, contact },
+      { accountId, contact, phoneNumberId: convKey },
       {
         $set: { botPaused: true, status: "open", updatedAt: now },
-        $setOnInsert: { accountId, contact, createdAt: now },
+        $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
       },
       { upsert: true }
     );

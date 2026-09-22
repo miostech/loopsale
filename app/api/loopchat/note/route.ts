@@ -4,6 +4,7 @@ import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 import { normalizePhone } from "@/lib/whatsapp/cloud";
+import { findChannel } from "@/lib/whatsapp/channels";
 
 /**
  * Nota interna: fica no histórico da conversa, visível só para a equipe.
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const contact = normalizePhone(String(body.contact ?? ""));
   const texto = String(body.body ?? "").trim();
+  const channel = String(body.channel ?? "") || null;
   if (!contact || !texto) {
     return NextResponse.json(
       { error: "Informe o contato e a nota." },
@@ -35,6 +37,8 @@ export async function POST(request: Request) {
     );
   }
 
+  // Nota fica na caixa (canal) da conversa aberta.
+  const canal = findChannel(ctx.account, channel);
   const now = new Date();
   const doc: WhatsAppMessage = {
     accountId: ctx.accountId,
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
     internal: true,
     authorName: ctx.email ?? null,
     wamid: null,
-    phoneNumberId: ctx.account?.whatsapp?.phoneNumberId ?? null,
+    phoneNumberId: canal?.phoneNumberId ?? channel ?? null,
     contact,
     type: "note",
     body: texto,

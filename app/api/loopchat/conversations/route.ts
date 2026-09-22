@@ -4,6 +4,7 @@ import type { Conversation } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
 import { isDemoContext, demoConversasPayload } from "@/lib/loopchat/demo";
 import { normalizePhone } from "@/lib/whatsapp/cloud";
+import { channelsOf, conversationChannelKey } from "@/lib/whatsapp/channels";
 
 /** Ordem também é a de urgência, usada para ordenar a lista. */
 export const PRIORIDADES = ["urgent", "high", "medium", "low"];
@@ -31,7 +32,7 @@ function statusEfetivo(
 }
 
 type Agrupado = {
-  _id: string;
+  _id: { contact: string; phoneNumberId: string | null };
   ultimaEm: Date;
   ultimoTexto: string | null;
   ultimaDirecao: string;
@@ -39,6 +40,11 @@ type Agrupado = {
   ultimaEnviadaEm: Date | null;
   total: number;
 };
+
+/** Chave de uma conversa: contato + canal (phoneNumberId). */
+function chaveConversa(contact: string, phoneNumberId: string | null): string {
+  return `${contact}|${phoneNumberId ?? ""}`;
+}
 
 /** Lista as conversas do número da conta, uma por contato. */
 export async function GET() {
@@ -69,7 +75,9 @@ export async function GET() {
       { $sort: { createdAt: 1 } },
       {
         $group: {
-          _id: "$contact",
+          // Uma conversa por contato + canal (phoneNumberId): o mesmo cliente
+          // numa caixa diferente é outra conversa.
+          _id: { contact: "$contact", phoneNumberId: "$phoneNumberId" },
           ultimaEm: { $last: "$createdAt" },
           ultimoTexto: { $last: "$body" },
           ultimaDirecao: { $last: "$direction" },
@@ -102,9 +110,9 @@ export async function GET() {
   }
 
   // Não lidas = recebidas depois da última resposta nossa (igual ao badge do
-  // Chatwoot). Sem resposta nossa, tudo que entrou conta.
-  const naoLidasPorContato = new Map<string, number>();
-  const contatos = rows.map((r) => r._id);
+  // Chatwoot). Sem resposta nossa, tudo que entrou conta. Por contato + canal.
+  const naoLidasPorConversa = new Map<string, number>();
+  const contatos = [...new Set(rows.map((r) => r._id.contact))];
   if (contatos.length) {
     const pend = (await waCol
       .aggregate([
@@ -116,26 +124,52 @@ export async function GET() {
             internal: { $ne: true },
           },
         },
-        { $group: { _id: "$contact", datas: { $push: "$createdAt" } } },
+        {
+          $group: {
+            _id: { contact: "$contact", phoneNumberId: "$phoneNumberId" },
+            datas: { $push: "$createdAt" },
+          },
+        },
       ])
-      .toArray()) as { _id: string; datas: Date[] }[];
-    const enviadaPor = new Map(rows.map((r) => [r._id, r.ultimaEnviadaEm]));
+      .toArray()) as {
+      _id: { contact: string; phoneNumberId: string | null };
+      datas: Date[];
+    }[];
+    const enviadaPor = new Map(
+      rows.map((r) => [
+        chaveConversa(r._id.contact, r._id.phoneNumberId),
+        r.ultimaEnviadaEm,
+      ])
+    );
     for (const p of pend) {
-      const corte = enviadaPor.get(p._id);
+      const chave = chaveConversa(p._id.contact, p._id.phoneNumberId);
+      const corte = enviadaPor.get(chave);
       const n = corte
         ? p.datas.filter((d) => new Date(d) > new Date(corte)).length
         : p.datas.length;
-      naoLidasPorContato.set(p._id, n);
+      naoLidasPorConversa.set(chave, n);
     }
   }
 
   // Estado da conversa. Sem documento = aberta, então nenhuma conversa some
-  // por falta de registro.
+  // por falta de registro. Casa por contato + canal; docs legados (sem canal)
+  // servem de fallback para não perder o estado antigo.
   const convCol = await getCollection("conversations");
   const convs = (await convCol
     .find({ accountId: ctx.accountId, contact: { $in: contatos } })
     .toArray()) as Conversation[];
-  const convPorContato = new Map(convs.map((c) => [c.contact, c]));
+  const convExata = new Map<string, Conversation>();
+  const convLegado = new Map<string, Conversation>();
+  for (const c of convs) {
+    if (c.phoneNumberId) {
+      convExata.set(chaveConversa(c.contact, c.phoneNumberId), c);
+    } else {
+      convLegado.set(c.contact, c);
+    }
+  }
+  const estadoDaConversa = (r: Agrupado): Conversation | undefined =>
+    convExata.get(chaveConversa(r._id.contact, r._id.phoneNumberId)) ??
+    convLegado.get(r._id.contact);
 
   // Nome do responsável: uma leitura dos membros da conta, não uma por conversa.
   const usersCol = await getCollection("users");
@@ -157,16 +191,27 @@ export async function GET() {
 
   const agoraMs = Date.now();
 
+  // Canais (caixas) da conta, para a sidebar filtrar por número.
+  const canais = channelsOf(ctx.account).map((c) => ({
+    phoneNumberId: c.phoneNumberId,
+    name: c.name,
+    displayNumber: c.displayNumber ?? null,
+  }));
+
   return NextResponse.json({
     usuarioAtual: ctx.userId,
+    canais,
     etiquetas: [...usoEtiquetas.entries()]
       .map(([nome, total]) => ({ nome, total }))
       .sort((a, b) => a.nome.localeCompare(b.nome)),
     conversas: rows.map((r) => {
-      const conv = convPorContato.get(r._id);
+      const conv = estadoDaConversa(r);
+      const contact = r._id.contact;
+      const phoneNumberId = r._id.phoneNumberId ?? null;
       const assigneeId = conv?.assigneeId ?? null;
       return {
-      contact: r._id,
+      contact,
+      phoneNumberId,
       status: statusEfetivo(conv?.status, conv?.snoozedUntil, agoraMs),
       snoozedUntil: conv?.snoozedUntil ?? null,
       assigneeId,
@@ -174,12 +219,12 @@ export async function GET() {
       labels: conv?.labels ?? [],
       priority: conv?.priority ?? null,
       botPaused: !!conv?.botPaused,
-      nome: nomePorTelefone.get(r._id) ?? conv?.waName ?? null,
+      nome: nomePorTelefone.get(contact) ?? conv?.waName ?? null,
       ultimaEm: r.ultimaEm,
       ultimoTexto: r.ultimoTexto,
       ultimaDirecao: r.ultimaDirecao,
       janelaAberta: janelaAberta(r.ultimaRecebidaEm),
-      naoLidas: naoLidasPorContato.get(r._id) ?? 0,
+      naoLidas: naoLidasPorConversa.get(chaveConversa(contact, phoneNumberId)) ?? 0,
       total: r.total,
       };
     }),
@@ -203,6 +248,12 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const contact = normalizePhone(String(body.contact ?? ""));
+  // Canal (caixa) da conversa para o estado. Só separa em contas multi-número;
+  // conta de número único fica null (compatível com os docs legados).
+  const phoneNumberId = conversationChannelKey(
+    ctx.account,
+    body.channel ? String(body.channel) : null
+  );
   const acao = String(body.action ?? "");
   if (
     !contact ||
@@ -235,7 +286,7 @@ export async function PATCH(request: Request) {
       : null;
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact },
+      { accountId: ctx.accountId, contact, phoneNumberId },
       {
         $set: {
           status: adiar ? "snoozed" : "pending",
@@ -243,7 +294,7 @@ export async function PATCH(request: Request) {
           resolvedAt: null,
           updatedAt: now,
         },
-        $setOnInsert: { accountId: ctx.accountId, contact, createdAt: now },
+        $setOnInsert: { accountId: ctx.accountId, contact, phoneNumberId, createdAt: now },
       },
       { upsert: true }
     );
@@ -261,12 +312,13 @@ export async function PATCH(request: Request) {
     }
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact },
+      { accountId: ctx.accountId, contact, phoneNumberId },
       {
         $set: { priority, updatedAt: now },
         $setOnInsert: {
           accountId: ctx.accountId,
           contact,
+          phoneNumberId,
           status: "open",
           createdAt: now,
         },
@@ -290,12 +342,13 @@ export async function PATCH(request: Request) {
       : [];
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact },
+      { accountId: ctx.accountId, contact, phoneNumberId },
       {
         $set: { labels, updatedAt: now },
         $setOnInsert: {
           accountId: ctx.accountId,
           contact,
+          phoneNumberId,
           status: "open",
           createdAt: now,
         },
@@ -323,7 +376,7 @@ export async function PATCH(request: Request) {
     }
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact },
+      { accountId: ctx.accountId, contact, phoneNumberId },
       {
         $set: {
           assigneeId,
@@ -333,6 +386,7 @@ export async function PATCH(request: Request) {
         $setOnInsert: {
           accountId: ctx.accountId,
           contact,
+          phoneNumberId,
           status: "open",
           createdAt: now,
         },

@@ -60,6 +60,26 @@ export interface AccountNumberAddon {
   deliveredAt?: Date | null;
 }
 
+/**
+ * Um canal/caixa de WhatsApp da empresa (um número). A mesma empresa pode ter
+ * vários (ex.: "Suporte" e "Dome"), cada um com sua própria caixa de conversas
+ * — as mensagens são separadas pelo phoneNumberId, que é a identidade do canal.
+ */
+export interface WhatsAppChannel {
+  /** Nome da caixa, ex.: "Suporte", "Dome". */
+  name: string;
+  /** "own" = WABA do cliente; "central" = WABA da LoopSale. */
+  source?: "own" | "central" | null;
+  wabaId?: string | null;
+  /** ID do número na Meta — identidade do canal e chave de roteamento. */
+  phoneNumberId: string;
+  /** Número exibido, ex: "+55 11 5304-2686". Informativo. */
+  displayNumber?: string | null;
+  /** Token próprio do canal (quando não usa o central). */
+  accessToken?: string | null;
+  connectedAt?: Date | null;
+}
+
 export interface Account {
   _id?: ObjectId;
   name: string;
@@ -94,6 +114,12 @@ export interface Account {
     accessToken?: string | null;
     connectedAt?: Date | null;
   } | null;
+  /**
+   * Canais/caixas de WhatsApp da empresa. Quando presente e não vazio, é a
+   * fonte da verdade dos números (multi-caixa). O `whatsapp` acima segue como
+   * legado/fallback: contas antigas viram um canal único derivado dele.
+   */
+  channels?: WhatsAppChannel[] | null;
   subscription?: AccountSubscription | null;
   support?: AccountSupport | null;
   numberAddon?: AccountNumberAddon | null;
@@ -349,6 +375,12 @@ export interface Conversation {
   accountId: string;
   /** Telefone do contato em dígitos E.164 sem "+", igual ao das mensagens. */
   contact: string;
+  /**
+   * Canal/caixa a que esta conversa pertence (phoneNumberId do número). O mesmo
+   * contato numa caixa diferente é outra conversa. Legado: docs antigos podem
+   * não ter — a leitura casa por contato como fallback.
+   */
+  phoneNumberId?: string | null;
   /** open | pending | snoozed | resolved */
   status: string;
   resolvedAt?: Date | null;
