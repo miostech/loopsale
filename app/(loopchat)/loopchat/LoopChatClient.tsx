@@ -302,6 +302,10 @@ export function LoopChatClient({
   const [crSalvando, setCrSalvando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [enviandoMidia, setEnviandoMidia] = useState(false);
+  // Anexo escolhido (📎, arrastar ou colar), aguardando confirmação de envio.
+  const [anexo, setAnexo] = useState<File | null>(null);
+  const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
+  const [arrastando, setArrastando] = useState(false);
   const [erro, setErro] = useState("");
   const fimRef = useRef<HTMLDivElement>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
@@ -364,6 +368,16 @@ export function LoopChatClient({
     loadMensagens(ativo, ativoCanal);
     loadFicha(ativo);
   }, [ativo, ativoCanal, loadMensagens, loadFicha]);
+
+  // Trocar de conversa descarta um anexo ainda não enviado (era da outra).
+  useEffect(() => {
+    setAnexo(null);
+    setAnexoUrl((antigo) => {
+      if (antigo) URL.revokeObjectURL(antigo);
+      return null;
+    });
+    setArrastando(false);
+  }, [ativo, ativoCanal]);
 
   // Atualização automática (quase tempo real): repolla a lista e a conversa
   // aberta a cada poucos segundos, sem incomodar quando a aba está oculta.
@@ -831,8 +845,28 @@ export function LoopChatClient({
     }
   }
 
-  async function enviarAnexo(file: File) {
-    if (!ativo) return;
+  // Seleciona um arquivo (📎, arrastar ou colar) para pré-visualizar antes de
+  // enviar. Imagem ganha um preview via object URL (revogado ao limpar).
+  function escolherAnexo(file: File) {
+    setErro("");
+    setAnexo(file);
+    setAnexoUrl((antigo) => {
+      if (antigo) URL.revokeObjectURL(antigo);
+      return file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+    });
+  }
+
+  function limparAnexo() {
+    setAnexoUrl((antigo) => {
+      if (antigo) URL.revokeObjectURL(antigo);
+      return null;
+    });
+    setAnexo(null);
+    if (arquivoRef.current) arquivoRef.current.value = "";
+  }
+
+  async function enviarAnexo() {
+    if (!ativo || !anexo) return;
     setErro("");
     setEnviandoMidia(true);
     try {
@@ -841,7 +875,7 @@ export function LoopChatClient({
       if (ativoCanal) fd.append("channel", ativoCanal);
       // O texto do compositor vira legenda (imagem/vídeo/documento).
       if (texto.trim()) fd.append("caption", texto.trim());
-      fd.append("file", file);
+      fd.append("file", anexo);
       const res = await fetch("/api/loopchat/send-media", {
         method: "POST",
         body: fd,
@@ -852,13 +886,13 @@ export function LoopChatClient({
         return;
       }
       setTexto("");
+      limparAnexo();
       await loadMensagens(ativo, ativoCanal);
       await loadConversas();
     } catch {
       setErro("Erro de rede ao enviar o anexo.");
     } finally {
       setEnviandoMidia(false);
-      if (arquivoRef.current) arquivoRef.current.value = "";
     }
   }
 
@@ -1394,10 +1428,39 @@ export function LoopChatClient({
 
       {/* Coluna 3: thread */}
       <section
-        className={`min-w-0 flex-1 flex-col bg-[var(--loop-bg-alt)] ${
+        className={`relative min-w-0 flex-1 flex-col bg-[var(--loop-bg-alt)] ${
           ativo ? "flex" : "hidden md:flex"
         }`}
+        onDragOver={(e) => {
+          // Arrastar um arquivo pra dentro da conversa vira anexo.
+          if (!ativo || modoNota) return;
+          if (Array.from(e.dataTransfer.types).includes("Files")) {
+            e.preventDefault();
+            setArrastando(true);
+          }
+        }}
+        onDragLeave={(e) => {
+          // Só some quando sai de fato da coluna (não ao passar por um filho).
+          if (e.currentTarget === e.target) setArrastando(false);
+        }}
+        onDrop={(e) => {
+          if (!ativo || modoNota) return;
+          const arq = Array.from(e.dataTransfer.files);
+          if (arq.length) {
+            e.preventDefault();
+            escolherAnexo(arq[0]);
+          }
+          setArrastando(false);
+        }}
       >
+        {/* Overlay de "solte aqui" enquanto arrasta um arquivo. */}
+        {arrastando && ativo && !modoNota && (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-[color-mix(in_srgb,var(--loop-primary)_12%,transparent)]">
+            <div className="rounded-xl border-2 border-dashed border-[var(--loop-primary)] bg-[var(--loop-bg)] px-6 py-4 text-sm font-medium text-[var(--loop-primary)]">
+              Solte o arquivo para anexar
+            </div>
+          </div>
+        )}
         {!ativo ? (
           <div className="flex flex-1 items-center justify-center text-sm text-[var(--loop-text-muted)]">
             Escolha uma conversa.
@@ -1673,6 +1736,40 @@ export function LoopChatClient({
                       </p>
                     )
                   )}
+                  {/* Pré-visualização do anexo antes de enviar. */}
+                  {anexo && !modoNota && (
+                    <div className="mb-2 flex items-center gap-3 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-2">
+                      {anexoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={anexoUrl}
+                          alt={anexo.name}
+                          className="h-14 w-14 shrink-0 rounded-md object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-[var(--loop-bg)] text-2xl">
+                          📄
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-[var(--loop-text)]">
+                          {anexo.name}
+                        </p>
+                        <p className="text-xs text-[var(--loop-text-muted)]">
+                          {(anexo.size / 1024 / 1024).toFixed(2)} MB · adicione
+                          uma legenda (opcional) e envie
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={limparAnexo}
+                        aria-label="Remover anexo"
+                        className="shrink-0 rounded-md px-2 py-1 text-[var(--loop-text-muted)] hover:text-[var(--loop-error)]"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                   <div className="relative">
                     {/* Autocomplete de "/atalho": abre acima do campo. */}
                     {menuRespostasAberto && (
@@ -1718,6 +1815,15 @@ export function LoopChatClient({
                       value={texto}
                       disabled={(!janelaAberta && !modoNota) || enviando}
                       onChange={(e) => setTexto(e.target.value)}
+                      onPaste={(e) => {
+                        // Colar um print/arquivo vira anexo (não cola no texto).
+                        if (modoNota) return;
+                        const arq = Array.from(e.clipboardData.files);
+                        if (arq.length) {
+                          e.preventDefault();
+                          escolherAnexo(arq[0]);
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (menuRespostasAberto) {
                           if (e.key === "ArrowDown") {
@@ -1748,7 +1854,8 @@ export function LoopChatClient({
                         }
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
-                          enviar();
+                          if (anexo) enviarAnexo();
+                          else enviar();
                         }
                       }}
                       className="w-full resize-none rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-base md:text-sm text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)] disabled:opacity-60"
@@ -1766,7 +1873,7 @@ export function LoopChatClient({
                             className="hidden"
                             onChange={(e) => {
                               const f = e.target.files?.[0];
-                              if (f) enviarAnexo(f);
+                              if (f) escolherAnexo(f);
                             }}
                           />
                           <button
@@ -1792,15 +1899,21 @@ export function LoopChatClient({
                       variant={modoNota ? "secondary" : "cta"}
                       size="sm"
                       disabled={
-                        (!janelaAberta && !modoNota) || enviando || !texto.trim()
+                        anexo
+                          ? !janelaAberta || enviandoMidia
+                          : (!janelaAberta && !modoNota) || enviando || !texto.trim()
                       }
-                      onClick={enviar}
+                      onClick={anexo ? enviarAnexo : enviar}
                     >
-                      {enviando
-                        ? "Salvando…"
-                        : modoNota
-                          ? "Salvar nota"
-                          : "Enviar"}
+                      {anexo
+                        ? enviandoMidia
+                          ? "Enviando…"
+                          : "Enviar anexo"
+                        : enviando
+                          ? "Salvando…"
+                          : modoNota
+                            ? "Salvar nota"
+                            : "Enviar"}
                     </Button>
                   </div>
                 </div>
