@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import { chatContext } from "@/lib/loopchat/access";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
+import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
 
 const GRAPH = "https://graph.facebook.com";
 function version(): string {
@@ -39,12 +40,16 @@ export async function GET(
   const msg = (await waCol.findOne({
     accountId: ctx.accountId,
     mediaId: id,
-  })) as { mimeType?: string | null } | null;
+  })) as { mimeType?: string | null; phoneNumberId?: string | null } | null;
   if (!msg) {
     return NextResponse.json({ error: "Mídia não encontrada." }, { status: 404 });
   }
 
-  const token = await resolveSendToken(ctx.account?.whatsapp);
+  // Usa o token do canal (número) daquela mensagem; cai no legado se preciso.
+  const canal = findChannel(ctx.account, msg.phoneNumberId ?? null);
+  const token =
+    (await resolveSendToken(channelSendConfig(canal))) ??
+    (await resolveSendToken(ctx.account?.whatsapp));
   if (!token) {
     return NextResponse.json({ error: "Conta sem WhatsApp." }, { status: 400 });
   }

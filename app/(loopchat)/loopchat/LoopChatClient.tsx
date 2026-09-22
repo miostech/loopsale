@@ -301,8 +301,10 @@ export function LoopChatClient({
   const [crErro, setCrErro] = useState("");
   const [crSalvando, setCrSalvando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [enviandoMidia, setEnviandoMidia] = useState(false);
   const [erro, setErro] = useState("");
   const fimRef = useRef<HTMLDivElement>(null);
+  const arquivoRef = useRef<HTMLInputElement>(null);
   // Última mensagem já vista — evita rolar a tela a cada polling.
   const ultimaMsgRef = useRef<string | null>(null);
 
@@ -826,6 +828,37 @@ export function LoopChatClient({
       setErro("Erro de rede ao enviar.");
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function enviarAnexo(file: File) {
+    if (!ativo) return;
+    setErro("");
+    setEnviandoMidia(true);
+    try {
+      const fd = new FormData();
+      fd.append("contact", ativo);
+      if (ativoCanal) fd.append("channel", ativoCanal);
+      // O texto do compositor vira legenda (imagem/vídeo/documento).
+      if (texto.trim()) fd.append("caption", texto.trim());
+      fd.append("file", file);
+      const res = await fetch("/api/loopchat/send-media", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErro(data.error ?? "Não foi possível enviar o anexo.");
+        return;
+      }
+      setTexto("");
+      await loadMensagens(ativo, ativoCanal);
+      await loadConversas();
+    } catch {
+      setErro("Erro de rede ao enviar o anexo.");
+    } finally {
+      setEnviandoMidia(false);
+      if (arquivoRef.current) arquivoRef.current.value = "";
     }
   }
 
@@ -1722,13 +1755,39 @@ export function LoopChatClient({
                     />
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
-                    <span className="text-xs text-[var(--loop-text-muted)]">
-                      {erro ? (
-                        <span className="text-[var(--loop-error)]">{erro}</span>
-                      ) : (
-                        `${texto.length} caractere${texto.length === 1 ? "" : "s"}`
+                    <div className="flex min-w-0 items-center gap-2">
+                      {/* Anexar arquivo — só ao responder (vai pro cliente). */}
+                      {!modoNota && (
+                        <>
+                          <input
+                            ref={arquivoRef}
+                            type="file"
+                            accept="image/*,video/*,audio/*,application/pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) enviarAnexo(f);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => arquivoRef.current?.click()}
+                            disabled={!janelaAberta || enviando || enviandoMidia}
+                            title="Anexar imagem, vídeo, áudio ou PDF"
+                            className="shrink-0 rounded-lg border border-[var(--loop-border)] px-2 py-1.5 text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)] disabled:opacity-50"
+                          >
+                            {enviandoMidia ? "Enviando…" : "📎"}
+                          </button>
+                        </>
                       )}
-                    </span>
+                      <span className="truncate text-xs text-[var(--loop-text-muted)]">
+                        {erro ? (
+                          <span className="text-[var(--loop-error)]">{erro}</span>
+                        ) : (
+                          `${texto.length} caractere${texto.length === 1 ? "" : "s"}`
+                        )}
+                      </span>
+                    </div>
                     <Button
                       variant={modoNota ? "secondary" : "cta"}
                       size="sm"

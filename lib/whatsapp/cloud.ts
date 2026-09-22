@@ -377,6 +377,100 @@ export async function sendText(params: {
   }
 }
 
+/** Tipo de mídia do WhatsApp a partir do MIME do arquivo. */
+export type MediaKind = "image" | "video" | "audio" | "document";
+export function mediaKindFromMime(mime: string): MediaKind {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+/**
+ * Sobe um arquivo para a Meta e devolve o media id (para depois enviar por
+ * sendMedia). Upload é multipart: messaging_product + file + type.
+ */
+export async function uploadMedia(params: {
+  phoneNumberId: string;
+  bytes: ArrayBuffer;
+  mimeType: string;
+  filename: string;
+  token?: string | null;
+}): Promise<{ id?: string; error?: string }> {
+  if (!params.token) return { error: SEM_TOKEN };
+  if (!params.phoneNumberId) {
+    return { error: "Conta sem Phone Number ID do WhatsApp." };
+  }
+  try {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", params.mimeType);
+    form.append(
+      "file",
+      new Blob([params.bytes], { type: params.mimeType }),
+      params.filename
+    );
+    const res = await fetch(
+      `${GRAPH}/${version()}/${params.phoneNumberId}/media`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${params.token}` },
+        body: form,
+      }
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      error?: { message?: string };
+    };
+    if (!res.ok || !data.id) {
+      return { error: data.error?.message ?? "Falha ao subir o arquivo." };
+    }
+    return { id: data.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Erro ao subir o arquivo." };
+  }
+}
+
+/**
+ * Envia uma mídia já hospedada na Meta (media id) numa conversa aberta.
+ * Só imagem/vídeo/documento aceitam legenda; documento aceita nome do arquivo.
+ */
+export async function sendMedia(params: {
+  phoneNumberId: string;
+  to: string;
+  kind: MediaKind;
+  mediaId: string;
+  caption?: string | null;
+  filename?: string | null;
+  token?: string | null;
+}): Promise<SendResult> {
+  if (!params.token) return { success: false, error: SEM_TOKEN };
+  if (!params.phoneNumberId) {
+    return { success: false, error: "Conta sem Phone Number ID do WhatsApp." };
+  }
+  try {
+    const caption = params.caption?.trim() || undefined;
+    const midia: Record<string, unknown> = { id: params.mediaId };
+    if (caption && params.kind !== "audio") midia.caption = caption;
+    if (params.kind === "document" && params.filename) {
+      midia.filename = params.filename;
+    }
+    const data = await graphPost(
+      `${params.phoneNumberId}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: normalizePhone(params.to),
+        type: params.kind,
+        [params.kind]: midia,
+      },
+      params.token
+    );
+    return { success: true, wamid: wamidOf(data) };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Erro" };
+  }
+}
+
 /**
  * Valida a assinatura X-Hub-Signature-256 do webhook da Meta.
  * Sem APP_SECRET configurado, não bloqueia (útil em dev).
