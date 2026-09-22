@@ -411,6 +411,23 @@ export interface Conversation {
   updatedAt: Date;
 }
 
+/**
+ * Resposta rápida (mensagem pronta) da conta. No compositor do LoopChat, digitar
+ * "/atalho" sugere e insere o `content`. Compartilhada por toda a equipe da conta.
+ */
+export interface CannedResponse {
+  _id?: ObjectId;
+  accountId: string;
+  /** Atalho sem a barra, ex.: "reembolso". Único por conta (minúsculo). */
+  shortcut: string;
+  /** Título curto opcional pra ajudar a achar. */
+  title?: string | null;
+  /** Texto da mensagem pronta. */
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface WhatsAppMessage {
   _id?: ObjectId;
   accountId: string;

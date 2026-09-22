@@ -79,6 +79,12 @@ interface LeadBusca {
   nome: string | null;
   telefone: string | null;
 }
+interface RespostaRapida {
+  id: string;
+  shortcut: string;
+  title: string | null;
+  content: string;
+}
 
 type Filtro =
   | "abertas"
@@ -283,6 +289,17 @@ export function LoopChatClient({
   const [janelaAberta, setJanelaAberta] = useState(true);
   const [texto, setTexto] = useState("");
   const [modoNota, setModoNota] = useState(false);
+  // Respostas rápidas (/atalho). Lista da conta + navegação do autocomplete.
+  const [respostas, setRespostas] = useState<RespostaRapida[]>([]);
+  const [respostaIdx, setRespostaIdx] = useState(0);
+  const [gerenciarRespostas, setGerenciarRespostas] = useState(false);
+  // Formulário do gerenciador de respostas rápidas.
+  const [crEditId, setCrEditId] = useState<string | null>(null);
+  const [crShortcut, setCrShortcut] = useState("");
+  const [crTitle, setCrTitle] = useState("");
+  const [crContent, setCrContent] = useState("");
+  const [crErro, setCrErro] = useState("");
+  const [crSalvando, setCrSalvando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const fimRef = useRef<HTMLDivElement>(null);
@@ -303,6 +320,13 @@ export function LoopChatClient({
     const res = await fetch("/api/account/members");
     if (!res.ok) return;
     setMembros(await res.json());
+  }, []);
+
+  const loadRespostas = useCallback(async () => {
+    const res = await fetch("/api/loopchat/canned");
+    if (!res.ok) return;
+    const data = await res.json();
+    setRespostas(data.respostas ?? []);
   }, []);
 
   const loadMensagens = useCallback(
@@ -330,7 +354,8 @@ export function LoopChatClient({
   useEffect(() => {
     loadConversas();
     loadMembros();
-  }, [loadConversas, loadMembros]);
+    loadRespostas();
+  }, [loadConversas, loadMembros, loadRespostas]);
 
   useEffect(() => {
     if (!ativo) return;
@@ -473,6 +498,34 @@ export function LoopChatClient({
       (c) => c.contact === ativo && c.phoneNumberId === ativoCanal
     ) ?? null;
   const nomeAtivo = ficha?.lead?.nome ?? conversaAtiva?.nome ?? null;
+
+  // Autocomplete de respostas rápidas: dispara quando o texto é só "/atalho"
+  // (sem espaço), no modo de resposta. Ex.: "/reemb" filtra "/reembolso".
+  const slashQuery = useMemo(() => {
+    const m = /^\/([a-z0-9-]*)$/i.exec(texto);
+    return m ? m[1].toLowerCase() : null;
+  }, [texto]);
+  const respostasFiltradas = useMemo(() => {
+    if (slashQuery === null) return [];
+    return respostas
+      .filter(
+        (r) =>
+          r.shortcut.includes(slashQuery) ||
+          (r.title ?? "").toLowerCase().includes(slashQuery)
+      )
+      .slice(0, 6);
+  }, [slashQuery, respostas]);
+  const menuRespostasAberto = respostasFiltradas.length > 0;
+
+  function inserirResposta(r: RespostaRapida) {
+    setTexto(r.content);
+    setRespostaIdx(0);
+  }
+
+  // Volta o destaque pro topo sempre que o filtro do "/atalho" muda.
+  useEffect(() => {
+    setRespostaIdx(0);
+  }, [slashQuery]);
 
   async function mudarStatus(
     action: "pendente" | "adiar",
@@ -773,6 +826,73 @@ export function LoopChatClient({
       setErro("Erro de rede ao enviar.");
     } finally {
       setEnviando(false);
+    }
+  }
+
+  // ---- Respostas rápidas: gerenciador (criar/editar/excluir) ----
+  function limparFormResposta() {
+    setCrEditId(null);
+    setCrShortcut("");
+    setCrTitle("");
+    setCrContent("");
+    setCrErro("");
+  }
+
+  function editarResposta(r: RespostaRapida) {
+    setCrEditId(r.id);
+    setCrShortcut(r.shortcut);
+    setCrTitle(r.title ?? "");
+    setCrContent(r.content);
+    setCrErro("");
+  }
+
+  async function salvarResposta() {
+    setCrErro("");
+    if (!crShortcut.trim() || !crContent.trim()) {
+      setCrErro("Preencha o atalho e a mensagem.");
+      return;
+    }
+    setCrSalvando(true);
+    try {
+      const res = await fetch("/api/loopchat/canned", {
+        method: crEditId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: crEditId,
+          shortcut: crShortcut,
+          title: crTitle,
+          content: crContent,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCrErro(data.error ?? "Não foi possível salvar.");
+        return;
+      }
+      limparFormResposta();
+      await loadRespostas();
+    } catch {
+      setCrErro("Erro de rede ao salvar.");
+    } finally {
+      setCrSalvando(false);
+    }
+  }
+
+  async function excluirResposta(id: string) {
+    setCrErro("");
+    try {
+      const res = await fetch(`/api/loopchat/canned?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setCrErro(data.error ?? "Não foi possível excluir.");
+        return;
+      }
+      if (crEditId === id) limparFormResposta();
+      await loadRespostas();
+    } catch {
+      setCrErro("Erro de rede ao excluir.");
     }
   }
 
@@ -1479,24 +1599,34 @@ export function LoopChatClient({
                 </div>
 
                 <div className="border-t border-[var(--loop-border)] bg-[var(--loop-bg)] p-3">
-                  <div className="mb-2 flex gap-1">
-                    {[
-                      { id: false, label: "Responder" },
-                      { id: true, label: "Nota interna" },
-                    ].map((t) => (
-                      <button
-                        key={String(t.id)}
-                        type="button"
-                        onClick={() => setModoNota(t.id)}
-                        className={`rounded-lg px-3 py-1 text-xs transition-colors ${
-                          modoNota === t.id
-                            ? "bg-[var(--loop-bg-alt)] font-medium text-[var(--loop-text)]"
-                            : "text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
-                        }`}
-                      >
-                        {t.label}
-                      </button>
-                    ))}
+                  <div className="mb-2 flex items-center justify-between gap-1">
+                    <div className="flex gap-1">
+                      {[
+                        { id: false, label: "Responder" },
+                        { id: true, label: "Nota interna" },
+                      ].map((t) => (
+                        <button
+                          key={String(t.id)}
+                          type="button"
+                          onClick={() => setModoNota(t.id)}
+                          className={`rounded-lg px-3 py-1 text-xs transition-colors ${
+                            modoNota === t.id
+                              ? "bg-[var(--loop-bg-alt)] font-medium text-[var(--loop-text)]"
+                              : "text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setGerenciarRespostas(true)}
+                      title="Digite / no campo para usar uma resposta rápida"
+                      className="rounded-lg px-2 py-1 text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                    >
+                      ⚡ Respostas rápidas
+                    </button>
                   </div>
                   {modoNota ? (
                     <p className="mb-2 text-xs text-[var(--loop-text-muted)]">
@@ -1510,24 +1640,87 @@ export function LoopChatClient({
                       </p>
                     )
                   )}
-                  <textarea
-                    rows={3}
-                    placeholder={
-                      modoNota
-                        ? "Escreva uma nota para a equipe…"
-                        : "Shift + Enter para nova linha. Enter envia."
-                    }
-                    value={texto}
-                    disabled={(!janelaAberta && !modoNota) || enviando}
-                    onChange={(e) => setTexto(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        enviar();
+                  <div className="relative">
+                    {/* Autocomplete de "/atalho": abre acima do campo. */}
+                    {menuRespostasAberto && (
+                      <div className="absolute bottom-full left-0 right-0 z-10 mb-1 max-h-56 overflow-y-auto rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] shadow-lg">
+                        <p className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[var(--loop-text-muted)]">
+                          Respostas rápidas · ↑↓ e Enter
+                        </p>
+                        {respostasFiltradas.map((r, i) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            // onMouseDown pra não tirar o foco do campo antes do clique.
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              inserirResposta(r);
+                            }}
+                            className={`block w-full border-t border-[var(--loop-border)] px-3 py-2 text-left first:border-t-0 ${
+                              i === respostaIdx ? "bg-[var(--loop-bg-alt)]" : ""
+                            }`}
+                          >
+                            <span className="text-sm font-medium text-[var(--loop-primary)]">
+                              /{r.shortcut}
+                            </span>
+                            {r.title && (
+                              <span className="ml-2 text-xs text-[var(--loop-text-muted)]">
+                                {r.title}
+                              </span>
+                            )}
+                            <span className="mt-0.5 block truncate text-xs text-[var(--loop-text-muted)]">
+                              {r.content}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <textarea
+                      rows={3}
+                      placeholder={
+                        modoNota
+                          ? "Escreva uma nota para a equipe…"
+                          : "Shift + Enter para nova linha. Enter envia. Digite / para respostas rápidas."
                       }
-                    }}
-                    className="w-full resize-none rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-base md:text-sm text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)] disabled:opacity-60"
-                  />
+                      value={texto}
+                      disabled={(!janelaAberta && !modoNota) || enviando}
+                      onChange={(e) => setTexto(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (menuRespostasAberto) {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setRespostaIdx((i) =>
+                              Math.min(i + 1, respostasFiltradas.length - 1)
+                            );
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setRespostaIdx((i) => Math.max(i - 1, 0));
+                            return;
+                          }
+                          if (e.key === "Enter" || e.key === "Tab") {
+                            e.preventDefault();
+                            inserirResposta(
+                              respostasFiltradas[respostaIdx] ??
+                                respostasFiltradas[0]
+                            );
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setTexto("");
+                            return;
+                          }
+                        }
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          enviar();
+                        }
+                      }}
+                      className="w-full resize-none rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-base md:text-sm text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)] disabled:opacity-60"
+                    />
+                  </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="text-xs text-[var(--loop-text-muted)]">
                       {erro ? (
@@ -2019,6 +2212,150 @@ export function LoopChatClient({
               >
                 {ncEnviando ? "Enviando…" : "Enviar"}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gerenciador de respostas rápidas */}
+      {gerenciarRespostas && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-16"
+          onClick={() => setGerenciarRespostas(false)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-[var(--loop-border)] bg-[var(--loop-bg)] shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--loop-border)] px-4 py-3">
+              <div>
+                <h3 className="font-semibold text-[var(--loop-text)]">
+                  Respostas rápidas
+                </h3>
+                <p className="text-xs text-[var(--loop-text-muted)]">
+                  No campo de resposta, digite <code>/atalho</code> para inserir.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGerenciarRespostas(false)}
+                aria-label="Fechar"
+                className="text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4 overflow-y-auto p-4 text-sm">
+              {/* Formulário criar/editar */}
+              <div className="space-y-2 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                      Atalho (sem a barra)
+                    </label>
+                    <div className="mt-1 flex items-center rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2">
+                      <span className="text-[var(--loop-text-muted)]">/</span>
+                      <input
+                        value={crShortcut}
+                        onChange={(e) => setCrShortcut(e.target.value)}
+                        placeholder="reembolso"
+                        className="w-full bg-transparent px-1 py-2 text-[var(--loop-text)] outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                      Título (opcional)
+                    </label>
+                    <input
+                      value={crTitle}
+                      onChange={(e) => setCrTitle(e.target.value)}
+                      placeholder="Política de reembolso"
+                      className="mt-1 w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-[var(--loop-text-muted)]">
+                    Mensagem
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={crContent}
+                    onChange={(e) => setCrContent(e.target.value)}
+                    placeholder="Oi! Sobre o reembolso: você tem até 7 dias…"
+                    className="mt-1 w-full resize-none rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)] outline-none focus:border-[var(--loop-primary)]"
+                  />
+                </div>
+                {crErro && (
+                  <p className="text-xs text-[var(--loop-error)]">{crErro}</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="cta"
+                    size="sm"
+                    disabled={crSalvando}
+                    onClick={salvarResposta}
+                  >
+                    {crSalvando
+                      ? "Salvando…"
+                      : crEditId
+                        ? "Salvar alteração"
+                        : "Adicionar"}
+                  </Button>
+                  {crEditId && (
+                    <button
+                      type="button"
+                      onClick={limparFormResposta}
+                      className="text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                    >
+                      Cancelar edição
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Lista */}
+              {respostas.length === 0 ? (
+                <p className="text-[var(--loop-text-muted)]">
+                  Nenhuma resposta rápida ainda. Crie a primeira acima.
+                </p>
+              ) : (
+                <div className="divide-y divide-[var(--loop-border)] rounded-lg border border-[var(--loop-border)]">
+                  {respostas.map((r) => (
+                    <div key={r.id} className="flex items-start gap-2 px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[var(--loop-primary)]">
+                          /{r.shortcut}
+                          {r.title && (
+                            <span className="ml-2 text-xs text-[var(--loop-text-muted)]">
+                              {r.title}
+                            </span>
+                          )}
+                        </p>
+                        <p className="truncate text-xs text-[var(--loop-text-muted)]">
+                          {r.content}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => editarResposta(r)}
+                        className="shrink-0 text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => excluirResposta(r.id)}
+                        className="shrink-0 text-xs text-[var(--loop-text-muted)] hover:text-[var(--loop-error)]"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
