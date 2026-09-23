@@ -259,17 +259,37 @@ export async function POST(request: Request) {
               phoneNumberId
             );
             const convCol = await getCollection("conversations");
+            // Resolvida reabre num episódio novo: volta pro board e libera o bot
+            // (mesmo que antes tivesse sido repassada a um humano).
             await convCol.updateOne(
               {
                 accountId,
                 contact: msg.from,
                 phoneNumberId: convChannel,
-                status: { $in: ["resolved", "snoozed", "pending"] },
+                status: "resolved",
               },
               {
                 $set: {
                   status: "open",
                   resolvedAt: null,
+                  resolvedBy: null,
+                  botPaused: false,
+                  updatedAt: now,
+                },
+              }
+            );
+            // Adiada/pendente reabre mantendo a intenção do humano (não mexe no
+            // bot: quem deixou pendente/adiada segue no controle).
+            await convCol.updateOne(
+              {
+                accountId,
+                contact: msg.from,
+                phoneNumberId: convChannel,
+                status: { $in: ["snoozed", "pending"] },
+              },
+              {
+                $set: {
+                  status: "open",
                   snoozedUntil: null,
                   updatedAt: now,
                 },
