@@ -46,7 +46,7 @@ export default async function LoopChatLayout({
           <LoopSaleLogo
             href={dedicado ? "/loopchat" : "/dashboard"}
             variant="full"
-            imgClassName="h-9 w-auto object-contain object-left"
+            imgClassName="h-12 w-auto object-contain object-left"
           />
           <span className="rounded-full bg-[var(--loop-primary-muted)] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[var(--loop-primary)]">
             LoopChat
