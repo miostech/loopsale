@@ -338,7 +338,7 @@ export async function sendTemplate(params: {
       `${params.phoneNumberId}/messages`,
       {
         messaging_product: "whatsapp",
-        to: normalizePhone(params.to),
+        to: soDigitos(params.to),
         type: "template",
         template: {
           name: params.templateName,
@@ -375,7 +375,7 @@ export async function sendText(params: {
       `${params.phoneNumberId}/messages`,
       {
         messaging_product: "whatsapp",
-        to: normalizePhone(params.to),
+        to: soDigitos(params.to),
         type: "text",
         text: { body: params.body, preview_url: true },
       },
@@ -469,7 +469,7 @@ export async function sendMedia(params: {
       `${params.phoneNumberId}/messages`,
       {
         messaging_product: "whatsapp",
-        to: normalizePhone(params.to),
+        to: soDigitos(params.to),
         type: params.kind,
         [params.kind]: midia,
       },
