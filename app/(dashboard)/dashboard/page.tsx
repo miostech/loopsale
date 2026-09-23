@@ -196,6 +196,7 @@ export default function DashboardPage() {
             <option value={7}>Últimos 7 dias</option>
             <option value={30}>Últimos 30 dias</option>
             <option value={90}>Últimos 90 dias</option>
+            <option value={0}>Todo o tempo</option>
           </select>
         </div>
       </div>
@@ -225,7 +226,7 @@ export default function DashboardPage() {
                 <p className="mt-0.5 text-sm text-[var(--loop-text-muted)]">
                   {formatUSD(metrics.total.valorRecuperadoDolar)}
                 </p>
-                <ChangeBadge value={metrics.variacao.valorRecuperado} />
+                <ChangeBadge value={days === 0 ? null : metrics.variacao.valorRecuperado} />
               </CardContent>
             </Card>
 
@@ -246,7 +247,7 @@ export default function DashboardPage() {
                   Ainda em risco (líquido, sem os já pagos)
                 </p>
                 <ChangeBadge
-                  value={metrics.variacao.valorEmRisco}
+                  value={days === 0 ? null : metrics.variacao.valorEmRisco}
                   goodWhenUp={false}
                 />
               </CardContent>
@@ -266,7 +267,7 @@ export default function DashboardPage() {
                   {metrics.total.recuperados} de {metrics.total.total}{" "}
                   recuperáveis
                 </p>
-                <ChangeBadge value={metrics.variacao.taxaRecuperacao} />
+                <ChangeBadge value={days === 0 ? null : metrics.variacao.taxaRecuperacao} />
               </CardContent>
             </Card>
 

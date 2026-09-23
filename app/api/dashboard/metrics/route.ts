@@ -13,10 +13,10 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const periodDays = Math.min(
-    90,
-    Math.max(1, Number(url.searchParams.get("days")) || 30)
-  );
+  const rawDays = Number(url.searchParams.get("days"));
+  // days=0 = "todo o tempo" (sem limite). Demais valores ficam entre 1 e 90.
+  const periodDays =
+    rawDays === 0 ? 0 : Math.min(90, Math.max(1, rawDays || 30));
   const includeDaily = url.searchParams.get("daily") === "true";
 
   const metrics = await getDashboardMetrics(session.user.accountId, periodDays);

@@ -463,9 +463,13 @@ export async function getDashboardMetrics(
   accountId: string,
   periodDays: number = 30
 ): Promise<DashboardMetrics> {
+  // periodDays <= 0 = "todo o tempo": sem limite de data (desde o começo).
+  const allTime = !periodDays || periodDays <= 0;
+
   if (isDatabaseDisabled()) {
-    const current = mockCore(periodDays, 0);
-    const previous = mockCore(periodDays, periodDays);
+    const mockDays = allTime ? 90 : periodDays;
+    const current = mockCore(mockDays, 0);
+    const previous = mockCore(mockDays, mockDays);
     const abordados = Math.round(
       (current.abandonados.total + current.recusados.total) * 0.7
     );
@@ -473,10 +477,12 @@ export async function getDashboardMetrics(
   }
 
   const now = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() - periodDays);
-  const prevStart = new Date(now);
-  prevStart.setDate(prevStart.getDate() - periodDays * 2);
+  // Todo o tempo começa na época 0; o período anterior fica vazio (sem base
+  // de comparação, o que é esperado para "desde sempre").
+  const start = allTime ? new Date(0) : new Date(now);
+  if (!allTime) start.setDate(start.getDate() - periodDays);
+  const prevStart = allTime ? new Date(0) : new Date(now);
+  if (!allTime) prevStart.setDate(prevStart.getDate() - periodDays * 2);
 
   const [current, previous, abordados] = await Promise.all([
     computeCoreMetrics(accountId, start, now),
@@ -491,11 +497,13 @@ export async function getDashboardDailyMetrics(
   accountId: string,
   periodDays: number = 30
 ): Promise<DailyMetric[]> {
+  const allTime = !periodDays || periodDays <= 0;
+
   if (isDatabaseDisabled()) {
     const now = new Date();
     const out: DailyMetric[] = [];
 
-    for (let i = periodDays - 1; i >= 0; i--) {
+    for (let i = (allTime ? 90 : periodDays) - 1; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
 
@@ -518,8 +526,8 @@ export async function getDashboardDailyMetrics(
     return out;
   }
 
-  const since = new Date();
-  since.setDate(since.getDate() - periodDays);
+  const since = allTime ? new Date(0) : new Date();
+  if (!allTime) since.setDate(since.getDate() - periodDays);
 
   const checkoutEventsCol = await getCollection("checkoutEvents");
   const abandonedCheckoutsCol = await getCollection("abandonedCheckouts");
