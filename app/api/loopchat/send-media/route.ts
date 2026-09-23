@@ -4,7 +4,7 @@ import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 import {
-  normalizePhone,
+  soDigitos,
   uploadMedia,
   sendMedia,
   mediaKindFromMime,
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   if (!form) {
     return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
   }
-  const contact = normalizePhone(String(form.get("contact") ?? ""));
+  const contact = soDigitos(String(form.get("contact") ?? ""));
   const channel = String(form.get("channel") ?? "") || null;
   const caption = String(form.get("caption") ?? "").trim();
   const file = form.get("file");

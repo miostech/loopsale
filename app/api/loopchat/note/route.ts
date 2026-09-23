@@ -3,7 +3,7 @@ import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
-import { normalizePhone } from "@/lib/whatsapp/cloud";
+import { soDigitos } from "@/lib/whatsapp/cloud";
 import { findChannel } from "@/lib/whatsapp/channels";
 
 /**
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const contact = normalizePhone(String(body.contact ?? ""));
+  const contact = soDigitos(String(body.contact ?? ""));
   const texto = String(body.body ?? "").trim();
   const channel = String(body.channel ?? "") || null;
   if (!contact || !texto) {

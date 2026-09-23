@@ -3,7 +3,7 @@ import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Conversation } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
 import { isDemoContext, demoConversasPayload } from "@/lib/loopchat/demo";
-import { normalizePhone } from "@/lib/whatsapp/cloud";
+import { normalizePhone, soDigitos } from "@/lib/whatsapp/cloud";
 import { channelsOf, conversationChannelKey } from "@/lib/whatsapp/channels";
 
 /** Ordem também é a de urgência, usada para ordenar a lista. */
@@ -247,7 +247,7 @@ export async function PATCH(request: Request) {
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
 
   const body = await request.json().catch(() => ({}));
-  const contact = normalizePhone(String(body.contact ?? ""));
+  const contact = soDigitos(String(body.contact ?? ""));
   // Canal (caixa) da conversa para o estado. Só separa em contas multi-número;
   // conta de número único fica null (compatível com os docs legados).
   const phoneNumberId = conversationChannelKey(

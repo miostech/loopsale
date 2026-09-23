@@ -3,7 +3,7 @@ import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
 import { chatContext, janelaAberta } from "@/lib/loopchat/access";
 import { isDemoContext, demoMensagensPayload } from "@/lib/loopchat/demo";
-import { normalizePhone } from "@/lib/whatsapp/cloud";
+import { soDigitos } from "@/lib/whatsapp/cloud";
 
 /** Histórico de uma conversa (um contato). */
 export async function GET(request: Request) {
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     );
   }
   const url = new URL(request.url);
-  const contact = normalizePhone(url.searchParams.get("contact") ?? "");
+  const contact = soDigitos(url.searchParams.get("contact") ?? "");
   // Canal (caixa): filtra o histórico pelo número. Ausente = legado (todos).
   const channel = url.searchParams.get("channel") || null;
   if (!contact) {

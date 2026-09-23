@@ -75,6 +75,16 @@ export function normalizePhone(raw: string): string {
   return d;
 }
 
+/**
+ * Só os dígitos, SEM prepender DDI. Para operar em conversas que já existem, o
+ * contato precisa casar exatamente com o que foi salvo (o webhook grava o número
+ * como veio, em E.164). Re-normalizar aqui quebraria números estrangeiros (ex.:
+ * um +33 de 11 dígitos viraria 55+33..., e a busca não acharia nada).
+ */
+export function soDigitos(raw: string): string {
+  return (raw ?? "").replace(/\D/g, "");
+}
+
 async function graphPost(
   path: string,
   body: Record<string, unknown>,
