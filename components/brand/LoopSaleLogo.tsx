@@ -6,12 +6,18 @@ type LoopSaleLogoProps = {
   href?: string | null;
   variant?: "full" | "mark";
   className?: string;
+  /**
+   * Sobrescreve as classes da imagem (tamanho/ajuste). Útil em barras baixas,
+   * como o header do LoopChat, onde a altura padrão é grande demais.
+   */
+  imgClassName?: string;
 };
 
 export function LoopSaleLogo({
   href = "/",
   variant = "full",
   className = "",
+  imgClassName,
 }: LoopSaleLogoProps) {
   const isMark = variant === "mark";
 
@@ -28,7 +34,10 @@ export function LoopSaleLogo({
         alt="LoopSale"
         width={800}
         height={180}
-        className="h-[104px] w-auto max-h-[120px] max-w-[min(100%,560px)] object-contain object-left sm:h-[120px] sm:max-w-[min(100%,720px)]"
+        className={
+          imgClassName ??
+          "h-[104px] w-auto max-h-[120px] max-w-[min(100%,560px)] object-contain object-left sm:h-[120px] sm:max-w-[min(100%,720px)]"
+        }
         priority
         unoptimized
       />

@@ -43,7 +43,11 @@ export default async function LoopChatLayout({
     <div className="flex h-[100dvh] flex-col bg-[var(--loop-bg)]">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--loop-border)] px-4">
         <div className="flex items-center gap-3">
-          <LoopSaleLogo href={dedicado ? "/loopchat" : "/dashboard"} variant="full" />
+          <LoopSaleLogo
+            href={dedicado ? "/loopchat" : "/dashboard"}
+            variant="full"
+            imgClassName="h-9 w-auto object-contain object-left"
+          />
           <span className="rounded-full bg-[var(--loop-primary-muted)] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[var(--loop-primary)]">
             LoopChat
           </span>
