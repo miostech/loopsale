@@ -107,7 +107,8 @@ function ChangeBadge({
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [days, setDays] = useState(30);
+  // Abre já no dia de hoje; os demais períodos ficam a um clique.
+  const [days, setDays] = useState(1);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -191,6 +192,7 @@ export default function DashboardPage() {
             onChange={(e) => setDays(Number(e.target.value))}
             className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-sm text-[var(--loop-text)]"
           >
+            <option value={1}>Hoje</option>
             <option value={7}>Últimos 7 dias</option>
             <option value={30}>Últimos 30 dias</option>
             <option value={90}>Últimos 90 dias</option>
