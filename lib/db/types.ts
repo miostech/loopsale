@@ -135,9 +135,34 @@ export interface Account {
     instructions?: string | null;
     /** Base de conhecimento (produto, FAQ, preços) que o bot pode usar. */
     knowledge?: string | null;
+    /**
+     * Resolve a conversa sozinha após N minutos sem resposta do cliente quando
+     * a última mensagem foi nossa. 0/null = desligado. Padrão sugerido: 30.
+     * Vale mesmo sem o bot ligado (é limpeza da caixa).
+     */
+    autoResolveMinutes?: number | null;
+    /** Bot resolve quando o cliente encerra (agradeceu/despediu-se). */
+    closeOnFinish?: boolean;
+    /** Bot aprende com as respostas humanas (few-shot dos exemplos da equipe). */
+    learnFromTeam?: boolean;
   } | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Exemplo de atendimento humano: pergunta do cliente → resposta que a equipe
+ * deu no modo humano. Vira referência (few-shot) para o bot responder cada vez
+ * mais no tom da equipe.
+ */
+export interface ChatExample {
+  _id?: ObjectId;
+  accountId: string;
+  /** Última mensagem do cliente antes da resposta humana. */
+  question: string;
+  /** Resposta que o humano enviou. */
+  answer: string;
+  createdAt: Date;
 }
 
 export interface User {

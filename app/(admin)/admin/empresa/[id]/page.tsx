@@ -35,6 +35,9 @@ interface Detalhe {
       enabled: boolean;
       instructions: string;
       knowledge: string;
+      autoResolveMinutes: number;
+      closeOnFinish: boolean;
+      learnFromTeam: boolean;
     };
     assinaturaMensal: number;
     ultimaAtividade: string | null;
@@ -290,6 +293,9 @@ export default function EmpresaDetalhe({
         initialEnabled={e.bot.enabled}
         initialInstructions={e.bot.instructions}
         initialKnowledge={e.bot.knowledge}
+        initialAutoResolveMinutes={e.bot.autoResolveMinutes}
+        initialCloseOnFinish={e.bot.closeOnFinish}
+        initialLearnFromTeam={e.bot.learnFromTeam}
       />
 
       {/* Quinzena atual */}

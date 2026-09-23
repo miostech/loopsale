@@ -12,15 +12,26 @@ export function BotConfigCard({
   initialEnabled,
   initialInstructions,
   initialKnowledge,
+  initialAutoResolveMinutes = 0,
+  initialCloseOnFinish = false,
+  initialLearnFromTeam = false,
 }: {
   companyId: string;
   initialEnabled: boolean;
   initialInstructions: string;
   initialKnowledge: string;
+  initialAutoResolveMinutes?: number;
+  initialCloseOnFinish?: boolean;
+  initialLearnFromTeam?: boolean;
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [instructions, setInstructions] = useState(initialInstructions);
   const [knowledge, setKnowledge] = useState(initialKnowledge);
+  const [autoResolveMinutes, setAutoResolveMinutes] = useState(
+    initialAutoResolveMinutes
+  );
+  const [closeOnFinish, setCloseOnFinish] = useState(initialCloseOnFinish);
+  const [learnFromTeam, setLearnFromTeam] = useState(initialLearnFromTeam);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
 
@@ -31,7 +42,14 @@ export function BotConfigCard({
       const res = await fetch(`/api/admin/empresa/${companyId}/bot`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled, instructions, knowledge }),
+        body: JSON.stringify({
+          enabled,
+          instructions,
+          knowledge,
+          autoResolveMinutes,
+          closeOnFinish,
+          learnFromTeam,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) setMsg({ err: data.error ?? "Não foi possível salvar." });
@@ -95,6 +113,50 @@ export function BotConfigCard({
             }
             className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-sm text-[var(--loop-text)] placeholder:text-[var(--loop-text-muted)]"
           />
+        </div>
+
+        {/* Automação da caixa */}
+        <div className="space-y-3 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
+          <p className="text-sm font-medium text-[var(--loop-text)]">
+            Automação da caixa
+          </p>
+          <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--loop-text)]">
+            Resolver sozinha após
+            <input
+              type="number"
+              min={0}
+              max={1440}
+              value={autoResolveMinutes}
+              onChange={(e) =>
+                setAutoResolveMinutes(Math.max(0, Number(e.target.value) || 0))
+              }
+              className="w-20 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2 py-1 text-[var(--loop-text)]"
+            />
+            minutos sem resposta do cliente
+            <span className="text-xs text-[var(--loop-text-muted)]">
+              (0 = desligado; sugerido: 30)
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--loop-text)]">
+            <input
+              type="checkbox"
+              checked={closeOnFinish}
+              onChange={(e) => setCloseOnFinish(e.target.checked)}
+              className="mt-1"
+            />
+            Fechar quando o cliente encerrar (agradeceu, se despediu) — precisa do
+            robô ligado
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--loop-text)]">
+            <input
+              type="checkbox"
+              checked={learnFromTeam}
+              onChange={(e) => setLearnFromTeam(e.target.checked)}
+              className="mt-1"
+            />
+            Aprender com as respostas da equipe (o robô passa a imitar o que vocês
+            respondem no modo humano)
+          </label>
         </div>
 
         <div className="flex items-center gap-3">

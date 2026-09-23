@@ -9,6 +9,7 @@ import {
 } from "@/lib/whatsapp/channels";
 import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
 import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
+import { buscarExemplos } from "@/lib/loopchat/examples";
 import { enviarPush } from "@/lib/push";
 
 /**
@@ -373,12 +374,43 @@ async function responderComBot(
   // Última precisa ser do cliente; se já respondemos, não responde de novo.
   if (!history.length || history[history.length - 1].role !== "customer") return;
 
+  // Aprende com a equipe: exemplos reais parecidos com a mensagem atual.
+  const ultimoCliente = history[history.length - 1].text;
+  const examples =
+    bot.learnFromTeam === false
+      ? []
+      : await buscarExemplos(accountId, ultimoCliente);
+
   const out = await generateAttendantReply({
     instructions: bot.instructions,
     knowledge: bot.knowledge,
+    examples,
     history,
   });
-  if (out.error || !out.reply) return; // erro/sem resposta: deixa para o humano
+  if (out.error) return; // erro: deixa para o humano
+
+  const now = new Date();
+
+  // Encerramento sem resposta (cliente só agradeceu): resolve e sai.
+  if (!out.reply) {
+    if (out.done && bot.closeOnFinish !== false) {
+      await convCol.updateOne(
+        { accountId, contact, phoneNumberId: convKey },
+        {
+          $set: {
+            status: "resolved",
+            resolvedAt: now,
+            resolvedBy: "auto: bot (encerrada)",
+            snoozedUntil: null,
+            updatedAt: now,
+          },
+          $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
+        },
+        { upsert: true }
+      );
+    }
+    return; // sem texto e sem conclusão: deixa para o humano
+  }
 
   const result = await sendText({
     phoneNumberId,
@@ -387,7 +419,6 @@ async function responderComBot(
     token,
   });
 
-  const now = new Date();
   await waCol.insertOne({
     accountId,
     direction: "out",
@@ -409,6 +440,22 @@ async function responderComBot(
       { accountId, contact, phoneNumberId: convKey },
       {
         $set: { botPaused: true, status: "open", updatedAt: now },
+        $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
+      },
+      { upsert: true }
+    );
+  } else if (out.done && bot.closeOnFinish !== false) {
+    // Cliente encerrou (agradeceu/despediu-se) e o bot respondeu curto: resolve.
+    await convCol.updateOne(
+      { accountId, contact, phoneNumberId: convKey },
+      {
+        $set: {
+          status: "resolved",
+          resolvedAt: now,
+          resolvedBy: "auto: bot (encerrada)",
+          snoozedUntil: null,
+          updatedAt: now,
+        },
         $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
       },
       { upsert: true }

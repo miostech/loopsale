@@ -9,6 +9,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/auto-resolve",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/commission",
       "schedule": "0 9 1,16 * *"
     }

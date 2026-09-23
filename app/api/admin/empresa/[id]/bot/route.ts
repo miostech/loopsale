@@ -30,6 +30,14 @@ export async function PATCH(
     typeof body.instructions === "string" ? body.instructions.trim().slice(0, 4000) : "";
   const knowledge =
     typeof body.knowledge === "string" ? body.knowledge.trim().slice(0, 8000) : "";
+  // Automação: minutos p/ auto-resolver (0 = off, teto 1 dia), fechar ao
+  // encerrar e aprender com a equipe.
+  const autoResolveMinutes = Math.min(
+    1440,
+    Math.max(0, Math.floor(Number(body.autoResolveMinutes) || 0))
+  );
+  const closeOnFinish = !!body.closeOnFinish;
+  const learnFromTeam = !!body.learnFromTeam;
 
   const accountsCol = await getCollection("accounts");
   await accountsCol.updateOne(
@@ -39,9 +47,20 @@ export async function PATCH(
         "attendantBot.enabled": enabled,
         "attendantBot.instructions": instructions || null,
         "attendantBot.knowledge": knowledge || null,
+        "attendantBot.autoResolveMinutes": autoResolveMinutes || null,
+        "attendantBot.closeOnFinish": closeOnFinish,
+        "attendantBot.learnFromTeam": learnFromTeam,
         updatedAt: new Date(),
       },
     }
   );
-  return NextResponse.json({ ok: true, enabled, instructions, knowledge });
+  return NextResponse.json({
+    ok: true,
+    enabled,
+    instructions,
+    knowledge,
+    autoResolveMinutes,
+    closeOnFinish,
+    learnFromTeam,
+  });
 }

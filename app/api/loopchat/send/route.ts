@@ -6,6 +6,7 @@ import { isDemoContext } from "@/lib/loopchat/demo";
 import { normalizePhone, sendText, SEM_TOKEN } from "@/lib/whatsapp/cloud";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
 import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
+import { salvarExemplo } from "@/lib/loopchat/examples";
 
 /** Resposta manual do cliente (ou da equipe dele) numa conversa. */
 export async function POST(request: Request) {
@@ -90,5 +91,21 @@ export async function POST(request: Request) {
       { status: 502 }
     );
   }
+
+  // Aprendizado: guarda "pergunta do cliente → sua resposta" para o bot imitar.
+  if (ctx.account?.attendantBot?.learnFromTeam !== false) {
+    try {
+      const ultimaEntrada = (await waCol
+        .find({ accountId: ctx.accountId, contact, phoneNumberId, direction: "in" })
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .toArray()) as { body?: string | null }[];
+      const pergunta = (ultimaEntrada[0]?.body ?? "").trim();
+      if (pergunta) await salvarExemplo(ctx.accountId, pergunta, texto);
+    } catch {
+      /* aprendizado é best-effort: nunca quebra o envio */
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
