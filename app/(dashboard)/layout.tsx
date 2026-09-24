@@ -17,7 +17,9 @@ const navGroups = [
     title: "Operação",
     items: [
       { href: "/dashboard/integracoes", label: "Integrações" },
-      { href: "/loopchat", label: "LoopChat" },
+      // LoopChat oculto do menu: o acesso é pelo subdomínio dedicado
+      // (chat.loopsale.com.br). Para reativar no painel, descomente a linha.
+      // { href: "/loopchat", label: "LoopChat" },
       { href: "/dashboard/fluxos", label: "Fluxos" },
       // Campanhas oculto por enquanto: a tela existe mas não há processador que
       // execute as campanhas (nada lê a coleção `campaigns` para enviar). Quando
