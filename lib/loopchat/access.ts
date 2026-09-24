@@ -176,8 +176,8 @@ export async function allAdminChannels(): Promise<
     for (const c of channelsOf(acc)) {
       out.push({
         phoneNumberId: c.phoneNumberId,
-        // Nome mostra a empresa + a caixa, para o admin se localizar.
-        name: `${acc.name} · ${c.name}`,
+        // Nome da caixa primeiro (o que o admin procura), depois a empresa.
+        name: `${c.name} · ${acc.name}`,
         displayNumber: c.displayNumber ?? null,
       });
     }
