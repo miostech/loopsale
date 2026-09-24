@@ -11,30 +11,37 @@ import { LoopChatLocked } from "./LoopChatLocked";
 export default async function LoopChatPage() {
   const ctx = await chatContext();
   if (!ctx) redirect("/login");
-  if (ctx.access === "hidden") redirect("/dashboard");
 
-  if (ctx.access === "locked") {
-    // Estourou a cota do plano (Pro/Escala) vs. plano sem chat grátis (Free).
-    const estourou =
-      ctx.chatQuota !== null &&
-      ctx.chatQuota > 0 &&
-      ctx.monthlyConversations > ctx.chatQuota;
-    return (
-      <div className="p-6">
-        <LoopChatLocked
-          isAdmin={ctx.role === "admin"}
-          motivo={estourou ? "over" : "free"}
-          cota={ctx.chatQuota}
-          usadas={ctx.monthlyConversations}
-        />
-      </div>
-    );
+  // Super-admin da LoopSale acessa o chat de todas as empresas — não depende de
+  // ter plano LoopChat na própria conta.
+  if (!ctx.isAdmin) {
+    if (ctx.access === "hidden") redirect("/dashboard");
+
+    if (ctx.access === "locked") {
+      // Estourou a cota do plano (Pro/Escala) vs. plano sem chat grátis (Free).
+      const estourou =
+        ctx.chatQuota !== null &&
+        ctx.chatQuota > 0 &&
+        ctx.monthlyConversations > ctx.chatQuota;
+      return (
+        <div className="p-6">
+          <LoopChatLocked
+            isAdmin={ctx.role === "admin"}
+            motivo={estourou ? "over" : "free"}
+            cota={ctx.chatQuota}
+            usadas={ctx.monthlyConversations}
+          />
+        </div>
+      );
+    }
   }
 
   // Pode enviar = tem token próprio OU está na WABA central (legado). Bater com
   // a regra real de envio evita travar o botão de conta que envia pela central.
-  // A conta demo é vitrine: libera o envio (que é simulado no backend).
+  // A conta demo é vitrine: libera o envio (que é simulado no backend). O admin
+  // envia pela empresa dona do número, então o compositor fica sempre liberado.
   const podeEnviar =
+    ctx.isAdmin ||
     !!ctx.account?.isDemo ||
     canSendFor(
       ctx.account?.whatsapp?.accessToken,
