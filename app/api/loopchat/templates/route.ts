@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isDatabaseDisabled } from "@/lib/db";
-import { chatContext } from "@/lib/loopchat/access";
+import { chatContext, resolveChatAccount } from "@/lib/loopchat/access";
 import { isDemoContext, demoTemplates } from "@/lib/loopchat/demo";
 import { listTemplates, usesCentralWaba } from "@/lib/whatsapp/cloud";
 import { resolveSendToken, getCentralWabaId } from "@/lib/whatsapp/central-config";
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
@@ -29,9 +29,11 @@ export async function GET(request: Request) {
   }
 
   // Token e WABA seguem a origem do canal escolhido: própria (token + wabaId do
-  // canal) ou central legada (token + WABA do ambiente).
+  // canal) ou central legada (token + WABA do ambiente). Admin usa a empresa
+  // dona do número.
   const channel = new URL(request.url).searchParams.get("channel") || null;
-  const canal = findChannel(ctx.account, channel);
+  const alvo = await resolveChatAccount(ctx, channel);
+  const canal = findChannel(alvo.account, channel);
   const token = await resolveSendToken(channelSendConfig(canal));
   const wabaId = usesCentralWaba(canal?.source)
     ? await getCentralWabaId()

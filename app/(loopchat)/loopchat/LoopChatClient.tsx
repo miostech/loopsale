@@ -246,6 +246,9 @@ export function LoopChatClient({
   // Canais (caixas) da conta e o canal selecionado na sidebar (null = todas).
   const [canais, setCanais] = useState<Canal[]>([]);
   const [canalSel, setCanalSel] = useState<string | null>(null);
+  // Admin da LoopSale: vê as caixas de todas as empresas e marca quais ver.
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [canaisMarcados, setCanaisMarcados] = useState<string[]>([]);
   const [filtro, setFiltro] = useState<Filtro>("abertas");
   const [resolvendo, setResolvendo] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
@@ -313,14 +316,19 @@ export function LoopChatClient({
   const ultimaMsgRef = useRef<string | null>(null);
 
   const loadConversas = useCallback(async () => {
-    const res = await fetch("/api/loopchat/conversations");
+    // Admin: carrega as conversas das caixas marcadas (várias empresas).
+    const qs = canaisMarcados.length
+      ? `?channels=${canaisMarcados.map(encodeURIComponent).join(",")}`
+      : "";
+    const res = await fetch(`/api/loopchat/conversations${qs}`);
     if (!res.ok) return;
     const data = await res.json();
     setConversas(data.conversas ?? []);
     setUsuarioAtual(data.usuarioAtual ?? null);
     setEtiquetas(data.etiquetas ?? []);
     setCanais(data.canais ?? []);
-  }, []);
+    setIsAdmin(!!data.isAdmin);
+  }, [canaisMarcados]);
 
   const loadMembros = useCallback(async () => {
     const res = await fetch("/api/account/members");
@@ -348,11 +356,11 @@ export function LoopChatClient({
     []
   );
 
-  const loadFicha = useCallback(async (contact: string) => {
+  const loadFicha = useCallback(async (contact: string, channel?: string | null) => {
     setFicha(null);
-    const res = await fetch(
-      `/api/loopchat/contact?contact=${encodeURIComponent(contact)}`
-    );
+    const qs = new URLSearchParams({ contact });
+    if (channel) qs.set("channel", channel);
+    const res = await fetch(`/api/loopchat/contact?${qs.toString()}`);
     if (!res.ok) return;
     setFicha(await res.json());
   }, []);
@@ -366,7 +374,7 @@ export function LoopChatClient({
   useEffect(() => {
     if (!ativo) return;
     loadMensagens(ativo, ativoCanal);
-    loadFicha(ativo);
+    loadFicha(ativo, ativoCanal);
   }, [ativo, ativoCanal, loadMensagens, loadFicha]);
 
   // Trocar de conversa descarta um anexo ainda não enviado (era da outra).
@@ -975,7 +983,7 @@ export function LoopChatClient({
           <div>
             <h1 className="font-semibold text-[var(--loop-text)]">Conversas</h1>
             <p className="text-xs text-[var(--loop-text-muted)]">
-              Do seu número do WhatsApp
+              {isAdmin ? "Todas as empresas (admin)" : "Do seu número do WhatsApp"}
             </p>
           </div>
           <button
@@ -1021,8 +1029,79 @@ export function LoopChatClient({
           ))}
           </div>
 
+          {/* Admin: marca quais caixas (empresas) quer ver na lista. */}
+          {isAdmin && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between gap-2 px-3 pb-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--loop-text-muted)]">
+                  Caixas das empresas
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCanaisMarcados((prev) =>
+                      prev.length === canais.length
+                        ? []
+                        : canais.map((k) => k.phoneNumberId)
+                    )
+                  }
+                  className="shrink-0 text-[11px] font-medium text-[var(--loop-primary)] hover:underline"
+                >
+                  {canaisMarcados.length === canais.length && canais.length
+                    ? "Limpar"
+                    : "Todas"}
+                </button>
+              </div>
+              {canais.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-[var(--loop-text-muted)]">
+                  Nenhuma empresa com número cadastrado.
+                </p>
+              ) : (
+                <div className="max-h-72 space-y-0.5 overflow-y-auto">
+                  {canais.map((k) => {
+                    const marcado = canaisMarcados.includes(k.phoneNumberId);
+                    return (
+                      <label
+                        key={k.phoneNumberId}
+                        className="flex cursor-pointer items-start gap-2 rounded-lg px-3 py-2 text-sm hover:bg-[var(--loop-bg-alt)]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() =>
+                            setCanaisMarcados((prev) =>
+                              prev.includes(k.phoneNumberId)
+                                ? prev.filter((x) => x !== k.phoneNumberId)
+                                : [...prev, k.phoneNumberId]
+                            )
+                          }
+                          className="mt-0.5 shrink-0"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[var(--loop-text)]">
+                            {k.name}
+                          </span>
+                          {k.displayNumber && (
+                            <span className="block truncate text-[11px] text-[var(--loop-text-muted)]">
+                              {k.displayNumber}
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              {!canaisMarcados.length && (
+                <p className="px-3 pt-1 text-[11px] text-[var(--loop-text-muted)]">
+                  Marque as caixas para ver as conversas.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Canais (caixas): filtra a lista por número. Só com +1 número. */}
-          {canais.length > 1 && (
+          {!isAdmin && canais.length > 1 && (
             <div className="mt-4">
               <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--loop-text-muted)]">
                 Canais
@@ -1387,8 +1466,8 @@ export function LoopChatClient({
                           ))}
                         </span>
                       )}
-                      {/* De qual caixa é — só quando vendo "Todas" e há +1. */}
-                      {!canalSel && canais.length > 1 && (
+                      {/* De qual caixa/empresa é — no admin sempre; senão ao ver "Todas". */}
+                      {(isAdmin || (!canalSel && canais.length > 1)) && (
                         <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-full border border-[var(--loop-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--loop-text-muted)]">
                           {canais.find((k) => k.phoneNumberId === c.phoneNumberId)
                             ?.name ?? "Canal"}

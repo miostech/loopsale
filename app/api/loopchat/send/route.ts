@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
-import { chatContext, janelaAberta } from "@/lib/loopchat/access";
+import { chatContext, janelaAberta, resolveChatAccount } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 import { soDigitos, sendText, SEM_TOKEN } from "@/lib/whatsapp/cloud";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       {
         error:
@@ -42,8 +42,10 @@ export async function POST(request: Request) {
     );
   }
 
+  // Conta alvo: admin responde pela empresa dona do número.
+  const alvo = await resolveChatAccount(ctx, channel);
   // Envia pelo canal (caixa) da conversa.
-  const canal = findChannel(ctx.account, channel);
+  const canal = findChannel(alvo.account, channel);
   const token = await resolveSendToken(channelSendConfig(canal));
   const phoneNumberId = canal?.phoneNumberId ?? "";
   if (!token || !phoneNumberId) {
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
   // seria recusado pela API — melhor recusar aqui, com o motivo certo.
   const waCol = await getCollection("whatsappMessages");
   const ultima = (await waCol
-    .find({ accountId: ctx.accountId, contact, phoneNumberId, direction: "in" })
+    .find({ accountId: alvo.accountId, contact, phoneNumberId, direction: "in" })
     .sort({ createdAt: -1 })
     .limit(1)
     .toArray()) as { createdAt?: Date }[];
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
   const result = await sendText({ phoneNumberId, to: contact, body: texto, token });
   const now = new Date();
   const doc: WhatsAppMessage = {
-    accountId: ctx.accountId,
+    accountId: alvo.accountId,
     direction: "out",
     wamid: result.wamid ?? null,
     phoneNumberId,
@@ -93,15 +95,15 @@ export async function POST(request: Request) {
   }
 
   // Aprendizado: guarda "pergunta do cliente → sua resposta" para o bot imitar.
-  if (ctx.account?.attendantBot?.learnFromTeam !== false) {
+  if (alvo.account?.attendantBot?.learnFromTeam !== false) {
     try {
       const ultimaEntrada = (await waCol
-        .find({ accountId: ctx.accountId, contact, phoneNumberId, direction: "in" })
+        .find({ accountId: alvo.accountId, contact, phoneNumberId, direction: "in" })
         .sort({ createdAt: -1 })
         .limit(1)
         .toArray()) as { body?: string | null }[];
       const pergunta = (ultimaEntrada[0]?.body ?? "").trim();
-      if (pergunta) await salvarExemplo(ctx.accountId, pergunta, texto);
+      if (pergunta) await salvarExemplo(alvo.accountId, pergunta, texto);
     } catch {
       /* aprendizado é best-effort: nunca quebra o envio */
     }

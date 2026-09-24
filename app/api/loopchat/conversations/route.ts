@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { Conversation } from "@/lib/db/types";
-import { chatContext, janelaAberta } from "@/lib/loopchat/access";
+import {
+  chatContext,
+  janelaAberta,
+  resolveChatAccount,
+  allAdminChannels,
+} from "@/lib/loopchat/access";
 import { isDemoContext, demoConversasPayload } from "@/lib/loopchat/demo";
 import { normalizePhone, soDigitos } from "@/lib/whatsapp/cloud";
 import { channelsOf, conversationChannelKey } from "@/lib/whatsapp/channels";
@@ -32,7 +37,7 @@ function statusEfetivo(
 }
 
 type Agrupado = {
-  _id: { contact: string; phoneNumberId: string | null };
+  _id: { accountId: string; contact: string; phoneNumberId: string | null };
   ultimaEm: Date;
   ultimoTexto: string | null;
   ultimaDirecao: string;
@@ -41,51 +46,98 @@ type Agrupado = {
   total: number;
 };
 
-/** Chave de uma conversa: contato + canal (phoneNumberId). */
-function chaveConversa(contact: string, phoneNumberId: string | null): string {
-  return `${contact}|${phoneNumberId ?? ""}`;
+/** Chave de uma conversa: conta + contato + canal (phoneNumberId). */
+function chaveConversa(
+  accountId: string,
+  contact: string,
+  phoneNumberId: string | null
+): string {
+  return `${accountId}|${contact}|${phoneNumberId ?? ""}`;
+}
+/** Chave de fallback (estado legado sem canal): conta + contato. */
+function chaveLegado(accountId: string, contact: string): string {
+  return `${accountId}|${contact}`;
 }
 
 /** Lista as conversas do número da conta, uma por contato. */
-export async function GET() {
+export async function GET(request: Request) {
   const ctx = await chatContext();
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access === "hidden") {
-    return NextResponse.json(
-      { error: "Com atendimento gerenciado, quem responde é a LoopSale." },
-      { status: 403 }
-    );
-  }
-  if (ctx.access === "locked") {
-    return NextResponse.json({ error: "LoopChat não contratado." }, { status: 402 });
+  // Admin da LoopSale enxerga a caixa de qualquer empresa — não é barrado pelo
+  // acesso da própria conta.
+  if (!ctx.isAdmin) {
+    if (ctx.access === "hidden") {
+      return NextResponse.json(
+        { error: "Com atendimento gerenciado, quem responde é a LoopSale." },
+        { status: 403 }
+      );
+    }
+    if (ctx.access === "locked") {
+      return NextResponse.json({ error: "LoopChat não contratado." }, { status: 402 });
+    }
   }
   if (isDemoContext(ctx)) {
     return NextResponse.json(demoConversasPayload(ctx.userId));
   }
   if (isDatabaseDisabled()) return NextResponse.json({ conversas: [] });
 
+  const url = new URL(request.url);
+  // Múltiplos canais selecionados (admin: caixas de várias empresas). Aceita
+  // "channels" (lista) e o "channel" único (compat).
+  const paramChannels = url.searchParams.get("channels");
+  const paramChannel = url.searchParams.get("channel");
+  const selecionados = [
+    ...(paramChannels ? paramChannels.split(",") : []),
+    ...(paramChannel ? [paramChannel] : []),
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Match das mensagens: admin cruza por número (independente da empresa); os
+  // demais ficam presos à própria conta.
+  const base = { contact: { $ne: null }, internal: { $ne: true } };
+  let matchMsgs: Record<string, unknown>;
+  if (ctx.isAdmin) {
+    // Sem número marcado, o admin não vê conversas (só escolhe nas caixas).
+    if (!selecionados.length) {
+      return NextResponse.json({
+        usuarioAtual: ctx.userId,
+        isAdmin: true,
+        canais: await allAdminChannels(),
+        etiquetas: [],
+        conversas: [],
+      });
+    }
+    matchMsgs = { ...base, phoneNumberId: { $in: selecionados } };
+  } else {
+    matchMsgs = {
+      accountId: ctx.accountId,
+      ...base,
+      ...(selecionados.length ? { phoneNumberId: { $in: selecionados } } : {}),
+    };
+  }
+
   const waCol = await getCollection("whatsappMessages");
   const rows = (await waCol
     .aggregate([
-      // Nota interna não é mensagem da conversa: fora da prévia, da direção da
-      // última e das não lidas.
-      { $match: { accountId: ctx.accountId, contact: { $ne: null }, internal: { $ne: true } } },
+      { $match: matchMsgs },
       { $sort: { createdAt: 1 } },
       {
         $group: {
-          // Uma conversa por contato + canal (phoneNumberId): o mesmo cliente
-          // numa caixa diferente é outra conversa.
-          _id: { contact: "$contact", phoneNumberId: "$phoneNumberId" },
+          // Uma conversa por conta + contato + canal (phoneNumberId).
+          _id: {
+            accountId: "$accountId",
+            contact: "$contact",
+            phoneNumberId: "$phoneNumberId",
+          },
           ultimaEm: { $last: "$createdAt" },
           ultimoTexto: { $last: "$body" },
           ultimaDirecao: { $last: "$direction" },
-          // Última recebida define a janela de 24h para texto livre.
           ultimaRecebidaEm: {
             $max: { $cond: [{ $eq: ["$direction", "in"] }, "$createdAt", null] },
           },
-          // Última enviada define o que ainda não foi respondido por nós.
           ultimaEnviadaEm: {
             $max: { $cond: [{ $eq: ["$direction", "out"] }, "$createdAt", null] },
           },
@@ -97,52 +149,55 @@ export async function GET() {
     ])
     .toArray()) as Agrupado[];
 
-  // Nome do contato: vem dos leads da conta, casando pelo telefone normalizado.
+  const accountIds = [...new Set(rows.map((r) => r._id.accountId))];
+  const contatos = [...new Set(rows.map((r) => r._id.contact))];
+
+  // Nome do contato: leads das contas envolvidas, casados por telefone.
   const leadsCol = await getCollection("leads");
   const leads = (await leadsCol
-    .find({ accountId: ctx.accountId, phone: { $ne: null } })
-    .project({ phone: 1, name: 1 })
-    .toArray()) as { phone?: string | null; name?: string | null }[];
+    .find({ accountId: { $in: accountIds }, phone: { $ne: null } })
+    .project({ accountId: 1, phone: 1, name: 1 })
+    .toArray()) as {
+    accountId?: string;
+    phone?: string | null;
+    name?: string | null;
+  }[];
   const nomePorTelefone = new Map<string, string>();
   for (const l of leads) {
     const p = normalizePhone(String(l.phone ?? ""));
-    if (p && l.name && !nomePorTelefone.has(p)) nomePorTelefone.set(p, l.name);
+    const k = `${l.accountId}|${p}`;
+    if (p && l.name && !nomePorTelefone.has(k)) nomePorTelefone.set(k, l.name);
   }
 
-  // Não lidas = recebidas depois da última resposta nossa (igual ao badge do
-  // Chatwoot). Sem resposta nossa, tudo que entrou conta. Por contato + canal.
+  // Não lidas: recebidas depois da última resposta nossa, por conversa.
   const naoLidasPorConversa = new Map<string, number>();
-  const contatos = [...new Set(rows.map((r) => r._id.contact))];
   if (contatos.length) {
     const pend = (await waCol
       .aggregate([
-        {
-          $match: {
-            accountId: ctx.accountId,
-            contact: { $in: contatos },
-            direction: "in",
-            internal: { $ne: true },
-          },
-        },
+        { $match: { ...matchMsgs, contact: { $in: contatos }, direction: "in" } },
         {
           $group: {
-            _id: { contact: "$contact", phoneNumberId: "$phoneNumberId" },
+            _id: {
+              accountId: "$accountId",
+              contact: "$contact",
+              phoneNumberId: "$phoneNumberId",
+            },
             datas: { $push: "$createdAt" },
           },
         },
       ])
       .toArray()) as {
-      _id: { contact: string; phoneNumberId: string | null };
+      _id: { accountId: string; contact: string; phoneNumberId: string | null };
       datas: Date[];
     }[];
     const enviadaPor = new Map(
       rows.map((r) => [
-        chaveConversa(r._id.contact, r._id.phoneNumberId),
+        chaveConversa(r._id.accountId, r._id.contact, r._id.phoneNumberId),
         r.ultimaEnviadaEm,
       ])
     );
     for (const p of pend) {
-      const chave = chaveConversa(p._id.contact, p._id.phoneNumberId);
+      const chave = chaveConversa(p._id.accountId, p._id.contact, p._id.phoneNumberId);
       const corte = enviadaPor.get(chave);
       const n = corte
         ? p.datas.filter((d) => new Date(d) > new Date(corte)).length
@@ -151,55 +206,58 @@ export async function GET() {
     }
   }
 
-  // Estado da conversa. Sem documento = aberta, então nenhuma conversa some
-  // por falta de registro. Casa por contato + canal; docs legados (sem canal)
-  // servem de fallback para não perder o estado antigo.
+  // Estado da conversa (por conta + contato + canal; legado sem canal = fallback).
   const convCol = await getCollection("conversations");
   const convs = (await convCol
-    .find({ accountId: ctx.accountId, contact: { $in: contatos } })
+    .find({ accountId: { $in: accountIds }, contact: { $in: contatos } })
     .toArray()) as Conversation[];
   const convExata = new Map<string, Conversation>();
   const convLegado = new Map<string, Conversation>();
   for (const c of convs) {
     if (c.phoneNumberId) {
-      convExata.set(chaveConversa(c.contact, c.phoneNumberId), c);
+      convExata.set(chaveConversa(c.accountId, c.contact, c.phoneNumberId), c);
     } else {
-      convLegado.set(c.contact, c);
+      convLegado.set(chaveLegado(c.accountId, c.contact), c);
     }
   }
   const estadoDaConversa = (r: Agrupado): Conversation | undefined =>
-    convExata.get(chaveConversa(r._id.contact, r._id.phoneNumberId)) ??
-    convLegado.get(r._id.contact);
+    convExata.get(chaveConversa(r._id.accountId, r._id.contact, r._id.phoneNumberId)) ??
+    convLegado.get(chaveLegado(r._id.accountId, r._id.contact));
 
-  // Nome do responsável: uma leitura dos membros da conta, não uma por conversa.
+  // Nome do responsável: membros das contas envolvidas.
   const usersCol = await getCollection("users");
   const membros = (await usersCol
-    .find({ accountId: ctx.accountId })
+    .find({ accountId: { $in: accountIds } })
     .project({ name: 1, email: 1 })
     .toArray()) as { _id: unknown; name?: string | null; email?: string }[];
   const membroPorId = new Map(
     membros.map((m) => [String(m._id), m.name || m.email || "Membro"])
   );
 
-  // Etiquetas da conta = as que estão em uso, com quantas conversas cada uma.
+  // Etiquetas em uso (só faz sentido numa conta; no admin fica vazio).
   const usoEtiquetas = new Map<string, number>();
-  for (const c of convs) {
-    for (const l of c.labels ?? []) {
-      usoEtiquetas.set(l, (usoEtiquetas.get(l) ?? 0) + 1);
+  if (!ctx.isAdmin) {
+    for (const c of convs) {
+      for (const l of c.labels ?? []) {
+        usoEtiquetas.set(l, (usoEtiquetas.get(l) ?? 0) + 1);
+      }
     }
   }
 
   const agoraMs = Date.now();
 
-  // Canais (caixas) da conta, para a sidebar filtrar por número.
-  const canais = channelsOf(ctx.account).map((c) => ({
-    phoneNumberId: c.phoneNumberId,
-    name: c.name,
-    displayNumber: c.displayNumber ?? null,
-  }));
+  // Canais: admin vê os de todas as empresas; os demais, os da própria conta.
+  const canais = ctx.isAdmin
+    ? await allAdminChannels()
+    : channelsOf(ctx.account).map((c) => ({
+        phoneNumberId: c.phoneNumberId,
+        name: c.name,
+        displayNumber: c.displayNumber ?? null,
+      }));
 
   return NextResponse.json({
     usuarioAtual: ctx.userId,
+    isAdmin: ctx.isAdmin,
     canais,
     etiquetas: [...usoEtiquetas.entries()]
       .map(([nome, total]) => ({ nome, total }))
@@ -210,22 +268,28 @@ export async function GET() {
       const phoneNumberId = r._id.phoneNumberId ?? null;
       const assigneeId = conv?.assigneeId ?? null;
       return {
-      contact,
-      phoneNumberId,
-      status: statusEfetivo(conv?.status, conv?.snoozedUntil, agoraMs),
-      snoozedUntil: conv?.snoozedUntil ?? null,
-      assigneeId,
-      assigneeNome: assigneeId ? membroPorId.get(assigneeId) ?? null : null,
-      labels: conv?.labels ?? [],
-      priority: conv?.priority ?? null,
-      botPaused: !!conv?.botPaused,
-      nome: nomePorTelefone.get(contact) ?? conv?.waName ?? null,
-      ultimaEm: r.ultimaEm,
-      ultimoTexto: r.ultimoTexto,
-      ultimaDirecao: r.ultimaDirecao,
-      janelaAberta: janelaAberta(r.ultimaRecebidaEm),
-      naoLidas: naoLidasPorConversa.get(chaveConversa(contact, phoneNumberId)) ?? 0,
-      total: r.total,
+        contact,
+        phoneNumberId,
+        status: statusEfetivo(conv?.status, conv?.snoozedUntil, agoraMs),
+        snoozedUntil: conv?.snoozedUntil ?? null,
+        assigneeId,
+        assigneeNome: assigneeId ? membroPorId.get(assigneeId) ?? null : null,
+        labels: conv?.labels ?? [],
+        priority: conv?.priority ?? null,
+        botPaused: !!conv?.botPaused,
+        nome:
+          nomePorTelefone.get(`${r._id.accountId}|${contact}`) ??
+          conv?.waName ??
+          null,
+        ultimaEm: r.ultimaEm,
+        ultimoTexto: r.ultimoTexto,
+        ultimaDirecao: r.ultimaDirecao,
+        janelaAberta: janelaAberta(r.ultimaRecebidaEm),
+        naoLidas:
+          naoLidasPorConversa.get(
+            chaveConversa(r._id.accountId, contact, phoneNumberId)
+          ) ?? 0,
+        total: r.total,
       };
     }),
   });
@@ -237,7 +301,7 @@ export async function PATCH(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
@@ -248,12 +312,13 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const contact = soDigitos(String(body.contact ?? ""));
+  const canalReq = body.channel ? String(body.channel) : null;
+  // Conta alvo: admin age na empresa dona do número; os demais, na própria.
+  const alvo = await resolveChatAccount(ctx, canalReq);
+  const contaId = alvo.accountId;
   // Canal (caixa) da conversa para o estado. Só separa em contas multi-número;
   // conta de número único fica null (compatível com os docs legados).
-  const phoneNumberId = conversationChannelKey(
-    ctx.account,
-    body.channel ? String(body.channel) : null
-  );
+  const phoneNumberId = conversationChannelKey(alvo.account, canalReq);
   const acao = String(body.action ?? "");
   if (
     !contact ||
@@ -286,7 +351,7 @@ export async function PATCH(request: Request) {
       : null;
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact, phoneNumberId },
+      { accountId: contaId, contact, phoneNumberId },
       {
         $set: {
           status: adiar ? "snoozed" : "pending",
@@ -294,7 +359,7 @@ export async function PATCH(request: Request) {
           resolvedAt: null,
           updatedAt: now,
         },
-        $setOnInsert: { accountId: ctx.accountId, contact, phoneNumberId, createdAt: now },
+        $setOnInsert: { accountId: contaId, contact, phoneNumberId, createdAt: now },
       },
       { upsert: true }
     );
@@ -312,11 +377,11 @@ export async function PATCH(request: Request) {
     }
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact, phoneNumberId },
+      { accountId: contaId, contact, phoneNumberId },
       {
         $set: { priority, updatedAt: now },
         $setOnInsert: {
-          accountId: ctx.accountId,
+          accountId: contaId,
           contact,
           phoneNumberId,
           status: "open",
@@ -342,11 +407,11 @@ export async function PATCH(request: Request) {
       : [];
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact, phoneNumberId },
+      { accountId: contaId, contact, phoneNumberId },
       {
         $set: { labels, updatedAt: now },
         $setOnInsert: {
-          accountId: ctx.accountId,
+          accountId: contaId,
           contact,
           phoneNumberId,
           status: "open",
@@ -365,7 +430,7 @@ export async function PATCH(request: Request) {
       const usersCol = await getCollection("users");
       const oid = await routeObjectId(assigneeId);
       const membro = oid
-        ? await usersCol.findOne({ _id: oid, accountId: ctx.accountId })
+        ? await usersCol.findOne({ _id: oid, accountId: contaId })
         : null;
       if (!membro) {
         return NextResponse.json(
@@ -376,7 +441,7 @@ export async function PATCH(request: Request) {
     }
     const convCol = await getCollection("conversations");
     await convCol.updateOne(
-      { accountId: ctx.accountId, contact, phoneNumberId },
+      { accountId: contaId, contact, phoneNumberId },
       {
         $set: {
           assigneeId,
@@ -384,7 +449,7 @@ export async function PATCH(request: Request) {
           updatedAt: now,
         },
         $setOnInsert: {
-          accountId: ctx.accountId,
+          accountId: contaId,
           contact,
           phoneNumberId,
           status: "open",
@@ -398,7 +463,7 @@ export async function PATCH(request: Request) {
   const resolvida = acao === "resolver";
   const convCol = await getCollection("conversations");
   await convCol.updateOne(
-    { accountId: ctx.accountId, contact },
+    { accountId: contaId, contact, phoneNumberId },
     {
       $set: {
         status: resolvida ? "resolved" : "open",
@@ -408,7 +473,7 @@ export async function PATCH(request: Request) {
         snoozedUntil: null,
         updatedAt: now,
       },
-      $setOnInsert: { accountId: ctx.accountId, contact, createdAt: now },
+      $setOnInsert: { accountId: contaId, contact, phoneNumberId, createdAt: now },
     },
     { upsert: true }
   );

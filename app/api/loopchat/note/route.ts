@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
-import { chatContext } from "@/lib/loopchat/access";
+import { chatContext, resolveChatAccount } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 import { soDigitos } from "@/lib/whatsapp/cloud";
 import { findChannel } from "@/lib/whatsapp/channels";
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
@@ -37,11 +37,13 @@ export async function POST(request: Request) {
     );
   }
 
+  // Conta alvo: admin anota na empresa dona do número.
+  const alvo = await resolveChatAccount(ctx, channel);
   // Nota fica na caixa (canal) da conversa aberta.
-  const canal = findChannel(ctx.account, channel);
+  const canal = findChannel(alvo.account, channel);
   const now = new Date();
   const doc: WhatsAppMessage = {
-    accountId: ctx.accountId,
+    accountId: alvo.accountId,
     direction: "out",
     internal: true,
     authorName: ctx.email ?? null,

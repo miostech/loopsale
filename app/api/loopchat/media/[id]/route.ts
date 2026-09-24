@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
-import { chatContext } from "@/lib/loopchat/access";
+import { chatContext, accountByPhoneNumberId } from "@/lib/loopchat/access";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
 import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
 
@@ -22,7 +22,7 @@ export async function GET(
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
@@ -35,21 +35,28 @@ export async function GET(
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Mídia inválida." }, { status: 400 });
 
-  // Segurança: a mídia precisa pertencer a uma mensagem desta conta.
+  // Segurança: a mídia precisa pertencer a uma mensagem desta conta (admin vê
+  // de qualquer empresa).
   const waCol = await getCollection("whatsappMessages");
   const msg = (await waCol.findOne({
-    accountId: ctx.accountId,
+    ...(ctx.isAdmin ? {} : { accountId: ctx.accountId }),
     mediaId: id,
-  })) as { mimeType?: string | null; phoneNumberId?: string | null } | null;
+  })) as {
+    mimeType?: string | null;
+    phoneNumberId?: string | null;
+  } | null;
   if (!msg) {
     return NextResponse.json({ error: "Mídia não encontrada." }, { status: 404 });
   }
 
-  // Usa o token do canal (número) daquela mensagem; cai no legado se preciso.
-  const canal = findChannel(ctx.account, msg.phoneNumberId ?? null);
+  // Token do canal (número) daquela mensagem. Admin usa a conta dona do número.
+  const ownerAccount = ctx.isAdmin
+    ? await accountByPhoneNumberId(msg.phoneNumberId ?? "")
+    : ctx.account;
+  const canal = findChannel(ownerAccount, msg.phoneNumberId ?? null);
   const token =
     (await resolveSendToken(channelSendConfig(canal))) ??
-    (await resolveSendToken(ctx.account?.whatsapp));
+    (await resolveSendToken(ownerAccount?.whatsapp));
   if (!token) {
     return NextResponse.json({ error: "Conta sem WhatsApp." }, { status: 400 });
   }

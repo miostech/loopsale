@@ -12,6 +12,7 @@ import {
 } from "@/lib/whatsapp/cloud";
 import { resolveSendToken } from "@/lib/whatsapp/central-config";
 import { findChannel, channelSendConfig } from "@/lib/whatsapp/channels";
+import { resolveChatAccount } from "@/lib/loopchat/access";
 
 // Limite de tamanho (a Meta aceita até ~100MB p/ doc, mas seguramos em 16MB
 // pra caber imagem/vídeo/áudio sem estourar memória do handler).
@@ -21,7 +22,7 @@ const MAX_BYTES = 16 * 1024 * 1024;
 export async function POST(request: Request) {
   const ctx = await chatContext();
   if (!ctx) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       {
         error:
@@ -61,8 +62,10 @@ export async function POST(request: Request) {
     );
   }
 
+  // Conta alvo: admin envia pela empresa dona do número.
+  const alvo = await resolveChatAccount(ctx, channel);
   // Envia pelo canal (caixa) da conversa.
-  const canal = findChannel(ctx.account, channel);
+  const canal = findChannel(alvo.account, channel);
   const token = await resolveSendToken(channelSendConfig(canal));
   const phoneNumberId = canal?.phoneNumberId ?? "";
   if (!token || !phoneNumberId) {
@@ -72,7 +75,7 @@ export async function POST(request: Request) {
   // Mídia livre também só vale dentro da janela de 24h da Meta.
   const waCol = await getCollection("whatsappMessages");
   const ultima = (await waCol
-    .find({ accountId: ctx.accountId, contact, phoneNumberId, direction: "in" })
+    .find({ accountId: alvo.accountId, contact, phoneNumberId, direction: "in" })
     .sort({ createdAt: -1 })
     .limit(1)
     .toArray()) as { createdAt?: Date }[];
@@ -111,7 +114,7 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const doc: WhatsAppMessage = {
-    accountId: ctx.accountId,
+    accountId: alvo.accountId,
     direction: "out",
     wamid: result.wamid ?? null,
     phoneNumberId,

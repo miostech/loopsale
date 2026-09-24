@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
-import { chatContext } from "@/lib/loopchat/access";
+import { chatContext, resolveChatAccount } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 import {
   normalizePhone,
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       {
         error:
@@ -54,8 +54,10 @@ export async function POST(request: Request) {
   // Demo: finge que enviou e devolve o contato para abrir a "conversa".
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true, contact });
 
+  // Conta alvo: admin inicia pela empresa dona do número.
+  const alvo = await resolveChatAccount(ctx, channel);
   // Envia pelo canal (caixa) escolhido.
-  const canal = findChannel(ctx.account, channel);
+  const canal = findChannel(alvo.account, channel);
   const token = await resolveSendToken(channelSendConfig(canal));
   const phoneNumberId = canal?.phoneNumberId ?? "";
   if (!token || !phoneNumberId) {
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const doc: WhatsAppMessage = {
-    accountId: ctx.accountId,
+    accountId: alvo.accountId,
     direction: "out",
     wamid: result.wamid ?? null,
     phoneNumberId,

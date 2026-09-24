@@ -7,6 +7,8 @@ import {
   chatFreeConversationsOf,
   type LoopChatAccess,
 } from "@/lib/billing/plans";
+import { isSuperAdmin } from "@/lib/admin";
+import { channelsOf } from "@/lib/whatsapp/channels";
 
 type SessionUser = {
   id?: string;
@@ -19,6 +21,8 @@ export type ChatContext = {
   accountId: string;
   account: Account | null;
   access: LoopChatAccess;
+  /** Super-admin da LoopSale: enxerga a caixa de todas as empresas. */
+  isAdmin: boolean;
   role: string;
   /** Quem está agindo — registrado ao resolver uma conversa. */
   email: string | null;
@@ -66,6 +70,7 @@ export async function chatContext(): Promise<ChatContext | null> {
       accountId: su.accountId,
       account: null,
       access: "locked",
+      isAdmin: isSuperAdmin(su.email),
       role: su.role ?? "member",
       email: su.email ?? null,
       userId: su.id ?? null,
@@ -113,12 +118,71 @@ export async function chatContext(): Promise<ChatContext | null> {
           planId,
           monthlyConversations,
         }),
+    isAdmin: isSuperAdmin(su.email),
     role: su.role ?? "member",
     email: su.email ?? null,
     userId: su.id ?? null,
     chatQuota,
     monthlyConversations,
   };
+}
+
+/**
+ * Conta "alvo" de uma operação do chat. Super-admin opera a empresa dona do
+ * número selecionado (phoneNumberId é único por empresa na Meta); os demais
+ * operam sempre a própria conta.
+ */
+export async function resolveChatAccount(
+  ctx: ChatContext,
+  channel?: string | null
+): Promise<{ accountId: string; account: Account | null }> {
+  if (ctx.isAdmin && channel) {
+    const dono = await accountByPhoneNumberId(channel);
+    if (dono) return { accountId: String(dono._id), account: dono };
+  }
+  return { accountId: ctx.accountId, account: ctx.account };
+}
+
+/** Empresa dona de um phoneNumberId (canal novo ou whatsapp legado). */
+export async function accountByPhoneNumberId(
+  phoneNumberId: string
+): Promise<Account | null> {
+  if (!phoneNumberId || isDatabaseDisabled()) return null;
+  const accountsCol = await getCollection("accounts");
+  return (await accountsCol.findOne({
+    $or: [
+      { "channels.phoneNumberId": phoneNumberId },
+      { "whatsapp.phoneNumberId": phoneNumberId },
+    ],
+  })) as Account | null;
+}
+
+/** Todos os canais (números) de todas as empresas — visão do super-admin. */
+export async function allAdminChannels(): Promise<
+  { phoneNumberId: string; name: string; displayNumber: string | null }[]
+> {
+  if (isDatabaseDisabled()) return [];
+  const accountsCol = await getCollection("accounts");
+  const contas = (await accountsCol
+    .find({})
+    .project({ name: 1, channels: 1, whatsapp: 1 })
+    .toArray()) as Account[];
+  const out: {
+    phoneNumberId: string;
+    name: string;
+    displayNumber: string | null;
+  }[] = [];
+  for (const acc of contas) {
+    for (const c of channelsOf(acc)) {
+      out.push({
+        phoneNumberId: c.phoneNumberId,
+        // Nome mostra a empresa + a caixa, para o admin se localizar.
+        name: `${acc.name} · ${c.name}`,
+        displayNumber: c.displayNumber ?? null,
+      });
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Janela de atendimento da Meta: texto livre só até 24h da última recebida. */

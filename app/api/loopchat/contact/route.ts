@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { AbandonedCheckout, Lead } from "@/lib/db/types";
-import { chatContext } from "@/lib/loopchat/access";
+import { chatContext, resolveChatAccount } from "@/lib/loopchat/access";
 import { normalizePhone } from "@/lib/whatsapp/cloud";
 
 /**
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
@@ -23,25 +23,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ lead: null, checkouts: [] });
   }
 
-  const contact = normalizePhone(
-    new URL(request.url).searchParams.get("contact") ?? ""
-  );
+  const url = new URL(request.url);
+  const contact = normalizePhone(url.searchParams.get("contact") ?? "");
+  const channel = url.searchParams.get("channel") || null;
   if (!contact) {
     return NextResponse.json({ error: "Contato inválido." }, { status: 400 });
   }
+
+  // Conta alvo: admin vê a ficha na empresa dona do número.
+  const alvo = await resolveChatAccount(ctx, channel);
 
   // O telefone é gravado em formatos diferentes por plataforma, então o casamento
   // é feito depois de normalizar os dois lados.
   const leadsCol = await getCollection("leads");
   const leads = (await leadsCol
-    .find({ accountId: ctx.accountId, phone: { $ne: null } })
+    .find({ accountId: alvo.accountId, phone: { $ne: null } })
     .project({ name: 1, email: 1, phone: 1, status: 1, tags: 1, createdAt: 1 })
     .toArray()) as Lead[];
   const lead = leads.find((l) => normalizePhone(String(l.phone ?? "")) === contact);
 
   const checkoutsCol = await getCollection("abandonedCheckouts");
   const todos = (await checkoutsCol
-    .find({ accountId: ctx.accountId, customerPhone: { $ne: null } })
+    .find({ accountId: alvo.accountId, customerPhone: { $ne: null } })
     .project({
       customerPhone: 1,
       productName: 1,

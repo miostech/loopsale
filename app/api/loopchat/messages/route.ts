@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCollection, isDatabaseDisabled } from "@/lib/db";
 import type { WhatsAppMessage } from "@/lib/db/types";
-import { chatContext, janelaAberta } from "@/lib/loopchat/access";
+import { chatContext, janelaAberta, resolveChatAccount } from "@/lib/loopchat/access";
 import { isDemoContext, demoMensagensPayload } from "@/lib/loopchat/demo";
 import { soDigitos } from "@/lib/whatsapp/cloud";
 
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (!ctx) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json(
       { error: "LoopChat indisponível para esta conta." },
       { status: ctx.access === "hidden" ? 403 : 402 }
@@ -30,10 +30,13 @@ export async function GET(request: Request) {
   }
   if (isDatabaseDisabled()) return NextResponse.json({ mensagens: [] });
 
+  // Conta alvo: admin lê a empresa dona do número.
+  const alvo = await resolveChatAccount(ctx, channel);
+
   const waCol = await getCollection("whatsappMessages");
   const rows = (await waCol
     .find({
-      accountId: ctx.accountId,
+      accountId: alvo.accountId,
       contact,
       ...(channel ? { phoneNumberId: channel } : {}),
     })
