@@ -336,8 +336,10 @@ export function LoopChatClient({
     setMembros(await res.json());
   }, []);
 
-  const loadRespostas = useCallback(async () => {
-    const res = await fetch("/api/loopchat/canned");
+  const loadRespostas = useCallback(async (channel?: string | null) => {
+    // No admin as respostas rápidas são as da empresa dona do número aberto.
+    const qs = channel ? `?channel=${encodeURIComponent(channel)}` : "";
+    const res = await fetch(`/api/loopchat/canned${qs}`);
     if (!res.ok) return;
     const data = await res.json();
     setRespostas(data.respostas ?? []);
@@ -375,7 +377,9 @@ export function LoopChatClient({
     if (!ativo) return;
     loadMensagens(ativo, ativoCanal);
     loadFicha(ativo, ativoCanal);
-  }, [ativo, ativoCanal, loadMensagens, loadFicha]);
+    // Respostas rápidas da empresa dona do número (importa no modo admin).
+    loadRespostas(ativoCanal);
+  }, [ativo, ativoCanal, loadMensagens, loadFicha, loadRespostas]);
 
   // Trocar de conversa descarta um anexo ainda não enviado (era da outra).
   useEffect(() => {
@@ -934,6 +938,7 @@ export function LoopChatClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: crEditId,
+          channel: ativoCanal,
           shortcut: crShortcut,
           title: crTitle,
           content: crContent,
@@ -945,7 +950,7 @@ export function LoopChatClient({
         return;
       }
       limparFormResposta();
-      await loadRespostas();
+      await loadRespostas(ativoCanal);
     } catch {
       setCrErro("Erro de rede ao salvar.");
     } finally {
@@ -956,7 +961,9 @@ export function LoopChatClient({
   async function excluirResposta(id: string) {
     setCrErro("");
     try {
-      const res = await fetch(`/api/loopchat/canned?id=${encodeURIComponent(id)}`, {
+      const qs = new URLSearchParams({ id });
+      if (ativoCanal) qs.set("channel", ativoCanal);
+      const res = await fetch(`/api/loopchat/canned?${qs.toString()}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -965,7 +972,7 @@ export function LoopChatClient({
         return;
       }
       if (crEditId === id) limparFormResposta();
-      await loadRespostas();
+      await loadRespostas(ativoCanal);
     } catch {
       setCrErro("Erro de rede ao excluir.");
     }

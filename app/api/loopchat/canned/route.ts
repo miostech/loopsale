@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCollection, routeObjectId, isDatabaseDisabled } from "@/lib/db";
 import type { CannedResponse } from "@/lib/db/types";
-import { chatContext } from "@/lib/loopchat/access";
+import { chatContext, resolveChatAccount } from "@/lib/loopchat/access";
 import { isDemoContext } from "@/lib/loopchat/demo";
 
 /** Normaliza o atalho: minúsculo, sem barra, só letras/números/hífen. */
@@ -18,19 +18,21 @@ async function col() {
   return getCollection("cannedResponses");
 }
 
-/** Lista as respostas rápidas da conta. */
-export async function GET() {
+/** Lista as respostas rápidas da conta (admin: da empresa dona do número). */
+export async function GET(request: Request) {
   const ctx = await chatContext();
   if (!ctx) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json({ respostas: [] });
   }
   if (isDemoContext(ctx) || isDatabaseDisabled()) {
     return NextResponse.json({ respostas: [] });
   }
+  const channel = new URL(request.url).searchParams.get("channel") || null;
+  const alvo = await resolveChatAccount(ctx, channel);
   const c = await col();
   const rows = (await c
-    .find({ accountId: ctx.accountId })
+    .find({ accountId: alvo.accountId })
     .sort({ shortcut: 1 })
     .toArray()) as unknown as (CannedResponse & { _id: unknown })[];
   return NextResponse.json({
@@ -47,7 +49,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const ctx = await chatContext();
   if (!ctx) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json({ error: "LoopChat indisponível." }, { status: 402 });
   }
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
@@ -65,8 +67,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const alvo = await resolveChatAccount(ctx, body.channel ? String(body.channel) : null);
   const c = await col();
-  const jaExiste = await c.findOne({ accountId: ctx.accountId, shortcut });
+  const jaExiste = await c.findOne({ accountId: alvo.accountId, shortcut });
   if (jaExiste) {
     return NextResponse.json(
       { error: `O atalho /${shortcut} já existe.` },
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
   }
   const now = new Date();
   const res = await c.insertOne({
-    accountId: ctx.accountId,
+    accountId: alvo.accountId,
     shortcut,
     title: title || null,
     content,
@@ -93,7 +96,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const ctx = await chatContext();
   if (!ctx) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json({ error: "LoopChat indisponível." }, { status: 402 });
   }
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
@@ -113,10 +116,11 @@ export async function PATCH(request: Request) {
       { status: 400 }
     );
   }
+  const alvo = await resolveChatAccount(ctx, body.channel ? String(body.channel) : null);
   const c = await col();
   // Atalho não pode colidir com outra resposta da conta.
   const colisao = await c.findOne({
-    accountId: ctx.accountId,
+    accountId: alvo.accountId,
     shortcut,
     _id: { $ne: oid },
   });
@@ -127,7 +131,7 @@ export async function PATCH(request: Request) {
     );
   }
   await c.updateOne(
-    { _id: oid, accountId: ctx.accountId },
+    { _id: oid, accountId: alvo.accountId },
     { $set: { shortcut, title: title || null, content, updatedAt: new Date() } }
   );
   return NextResponse.json({ ok: true });
@@ -137,17 +141,19 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const ctx = await chatContext();
   if (!ctx) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  if (ctx.access !== "available") {
+  if (!ctx.isAdmin && ctx.access !== "available") {
     return NextResponse.json({ error: "LoopChat indisponível." }, { status: 402 });
   }
   if (isDemoContext(ctx)) return NextResponse.json({ ok: true });
   if (isDatabaseDisabled()) {
     return NextResponse.json({ error: "Indisponível." }, { status: 503 });
   }
-  const id = new URL(request.url).searchParams.get("id") ?? "";
+  const url = new URL(request.url);
+  const id = url.searchParams.get("id") ?? "";
   const oid = await routeObjectId(id);
   if (!oid) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+  const alvo = await resolveChatAccount(ctx, url.searchParams.get("channel") || null);
   const c = await col();
-  await c.deleteOne({ _id: oid, accountId: ctx.accountId });
+  await c.deleteOne({ _id: oid, accountId: alvo.accountId });
   return NextResponse.json({ ok: true });
 }
