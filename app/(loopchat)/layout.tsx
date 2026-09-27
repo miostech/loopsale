@@ -12,7 +12,14 @@ import { LoopChatPWA } from "./LoopChatPWA";
 export const metadata: Metadata = {
   title: "LoopChat",
   appleWebApp: { capable: true, title: "LoopChat", statusBarStyle: "default" },
-  icons: { apple: "/pwa/apple-180.png" },
+  icons: {
+    icon: [
+      { url: "/pwa/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/pwa/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    shortcut: "/pwa/icon-192.png",
+    apple: "/pwa/apple-180.png",
+  },
 };
 // interactiveWidget "resizes-content": quando o teclado do celular sobe, o
 // navegador encolhe a área da página (em vez de deixar 100dvh cheio), então o
