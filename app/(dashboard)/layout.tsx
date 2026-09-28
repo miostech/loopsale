@@ -68,11 +68,19 @@ export default async function DashboardLayout({
     items: g.items.filter((n) => !ocultar.has(n.href)),
   }));
 
+  // Super-admin da LoopSale vê o atalho para o painel administrativo.
+  const nav = ctx?.isAdmin
+    ? [
+        ...navVisivel,
+        { title: "LoopSale", items: [{ href: "/admin", label: "Painel admin" }] },
+      ]
+    : navVisivel;
+
   return (
     <SidebarProvider>
       <OnboardingProvider>
         <div className="min-h-screen flex bg-[var(--loop-bg-alt)]">
-          <DashboardSidebar nav={navVisivel} />
+          <DashboardSidebar nav={nav} />
           <div className="flex-1 flex flex-col min-w-0">
             <DashboardTopBar />
             <main className="flex-1 overflow-auto p-4 md:p-6">
