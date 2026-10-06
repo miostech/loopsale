@@ -1701,6 +1701,15 @@ export function LoopChatClient({
                               {m.authorName ? ` · ${m.authorName}` : ""}
                             </p>
                           )}
+                          {/* Resposta humana: assinatura do atendente em negrito. */}
+                          {!nota &&
+                            meu &&
+                            m.authorName &&
+                            m.authorName !== "Robô de atendimento" && (
+                              <p className="mb-1 text-[11px] font-bold text-[var(--loop-primary)]">
+                                Atendimento {m.authorName.split(" ")[0]}
+                              </p>
+                            )}
                           {m.mediaId ? (
                             <div className="space-y-1">
                               {m.type === "image" || m.type === "sticker" ? (

@@ -112,6 +112,8 @@ export async function POST(request: Request) {
     token,
   });
 
+  const atendente =
+    (ctx.userName || ctx.email?.split("@")[0] || "Atendimento").trim();
   const now = new Date();
   const doc: WhatsAppMessage = {
     accountId: alvo.accountId,
@@ -121,6 +123,7 @@ export async function POST(request: Request) {
     contact,
     type: kind,
     body: caption || null,
+    authorName: atendente,
     mediaId: up.id,
     mimeType,
     status: result.success ? "accepted" : "failed",

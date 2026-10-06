@@ -15,6 +15,7 @@ type SessionUser = {
   accountId?: string;
   role?: string;
   email?: string | null;
+  name?: string | null;
 };
 
 export type ChatContext = {
@@ -26,6 +27,8 @@ export type ChatContext = {
   role: string;
   /** Quem está agindo — registrado ao resolver uma conversa. */
   email: string | null;
+  /** Nome de quem está atendendo (assina as respostas humanas). */
+  userName: string | null;
   /** Id do usuário logado, para saber o que é "minha conversa". */
   userId: string | null;
   /** Cota de conversas grátis/mês do plano (null = ilimitado). */
@@ -73,6 +76,7 @@ export async function chatContext(): Promise<ChatContext | null> {
       isAdmin: isSuperAdmin(su.email),
       role: su.role ?? "member",
       email: su.email ?? null,
+      userName: su.name ?? null,
       userId: su.id ?? null,
       chatQuota: 0,
       monthlyConversations: 0,
@@ -121,6 +125,7 @@ export async function chatContext(): Promise<ChatContext | null> {
     isAdmin: isSuperAdmin(su.email),
     role: su.role ?? "member",
     email: su.email ?? null,
+    userName: su.name ?? null,
     userId: su.id ?? null,
     chatQuota,
     monthlyConversations,

@@ -70,6 +70,10 @@ export async function POST(request: Request) {
     );
   }
 
+  // Nome de quem atendeu (assina a resposta humana no histórico).
+  const atendente =
+    (ctx.userName || ctx.email?.split("@")[0] || "Atendimento").trim();
+
   const result = await sendText({ phoneNumberId, to: contact, body: texto, token });
   const now = new Date();
   const doc: WhatsAppMessage = {
@@ -80,6 +84,7 @@ export async function POST(request: Request) {
     contact,
     type: "text",
     body: texto,
+    authorName: atendente,
     status: result.success ? "accepted" : "failed",
     error: result.error ?? null,
     createdAt: now,
