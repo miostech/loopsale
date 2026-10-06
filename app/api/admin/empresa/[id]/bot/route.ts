@@ -36,10 +36,6 @@ export async function PATCH(
     1440,
     Math.max(0, Math.floor(Number(body.autoResolveMinutes) || 0))
   );
-  const nudgeMinutes = Math.min(
-    1440,
-    Math.max(0, Math.floor(Number(body.nudgeMinutes) || 0))
-  );
   const closeOnFinish = !!body.closeOnFinish;
   const learnFromTeam = !!body.learnFromTeam;
 
@@ -52,7 +48,6 @@ export async function PATCH(
         "attendantBot.instructions": instructions || null,
         "attendantBot.knowledge": knowledge || null,
         "attendantBot.autoResolveMinutes": autoResolveMinutes || null,
-        "attendantBot.nudgeMinutes": nudgeMinutes || null,
         "attendantBot.closeOnFinish": closeOnFinish,
         "attendantBot.learnFromTeam": learnFromTeam,
         updatedAt: new Date(),
@@ -65,7 +60,6 @@ export async function PATCH(
     instructions,
     knowledge,
     autoResolveMinutes,
-    nudgeMinutes,
     closeOnFinish,
     learnFromTeam,
   });

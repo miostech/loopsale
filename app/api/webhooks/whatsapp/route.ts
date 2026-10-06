@@ -280,12 +280,6 @@ export async function POST(request: Request) {
               phoneNumberId
             );
             const convCol = await getCollection("conversations");
-            // Cliente respondeu: zera o "cutucão" para poder cutucar de novo
-            // numa próxima rodada de silêncio.
-            await convCol.updateOne(
-              { accountId, contact: msg.from, phoneNumberId: convChannel },
-              { $set: { nudgedAt: null } }
-            );
             // Resolvida reabre num episódio novo: volta pro board e libera o bot
             // (mesmo que antes tivesse sido repassada a um humano).
             await convCol.updateOne(
@@ -436,16 +430,6 @@ async function responderAudio(
     createdAt: now,
     updatedAt: now,
   } as WhatsAppMessage & { _id?: unknown });
-
-  // Marca como já "cutucado" para o cron não mandar lembrete logo após o aviso.
-  await convCol.updateOne(
-    { accountId, contact, phoneNumberId: convKey },
-    {
-      $set: { nudgedAt: now, updatedAt: now },
-      $setOnInsert: { accountId, contact, phoneNumberId: convKey, status: "open", createdAt: now },
-    },
-    { upsert: true }
-  );
 }
 
 /** Gera e envia a resposta do robô para uma conversa, com os guarda-corpos. */
