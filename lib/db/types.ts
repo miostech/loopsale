@@ -145,6 +145,12 @@ export interface Account {
     closeOnFinish?: boolean;
     /** Bot aprende com as respostas humanas (few-shot dos exemplos da equipe). */
     learnFromTeam?: boolean;
+    /**
+     * "Cutucão": minutos sem resposta do cliente depois de uma mensagem do bot,
+     * quando o bot manda um lembrete ("ficou com alguma dúvida?"). 0/null = off.
+     * Só dentro da janela de 24h e uma vez por rodada de silêncio.
+     */
+    nudgeMinutes?: number | null;
   } | null;
   createdAt: Date;
   updatedAt: Date;
@@ -432,6 +438,8 @@ export interface Conversation {
   botPaused?: boolean;
   /** Nome do perfil do WhatsApp do cliente (do webhook). Fallback de exibição. */
   waName?: string | null;
+  /** Quando o bot já mandou o "cutucão" nesta rodada de silêncio (evita repetir). */
+  nudgedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

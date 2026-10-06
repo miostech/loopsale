@@ -36,6 +36,7 @@ interface Detalhe {
       instructions: string;
       knowledge: string;
       autoResolveMinutes: number;
+      nudgeMinutes: number;
       closeOnFinish: boolean;
       learnFromTeam: boolean;
     };
@@ -294,6 +295,7 @@ export default function EmpresaDetalhe({
         initialInstructions={e.bot.instructions}
         initialKnowledge={e.bot.knowledge}
         initialAutoResolveMinutes={e.bot.autoResolveMinutes}
+        initialNudgeMinutes={e.bot.nudgeMinutes}
         initialCloseOnFinish={e.bot.closeOnFinish}
         initialLearnFromTeam={e.bot.learnFromTeam}
       />

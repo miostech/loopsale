@@ -13,6 +13,7 @@ export function BotConfigCard({
   initialInstructions,
   initialKnowledge,
   initialAutoResolveMinutes = 0,
+  initialNudgeMinutes = 0,
   initialCloseOnFinish = false,
   initialLearnFromTeam = false,
 }: {
@@ -21,6 +22,7 @@ export function BotConfigCard({
   initialInstructions: string;
   initialKnowledge: string;
   initialAutoResolveMinutes?: number;
+  initialNudgeMinutes?: number;
   initialCloseOnFinish?: boolean;
   initialLearnFromTeam?: boolean;
 }) {
@@ -30,6 +32,7 @@ export function BotConfigCard({
   const [autoResolveMinutes, setAutoResolveMinutes] = useState(
     initialAutoResolveMinutes
   );
+  const [nudgeMinutes, setNudgeMinutes] = useState(initialNudgeMinutes);
   const [closeOnFinish, setCloseOnFinish] = useState(initialCloseOnFinish);
   const [learnFromTeam, setLearnFromTeam] = useState(initialLearnFromTeam);
   const [saving, setSaving] = useState(false);
@@ -47,6 +50,7 @@ export function BotConfigCard({
           instructions,
           knowledge,
           autoResolveMinutes,
+          nudgeMinutes,
           closeOnFinish,
           learnFromTeam,
         }),
@@ -135,6 +139,23 @@ export function BotConfigCard({
             minutos sem resposta do cliente
             <span className="text-xs text-[var(--loop-text-muted)]">
               (0 = desligado; sugerido: 30)
+            </span>
+          </label>
+          <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--loop-text)]">
+            Cutucar (&ldquo;ficou com dúvida?&rdquo;) após
+            <input
+              type="number"
+              min={0}
+              max={1440}
+              value={nudgeMinutes}
+              onChange={(e) =>
+                setNudgeMinutes(Math.max(0, Number(e.target.value) || 0))
+              }
+              className="w-20 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2 py-1 text-[var(--loop-text)]"
+            />
+            minutos sem resposta após uma mensagem do robô
+            <span className="text-xs text-[var(--loop-text-muted)]">
+              (0 = desligado; só dentro das 24h; precisa do robô ligado)
             </span>
           </label>
           <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--loop-text)]">

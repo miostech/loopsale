@@ -140,6 +140,11 @@ export async function POST(request: Request) {
     string,
     { account: Account; contact: string; phoneNumberId: string | null }
   >();
+  // Áudios recebidos: o bot avisa que não ouve áudio e pede texto (após o 200).
+  const paraAudio = new Map<
+    string,
+    { account: Account; contact: string; phoneNumberId: string | null }
+  >();
   // Notificações push a enviar depois do 200 (uma por mensagem nova recebida).
   const paraNotificar: { accountId: string; title: string; body: string }[] = [];
 
@@ -240,6 +245,22 @@ export async function POST(request: Request) {
             });
           }
 
+          // Áudio recebido (o bot não transcreve): pede para escrever. Só com o
+          // bot ligado e em mensagem nova.
+          if (
+            up.upsertedId &&
+            accountId &&
+            msg.from &&
+            (msg.type === "audio" || msg.type === "voice") &&
+            account?.attendantBot?.enabled
+          ) {
+            paraAudio.set(`${accountId}:${phoneNumberId}:${msg.from}`, {
+              account: account as unknown as Account,
+              contact: msg.from,
+              phoneNumberId,
+            });
+          }
+
           // Notifica (push) em qualquer mensagem nova recebida.
           if (up.upsertedId && accountId && msg.from) {
             paraNotificar.push({
@@ -259,6 +280,12 @@ export async function POST(request: Request) {
               phoneNumberId
             );
             const convCol = await getCollection("conversations");
+            // Cliente respondeu: zera o "cutucão" para poder cutucar de novo
+            // numa próxima rodada de silêncio.
+            await convCol.updateOne(
+              { accountId, contact: msg.from, phoneNumberId: convChannel },
+              { $set: { nudgedAt: null } }
+            );
             // Resolvida reabre num episódio novo: volta pro board e libera o bot
             // (mesmo que antes tivesse sido repassada a um humano).
             await convCol.updateOne(
@@ -323,13 +350,20 @@ export async function POST(request: Request) {
 
   // Responde o cliente com o robô e envia os pushes depois do 200 (não bloqueia
   // a Meta).
-  if (paraResponder.size || paraNotificar.length) {
+  if (paraResponder.size || paraAudio.size || paraNotificar.length) {
     after(async () => {
       for (const { account, contact, phoneNumberId } of paraResponder.values()) {
         try {
           await responderComBot(account, contact, phoneNumberId);
         } catch (e) {
           console.error("bot atendimento:", e);
+        }
+      }
+      for (const { account, contact, phoneNumberId } of paraAudio.values()) {
+        try {
+          await responderAudio(account, contact, phoneNumberId);
+        } catch (e) {
+          console.error("bot áudio:", e);
         }
       }
       for (const n of paraNotificar) {
@@ -347,6 +381,71 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+/** Aviso fixo quando chega um áudio (o bot não transcreve áudio). */
+const AVISO_AUDIO =
+  "Oi! Ainda não consigo ouvir áudios por aqui 🩷 Me escreve a sua dúvida que eu já te ajudo!";
+
+/** Responde a um áudio pedindo para a pessoa escrever. Mensagem fixa (sem IA). */
+async function responderAudio(
+  account: Account,
+  contact: string,
+  phoneNumberIdMsg: string | null
+): Promise<void> {
+  if (!account.attendantBot?.enabled) return;
+  const canal = findChannel(account, phoneNumberIdMsg);
+  const token = await resolveSendToken(channelSendConfig(canal));
+  const phoneNumberId = canal?.phoneNumberId ?? "";
+  if (!token || !phoneNumberId) return;
+
+  const accountId = String(account._id);
+  const convKey = conversationChannelKey(account, phoneNumberId);
+  const convCol = await getCollection("conversations");
+  const conv = (await convCol.findOne({
+    accountId,
+    contact,
+    phoneNumberId: convKey,
+  })) as Conversation | null;
+  // Humano assumiu ou já foi repassada: o bot fica quieto.
+  if (conv?.assigneeId || conv?.botPaused) return;
+
+  // Não repete o aviso: se a última mensagem que saiu já foi o aviso de áudio,
+  // não manda de novo (a pessoa pode ter mandado vários áudios seguidos).
+  const waCol = await getCollection("whatsappMessages");
+  const ultimaSaida = (await waCol
+    .find({ accountId, contact, phoneNumberId, direction: "out", internal: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .toArray()) as { body?: string | null }[];
+  if (ultimaSaida[0]?.body === AVISO_AUDIO) return;
+
+  const result = await sendText({ phoneNumberId, to: contact, body: AVISO_AUDIO, token });
+  const now = new Date();
+  await waCol.insertOne({
+    accountId,
+    direction: "out",
+    wamid: result.wamid ?? null,
+    phoneNumberId,
+    contact,
+    type: "text",
+    body: AVISO_AUDIO,
+    authorName: "Robô de atendimento",
+    status: result.success ? "accepted" : "failed",
+    error: result.error ?? null,
+    createdAt: now,
+    updatedAt: now,
+  } as WhatsAppMessage & { _id?: unknown });
+
+  // Marca como já "cutucado" para o cron não mandar lembrete logo após o aviso.
+  await convCol.updateOne(
+    { accountId, contact, phoneNumberId: convKey },
+    {
+      $set: { nudgedAt: now, updatedAt: now },
+      $setOnInsert: { accountId, contact, phoneNumberId: convKey, status: "open", createdAt: now },
+    },
+    { upsert: true }
+  );
 }
 
 /** Gera e envia a resposta do robô para uma conversa, com os guarda-corpos. */
