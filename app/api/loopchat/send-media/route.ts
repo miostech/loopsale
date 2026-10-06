@@ -94,6 +94,23 @@ export async function POST(request: Request) {
   const filename = file.name || "arquivo";
   const bytes = await file.arrayBuffer();
 
+  const atendente =
+    (ctx.userName || ctx.email?.split("@")[0] || "Atendimento").trim();
+  const primeiroNome = atendente.split(" ")[0];
+  // Assina para o cliente só quando o humano "assume" (última saída não foi
+  // do mesmo atendente). Áudio não aceita legenda, então não assina.
+  const ultimaSaida = (await waCol
+    .find({ accountId: alvo.accountId, contact, phoneNumberId, direction: "out", internal: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .toArray()) as { authorName?: string | null }[];
+  const assinar = kind !== "audio" && ultimaSaida[0]?.authorName !== atendente;
+  const captionEnviada = assinar
+    ? caption
+      ? `*Atendimento ${primeiroNome}*\n${caption}`
+      : `*Atendimento ${primeiroNome}*`
+    : caption;
+
   // 1) Sobe pra Meta → media id. 2) Envia a mensagem com esse id.
   const up = await uploadMedia({ phoneNumberId, bytes, mimeType, filename, token });
   if (!up.id) {
@@ -107,13 +124,11 @@ export async function POST(request: Request) {
     to: contact,
     kind,
     mediaId: up.id,
-    caption,
+    caption: captionEnviada,
     filename: kind === "document" ? filename : null,
     token,
   });
 
-  const atendente =
-    (ctx.userName || ctx.email?.split("@")[0] || "Atendimento").trim();
   const now = new Date();
   const doc: WhatsAppMessage = {
     accountId: alvo.accountId,

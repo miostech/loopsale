@@ -73,8 +73,20 @@ export async function POST(request: Request) {
   // Nome de quem atendeu (assina a resposta humana no histórico).
   const atendente =
     (ctx.userName || ctx.email?.split("@")[0] || "Atendimento").trim();
+  const primeiroNome = atendente.split(" ")[0];
 
-  const result = await sendText({ phoneNumberId, to: contact, body: texto, token });
+  // Assina para o cliente só quando o humano "assume" (a última saída não foi
+  // do mesmo atendente) — evita repetir "Atendimento X" em toda mensagem.
+  const ultimaSaida = (await waCol
+    .find({ accountId: alvo.accountId, contact, phoneNumberId, direction: "out", internal: { $ne: true } })
+    .sort({ createdAt: -1 })
+    .limit(1)
+    .toArray()) as { authorName?: string | null }[];
+  const assinar = ultimaSaida[0]?.authorName !== atendente;
+  // A assinatura vai só no WhatsApp (em negrito); o histórico guarda o texto limpo.
+  const corpoEnviado = assinar ? `*Atendimento ${primeiroNome}*\n${texto}` : texto;
+
+  const result = await sendText({ phoneNumberId, to: contact, body: corpoEnviado, token });
   const now = new Date();
   const doc: WhatsAppMessage = {
     accountId: alvo.accountId,
