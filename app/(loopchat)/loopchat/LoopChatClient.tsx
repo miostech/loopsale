@@ -92,7 +92,7 @@ type Filtro =
   | "minhas"
   | "nao-atribuidas"
   | "nao-respondidas"
-  | "janela"
+  | "fora-janela"
   | "pendentes"
   | "adiadas"
   | "resolvidas";
@@ -103,7 +103,7 @@ const FILTROS: { id: Filtro; label: string }[] = [
   { id: "minhas", label: "Minhas" },
   { id: "nao-atribuidas", label: "Não atribuídas" },
   { id: "nao-respondidas", label: "Não respondidas" },
-  { id: "janela", label: "Dentro das 24h" },
+  { id: "fora-janela", label: "Fora das 24h" },
   { id: "pendentes", label: "Pendentes" },
   { id: "adiadas", label: "Adiadas" },
   { id: "resolvidas", label: "Resolvidas" },
@@ -474,16 +474,17 @@ export function LoopChatClient({
     const c = (conversas ?? []).filter(
       (x) => !canalSel || x.phoneNumberId === canalSel
     );
-    // "Abertas" é só o que exige ação agora: pendente, adiada e resolvida têm
-    // board próprio.
-    const abertas = c.filter((x) => x.status === "open");
+    // "Abertas" = o que dá pra responder agora (aberta E dentro das 24h).
+    // Pendente, adiada, resolvida e fora das 24h têm board próprio.
+    const abertas = c.filter((x) => x.status === "open" && x.janelaAberta);
     return {
       abertas: abertas.length,
       "aguardando-humano": abertas.filter((x) => x.botPaused).length,
       minhas: abertas.filter((x) => x.assigneeId === usuarioAtual).length,
       "nao-atribuidas": abertas.filter((x) => !x.assigneeId).length,
       "nao-respondidas": abertas.filter((x) => x.ultimaDirecao === "in").length,
-      janela: abertas.filter((x) => x.janelaAberta).length,
+      // Fora das 24h: abertas cuja janela fechou (só retoma com template).
+      "fora-janela": c.filter((x) => x.status === "open" && !x.janelaAberta).length,
       pendentes: c.filter((x) => x.status === "pending").length,
       adiadas: c.filter((x) => x.status === "snoozed").length,
       resolvidas: c.filter((x) => x.status === "resolved").length,
@@ -497,15 +498,20 @@ export function LoopChatClient({
     // Cada status tem seu board: quem não está aberta some dos filtros do dia
     // a dia e só aparece no filtro do próprio status.
     const statusDoFiltro = FILTRO_STATUS[filtro];
-    c = statusDoFiltro
-      ? c.filter((x) => x.status === statusDoFiltro)
-      : c.filter((x) => x.status === "open");
+    if (statusDoFiltro) {
+      c = c.filter((x) => x.status === statusDoFiltro);
+    } else if (filtro === "fora-janela") {
+      // Conversas abertas que passaram das 24h (saem da aba "Abertas").
+      c = c.filter((x) => x.status === "open" && !x.janelaAberta);
+    } else {
+      // Board de trabalho: aberta E dentro da janela de 24h.
+      c = c.filter((x) => x.status === "open" && x.janelaAberta);
+    }
     if (etiquetaFiltro) c = c.filter((x) => x.labels?.includes(etiquetaFiltro));
     if (filtro === "aguardando-humano") c = c.filter((x) => x.botPaused);
     if (filtro === "minhas") c = c.filter((x) => x.assigneeId === usuarioAtual);
     if (filtro === "nao-atribuidas") c = c.filter((x) => !x.assigneeId);
     if (filtro === "nao-respondidas") c = c.filter((x) => x.ultimaDirecao === "in");
-    if (filtro === "janela") c = c.filter((x) => x.janelaAberta);
     const q = busca.trim().toLowerCase();
     if (q) {
       c = c.filter(
