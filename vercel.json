@@ -13,6 +13,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/bot-replies",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/commission",
       "schedule": "0 9 1,16 * *"
     }

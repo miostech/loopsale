@@ -36,6 +36,7 @@ interface Detalhe {
       instructions: string;
       knowledge: string;
       autoResolveMinutes: number;
+      replyDelaySeconds: number;
       closeOnFinish: boolean;
       learnFromTeam: boolean;
       handoffHours: {
@@ -301,6 +302,7 @@ export default function EmpresaDetalhe({
         initialInstructions={e.bot.instructions}
         initialKnowledge={e.bot.knowledge}
         initialAutoResolveMinutes={e.bot.autoResolveMinutes}
+        initialReplyDelaySeconds={e.bot.replyDelaySeconds}
         initialCloseOnFinish={e.bot.closeOnFinish}
         initialLearnFromTeam={e.bot.learnFromTeam}
         initialHandoffHours={e.bot.handoffHours}

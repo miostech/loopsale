@@ -38,6 +38,11 @@ export async function PATCH(
   );
   const closeOnFinish = !!body.closeOnFinish;
   const learnFromTeam = !!body.learnFromTeam;
+  // Segundos de silêncio antes de responder (padrão 60; 0 = na hora; teto 10min).
+  const replyDelaySeconds =
+    body.replyDelaySeconds === undefined || body.replyDelaySeconds === null
+      ? 60
+      : Math.min(600, Math.max(0, Math.floor(Number(body.replyDelaySeconds) || 0)));
 
   // Janela de handoff (horário do atendimento humano).
   const h = (body.handoffHours ?? {}) as {
@@ -72,6 +77,7 @@ export async function PATCH(
         "attendantBot.autoResolveMinutes": autoResolveMinutes || null,
         "attendantBot.closeOnFinish": closeOnFinish,
         "attendantBot.learnFromTeam": learnFromTeam,
+        "attendantBot.replyDelaySeconds": replyDelaySeconds,
         "attendantBot.handoffHours": handoffHours,
         updatedAt: new Date(),
       },
@@ -85,6 +91,7 @@ export async function PATCH(
     autoResolveMinutes,
     closeOnFinish,
     learnFromTeam,
+    replyDelaySeconds,
     handoffHours,
   });
 }

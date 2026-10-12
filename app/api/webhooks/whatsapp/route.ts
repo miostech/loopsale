@@ -8,9 +8,7 @@ import {
   conversationChannelKey,
 } from "@/lib/whatsapp/channels";
 import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
-import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
-import { buscarExemplos } from "@/lib/loopchat/examples";
-import { handoffDisponivelAgora, MSG_FORA_HORARIO } from "@/lib/loopchat/horario";
+import { responderComBot } from "@/lib/loopchat/bot";
 import { enviarPush } from "@/lib/push";
 
 /**
@@ -231,13 +229,17 @@ export async function POST(request: Request) {
           const tipoResposta = ["text", "button", "interactive"].includes(
             msg.type ?? "text"
           );
+          // Delay > 0 (padrão): não responde na hora — o cron responde após o
+          // silêncio (deixa a pessoa terminar de escrever). Delay 0 = imediato.
+          const delaySeg = account?.attendantBot?.replyDelaySeconds ?? 60;
           if (
             up.upsertedId &&
             accountId &&
             msg.from &&
             tipoResposta &&
             corpo &&
-            account?.attendantBot?.enabled
+            account?.attendantBot?.enabled &&
+            delaySeg <= 0
           ) {
             paraResponder.set(`${accountId}:${phoneNumberId}:${msg.from}`, {
               account: account as unknown as Account,
@@ -433,151 +435,3 @@ async function responderAudio(
   } as WhatsAppMessage & { _id?: unknown });
 }
 
-/** Gera e envia a resposta do robô para uma conversa, com os guarda-corpos. */
-async function responderComBot(
-  account: Account,
-  contact: string,
-  phoneNumberIdMsg: string | null
-): Promise<void> {
-  const bot = account.attendantBot;
-  if (!bot?.enabled) return;
-
-  // Responde pelo mesmo canal (número) em que a mensagem chegou.
-  const canal = findChannel(account, phoneNumberIdMsg);
-  const token = await resolveSendToken(channelSendConfig(canal));
-  const phoneNumberId = canal?.phoneNumberId ?? "";
-  if (!token || !phoneNumberId) return;
-  // Estado da conversa: só separa por canal em contas multi-número.
-  const convKey = conversationChannelKey(account, phoneNumberId);
-
-  const accountId = String(account._id);
-  const convCol = await getCollection("conversations");
-  const conv = (await convCol.findOne({
-    accountId,
-    contact,
-    phoneNumberId: convKey,
-  })) as Conversation | null;
-  // Humano assumiu (atribuída) ou já foi repassada: bot fica quieto.
-  if (conv?.assigneeId || conv?.botPaused) return;
-
-  // Histórico recente da conversa (sem notas internas), em ordem cronológica.
-  const waCol = await getCollection("whatsappMessages");
-  const rows = (await waCol
-    .find({ accountId, contact, phoneNumberId, internal: { $ne: true } })
-    .sort({ createdAt: -1 })
-    .limit(15)
-    .toArray()) as WhatsAppMessage[];
-  const history: AttendantTurn[] = rows
-    .reverse()
-    .map((m) => ({
-      role: (m.direction === "in" ? "customer" : "assistant") as AttendantTurn["role"],
-      text: (m.body ?? "").trim(),
-    }))
-    .filter((t) => t.text.length > 0);
-
-  // Última precisa ser do cliente; se já respondemos, não responde de novo.
-  if (!history.length || history[history.length - 1].role !== "customer") return;
-
-  // Aprende com a equipe: exemplos reais parecidos com a mensagem atual.
-  const ultimoCliente = history[history.length - 1].text;
-  const examples =
-    bot.learnFromTeam === false
-      ? []
-      : await buscarExemplos(accountId, ultimoCliente);
-
-  const out = await generateAttendantReply({
-    instructions: bot.instructions,
-    knowledge: bot.knowledge,
-    examples,
-    history,
-  });
-  if (out.error) return; // erro: deixa para o humano
-
-  const now = new Date();
-
-  // Handoff fora do horário comercial (seg-sex 9h-19h, Portugal): não promete
-  // atendimento imediato — avisa o horário. A conversa fica na fila do humano.
-  const foraHorario =
-    out.handoff && !handoffDisponivelAgora(bot.handoffHours, now);
-  const reply = foraHorario ? MSG_FORA_HORARIO : out.reply;
-
-  // Sem texto para enviar: resolve (encerramento) ou pausa (handoff) e sai.
-  if (!reply) {
-    if (out.handoff) {
-      await convCol.updateOne(
-        { accountId, contact, phoneNumberId: convKey },
-        {
-          $set: { botPaused: true, status: "open", updatedAt: now },
-          $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
-        },
-        { upsert: true }
-      );
-    } else if (out.done && bot.closeOnFinish !== false) {
-      await convCol.updateOne(
-        { accountId, contact, phoneNumberId: convKey },
-        {
-          $set: {
-            status: "resolved",
-            resolvedAt: now,
-            resolvedBy: "auto: bot (encerrada)",
-            snoozedUntil: null,
-            updatedAt: now,
-          },
-          $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
-        },
-        { upsert: true }
-      );
-    }
-    return;
-  }
-
-  const result = await sendText({
-    phoneNumberId,
-    to: contact,
-    body: reply,
-    token,
-  });
-
-  await waCol.insertOne({
-    accountId,
-    direction: "out",
-    wamid: result.wamid ?? null,
-    phoneNumberId,
-    contact,
-    type: "text",
-    body: reply,
-    authorName: "Robô de atendimento",
-    status: result.success ? "accepted" : "failed",
-    error: result.error ?? null,
-    createdAt: now,
-    updatedAt: now,
-  } as WhatsAppMessage & { _id?: unknown });
-
-  // Repasse a humano: pausa o bot e mantém a conversa aberta para o time pegar.
-  if (out.handoff) {
-    await convCol.updateOne(
-      { accountId, contact, phoneNumberId: convKey },
-      {
-        $set: { botPaused: true, status: "open", updatedAt: now },
-        $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
-      },
-      { upsert: true }
-    );
-  } else if (out.done && bot.closeOnFinish !== false) {
-    // Cliente encerrou (agradeceu/despediu-se) e o bot respondeu curto: resolve.
-    await convCol.updateOne(
-      { accountId, contact, phoneNumberId: convKey },
-      {
-        $set: {
-          status: "resolved",
-          resolvedAt: now,
-          resolvedBy: "auto: bot (encerrada)",
-          snoozedUntil: null,
-          updatedAt: now,
-        },
-        $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
-      },
-      { upsert: true }
-    );
-  }
-}

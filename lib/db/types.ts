@@ -146,6 +146,12 @@ export interface Account {
     /** Bot aprende com as respostas humanas (few-shot dos exemplos da equipe). */
     learnFromTeam?: boolean;
     /**
+     * Segundos de silêncio a esperar antes de responder (deixa a pessoa
+     * terminar de escrever). Padrão 60. 0 = responde na hora. O cron de
+     * bot-replies responde após esse tempo, juntando as mensagens.
+     */
+    replyDelaySeconds?: number | null;
+    /**
      * Janela em que o handoff (passar para humano) é permitido. Ausente = padrão
      * (seg-sex 9h-19h, Europe/Lisbon). enabled=false = sem restrição (sempre).
      */

@@ -16,6 +16,7 @@ export function BotConfigCard({
   initialInstructions,
   initialKnowledge,
   initialAutoResolveMinutes = 0,
+  initialReplyDelaySeconds = 60,
   initialCloseOnFinish = false,
   initialLearnFromTeam = false,
   initialHandoffHours = {
@@ -31,6 +32,7 @@ export function BotConfigCard({
   initialInstructions: string;
   initialKnowledge: string;
   initialAutoResolveMinutes?: number;
+  initialReplyDelaySeconds?: number;
   initialCloseOnFinish?: boolean;
   initialLearnFromTeam?: boolean;
   initialHandoffHours?: {
@@ -46,6 +48,9 @@ export function BotConfigCard({
   const [knowledge, setKnowledge] = useState(initialKnowledge);
   const [autoResolveMinutes, setAutoResolveMinutes] = useState(
     initialAutoResolveMinutes
+  );
+  const [replyDelaySeconds, setReplyDelaySeconds] = useState(
+    initialReplyDelaySeconds
   );
   const [closeOnFinish, setCloseOnFinish] = useState(initialCloseOnFinish);
   const [learnFromTeam, setLearnFromTeam] = useState(initialLearnFromTeam);
@@ -70,6 +75,7 @@ export function BotConfigCard({
           instructions,
           knowledge,
           autoResolveMinutes,
+          replyDelaySeconds,
           closeOnFinish,
           learnFromTeam,
           handoffHours: {
@@ -172,6 +178,25 @@ export function BotConfigCard({
           <p className="text-sm font-medium text-[var(--loop-text)]">
             Automação da caixa
           </p>
+          <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--loop-text)]">
+            Esperar
+            <input
+              type="number"
+              min={0}
+              max={600}
+              value={replyDelaySeconds}
+              onChange={(e) =>
+                setReplyDelaySeconds(
+                  Math.min(600, Math.max(0, Number(e.target.value) || 0))
+                )
+              }
+              className="w-20 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2 py-1 text-[var(--loop-text)]"
+            />
+            segundos antes de responder
+            <span className="text-xs text-[var(--loop-text-muted)]">
+              (dá tempo da pessoa terminar de escrever; 0 = na hora; sugerido: 60)
+            </span>
+          </label>
           <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--loop-text)]">
             Resolver sozinha após
             <input

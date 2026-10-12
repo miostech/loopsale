@@ -252,6 +252,7 @@ export async function GET(
         instructions: account.attendantBot?.instructions ?? "",
         knowledge: account.attendantBot?.knowledge ?? "",
         autoResolveMinutes: account.attendantBot?.autoResolveMinutes ?? 0,
+        replyDelaySeconds: account.attendantBot?.replyDelaySeconds ?? 60,
         closeOnFinish: !!account.attendantBot?.closeOnFinish,
         learnFromTeam: !!account.attendantBot?.learnFromTeam,
         handoffHours: {
