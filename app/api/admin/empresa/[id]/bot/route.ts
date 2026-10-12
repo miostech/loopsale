@@ -27,7 +27,7 @@ export async function PATCH(
   const body = await request.json().catch(() => ({}));
   const enabled = !!body.enabled;
   const instructions =
-    typeof body.instructions === "string" ? body.instructions.trim().slice(0, 4000) : "";
+    typeof body.instructions === "string" ? body.instructions.trim().slice(0, 8000) : "";
   const knowledge =
     typeof body.knowledge === "string" ? body.knowledge.trim().slice(0, 8000) : "";
   // Automação: minutos p/ auto-resolver (0 = off, teto 1 dia), fechar ao

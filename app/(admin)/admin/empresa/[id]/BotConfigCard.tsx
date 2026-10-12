@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
 
+/** Limite de caracteres das Instruções e da Base (igual ao do backend). */
+const LIMITE_TEXTO = 8000;
+
 /**
  * Configuração do robô de atendimento (IA) da conta — só admin da LoopSale.
  * Liga/desliga, define a persona/instruções e a base de conhecimento.
@@ -120,11 +123,22 @@ export function BotConfigCard({
           </label>
           <textarea
             rows={4}
+            maxLength={LIMITE_TEXTO}
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             placeholder="Ex: Você é a Camila, do suporte comercial da Loja X. Seja cordial e objetiva. Nunca prometa desconto que não esteja na base. Foco em tirar dúvidas e ajudar a concluir a compra."
             className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-sm text-[var(--loop-text)] placeholder:text-[var(--loop-text-muted)]"
           />
+          <p
+            className={`mt-1 text-right text-xs ${
+              instructions.length >= LIMITE_TEXTO
+                ? "text-[var(--loop-error)]"
+                : "text-[var(--loop-text-muted)]"
+            }`}
+          >
+            {instructions.length.toLocaleString("pt-BR")} /{" "}
+            {LIMITE_TEXTO.toLocaleString("pt-BR")} caracteres
+          </p>
         </div>
 
         <div>
@@ -133,6 +147,7 @@ export function BotConfigCard({
           </label>
           <textarea
             rows={7}
+            maxLength={LIMITE_TEXTO}
             value={knowledge}
             onChange={(e) => setKnowledge(e.target.value)}
             placeholder={
@@ -140,6 +155,16 @@ export function BotConfigCard({
             }
             className="w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-sm text-[var(--loop-text)] placeholder:text-[var(--loop-text-muted)]"
           />
+          <p
+            className={`mt-1 text-right text-xs ${
+              knowledge.length >= LIMITE_TEXTO
+                ? "text-[var(--loop-error)]"
+                : "text-[var(--loop-text-muted)]"
+            }`}
+          >
+            {knowledge.length.toLocaleString("pt-BR")} /{" "}
+            {LIMITE_TEXTO.toLocaleString("pt-BR")} caracteres
+          </p>
         </div>
 
         {/* Automação da caixa */}
