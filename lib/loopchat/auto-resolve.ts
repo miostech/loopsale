@@ -6,7 +6,10 @@ type UltimoDaConversa = {
   _id: { contact: string; phoneNumberId: string | null };
   ultimaEm: Date;
   ultimaDirecao: string;
+  ultimoAutor: string | null;
 };
+
+const AUTOR_BOT = "Robô de atendimento";
 
 // Estados que já foram decididos por alguém — o auto-resolver não mexe.
 const NAO_MEXER = new Set(["resolved", "pending", "snoozed"]);
@@ -41,6 +44,7 @@ export async function autoResolveForAccount(
           _id: { contact: "$contact", phoneNumberId: "$phoneNumberId" },
           ultimaEm: { $last: "$createdAt" },
           ultimaDirecao: { $last: "$direction" },
+          ultimoAutor: { $last: "$authorName" },
         },
       },
       // Só interessa quem a gente falou por último e já passou do corte.
@@ -69,6 +73,9 @@ export async function autoResolveForAccount(
     const doc = estadoPorChave.get(`${u._id.contact}|${convKey ?? ""}`);
     // Já resolvida/pendente/adiada = deixa como está.
     if (doc && NAO_MEXER.has(doc.status)) continue;
+    // Handoff pendente (repassado ao humano, última msg foi do bot e ninguém
+    // respondeu ainda): não fecha — está esperando a equipe, não o cliente.
+    if (doc?.botPaused && u.ultimoAutor === AUTOR_BOT) continue;
     await convCol.updateOne(
       { accountId, contact: u._id.contact, phoneNumberId: convKey },
       {

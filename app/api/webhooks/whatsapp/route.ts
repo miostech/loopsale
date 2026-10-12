@@ -10,6 +10,7 @@ import {
 import type { Account, WhatsAppMessage, Conversation } from "@/lib/db/types";
 import { generateAttendantReply, type AttendantTurn } from "@/lib/ai/attendant";
 import { buscarExemplos } from "@/lib/loopchat/examples";
+import { handoffDisponivelAgora, MSG_FORA_HORARIO } from "@/lib/loopchat/horario";
 import { enviarPush } from "@/lib/push";
 
 /**
@@ -494,9 +495,23 @@ async function responderComBot(
 
   const now = new Date();
 
-  // Encerramento sem resposta (cliente só agradeceu): resolve e sai.
-  if (!out.reply) {
-    if (out.done && bot.closeOnFinish !== false) {
+  // Handoff fora do horário comercial (seg-sex 9h-19h, Portugal): não promete
+  // atendimento imediato — avisa o horário. A conversa fica na fila do humano.
+  const foraHorario = out.handoff && !handoffDisponivelAgora(now);
+  const reply = foraHorario ? MSG_FORA_HORARIO : out.reply;
+
+  // Sem texto para enviar: resolve (encerramento) ou pausa (handoff) e sai.
+  if (!reply) {
+    if (out.handoff) {
+      await convCol.updateOne(
+        { accountId, contact, phoneNumberId: convKey },
+        {
+          $set: { botPaused: true, status: "open", updatedAt: now },
+          $setOnInsert: { accountId, contact, phoneNumberId: convKey, createdAt: now },
+        },
+        { upsert: true }
+      );
+    } else if (out.done && bot.closeOnFinish !== false) {
       await convCol.updateOne(
         { accountId, contact, phoneNumberId: convKey },
         {
@@ -512,13 +527,13 @@ async function responderComBot(
         { upsert: true }
       );
     }
-    return; // sem texto e sem conclusão: deixa para o humano
+    return;
   }
 
   const result = await sendText({
     phoneNumberId,
     to: contact,
-    body: out.reply,
+    body: reply,
     token,
   });
 
@@ -529,7 +544,7 @@ async function responderComBot(
     phoneNumberId,
     contact,
     type: "text",
-    body: out.reply,
+    body: reply,
     authorName: "Robô de atendimento",
     status: result.success ? "accepted" : "failed",
     error: result.error ?? null,
