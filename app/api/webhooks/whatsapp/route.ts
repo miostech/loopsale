@@ -497,7 +497,8 @@ async function responderComBot(
 
   // Handoff fora do horário comercial (seg-sex 9h-19h, Portugal): não promete
   // atendimento imediato — avisa o horário. A conversa fica na fila do humano.
-  const foraHorario = out.handoff && !handoffDisponivelAgora(now);
+  const foraHorario =
+    out.handoff && !handoffDisponivelAgora(bot.handoffHours, now);
   const reply = foraHorario ? MSG_FORA_HORARIO : out.reply;
 
   // Sem texto para enviar: resolve (encerramento) ou pausa (handoff) e sai.

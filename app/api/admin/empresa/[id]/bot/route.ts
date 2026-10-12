@@ -39,6 +39,28 @@ export async function PATCH(
   const closeOnFinish = !!body.closeOnFinish;
   const learnFromTeam = !!body.learnFromTeam;
 
+  // Janela de handoff (horário do atendimento humano).
+  const h = (body.handoffHours ?? {}) as {
+    enabled?: unknown;
+    timezone?: unknown;
+    days?: unknown;
+    start?: unknown;
+    end?: unknown;
+  };
+  const diasValidos = Array.isArray(h.days)
+    ? [...new Set(h.days.map((n) => Math.floor(Number(n))).filter((n) => n >= 0 && n <= 6))]
+    : [1, 2, 3, 4, 5];
+  const handoffHours = {
+    enabled: !!h.enabled,
+    timezone:
+      typeof h.timezone === "string" && h.timezone.trim()
+        ? h.timezone.trim()
+        : "Europe/Lisbon",
+    days: diasValidos,
+    start: Math.min(23, Math.max(0, Math.floor(Number(h.start) || 0))),
+    end: Math.min(24, Math.max(1, Math.floor(Number(h.end) || 19))),
+  };
+
   const accountsCol = await getCollection("accounts");
   await accountsCol.updateOne(
     { _id: oid },
@@ -50,6 +72,7 @@ export async function PATCH(
         "attendantBot.autoResolveMinutes": autoResolveMinutes || null,
         "attendantBot.closeOnFinish": closeOnFinish,
         "attendantBot.learnFromTeam": learnFromTeam,
+        "attendantBot.handoffHours": handoffHours,
         updatedAt: new Date(),
       },
     }
@@ -62,5 +85,6 @@ export async function PATCH(
     autoResolveMinutes,
     closeOnFinish,
     learnFromTeam,
+    handoffHours,
   });
 }

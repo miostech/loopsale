@@ -15,6 +15,13 @@ export function BotConfigCard({
   initialAutoResolveMinutes = 0,
   initialCloseOnFinish = false,
   initialLearnFromTeam = false,
+  initialHandoffHours = {
+    enabled: false,
+    timezone: "Europe/Lisbon",
+    days: [1, 2, 3, 4, 5],
+    start: 9,
+    end: 19,
+  },
 }: {
   companyId: string;
   initialEnabled: boolean;
@@ -23,6 +30,13 @@ export function BotConfigCard({
   initialAutoResolveMinutes?: number;
   initialCloseOnFinish?: boolean;
   initialLearnFromTeam?: boolean;
+  initialHandoffHours?: {
+    enabled: boolean;
+    timezone: string;
+    days: number[];
+    start: number;
+    end: number;
+  };
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [instructions, setInstructions] = useState(initialInstructions);
@@ -32,6 +46,12 @@ export function BotConfigCard({
   );
   const [closeOnFinish, setCloseOnFinish] = useState(initialCloseOnFinish);
   const [learnFromTeam, setLearnFromTeam] = useState(initialLearnFromTeam);
+  // Horário do atendimento humano (janela de handoff).
+  const [hhEnabled, setHhEnabled] = useState(initialHandoffHours.enabled);
+  const [hhTimezone, setHhTimezone] = useState(initialHandoffHours.timezone);
+  const [hhDays, setHhDays] = useState<number[]>(initialHandoffHours.days);
+  const [hhStart, setHhStart] = useState(initialHandoffHours.start);
+  const [hhEnd, setHhEnd] = useState(initialHandoffHours.end);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
 
@@ -49,6 +69,13 @@ export function BotConfigCard({
           autoResolveMinutes,
           closeOnFinish,
           learnFromTeam,
+          handoffHours: {
+            enabled: hhEnabled,
+            timezone: hhTimezone,
+            days: hhDays,
+            start: hhStart,
+            end: hhEnd,
+          },
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -157,6 +184,103 @@ export function BotConfigCard({
             Aprender com as respostas da equipe (o robô passa a imitar o que vocês
             respondem no modo humano)
           </label>
+        </div>
+
+        {/* Horário do atendimento humano (janela de handoff) */}
+        <div className="space-y-3 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
+          <label className="flex cursor-pointer items-start gap-2 text-sm font-medium text-[var(--loop-text)]">
+            <input
+              type="checkbox"
+              checked={hhEnabled}
+              onChange={(e) => setHhEnabled(e.target.checked)}
+              className="mt-1"
+            />
+            Limitar o repasse a um humano (handoff) a um horário
+          </label>
+          {hhEnabled && (
+            <div className="space-y-3 pl-6">
+              <div>
+                <p className="mb-1 text-xs text-[var(--loop-text-muted)]">
+                  Dias da semana
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { n: 1, l: "Seg" },
+                    { n: 2, l: "Ter" },
+                    { n: 3, l: "Qua" },
+                    { n: 4, l: "Qui" },
+                    { n: 5, l: "Sex" },
+                    { n: 6, l: "Sáb" },
+                    { n: 0, l: "Dom" },
+                  ].map((d) => {
+                    const on = hhDays.includes(d.n);
+                    return (
+                      <button
+                        key={d.n}
+                        type="button"
+                        onClick={() =>
+                          setHhDays((prev) =>
+                            prev.includes(d.n)
+                              ? prev.filter((x) => x !== d.n)
+                              : [...prev, d.n]
+                          )
+                        }
+                        className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
+                          on
+                            ? "bg-[var(--loop-primary)] font-medium text-white"
+                            : "border border-[var(--loop-border)] text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                        }`}
+                      >
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <label className="flex flex-wrap items-center gap-2 text-sm text-[var(--loop-text)]">
+                Das
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={hhStart}
+                  onChange={(e) =>
+                    setHhStart(Math.min(23, Math.max(0, Number(e.target.value) || 0)))
+                  }
+                  className="w-16 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2 py-1 text-[var(--loop-text)]"
+                />
+                h às
+                <input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={hhEnd}
+                  onChange={(e) =>
+                    setHhEnd(Math.min(24, Math.max(1, Number(e.target.value) || 1)))
+                  }
+                  className="w-16 rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-2 py-1 text-[var(--loop-text)]"
+                />
+                h
+              </label>
+              <label className="block text-sm text-[var(--loop-text)]">
+                Fuso horário
+                <input
+                  type="text"
+                  value={hhTimezone}
+                  onChange={(e) => setHhTimezone(e.target.value)}
+                  placeholder="Europe/Lisbon"
+                  className="mt-1 w-full rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg)] px-3 py-2 text-[var(--loop-text)]"
+                />
+                <span className="mt-1 block text-xs text-[var(--loop-text-muted)]">
+                  Padrão: Europe/Lisbon. Ex.: America/Sao_Paulo, Europe/London.
+                </span>
+              </label>
+              <p className="text-xs text-[var(--loop-text-muted)]">
+                Fora desse horário, ao pedir atendente o robô avisa o horário e a
+                conversa fica na fila (Aguardando humano) para a equipe retomar.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

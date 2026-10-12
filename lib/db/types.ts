@@ -145,6 +145,20 @@ export interface Account {
     closeOnFinish?: boolean;
     /** Bot aprende com as respostas humanas (few-shot dos exemplos da equipe). */
     learnFromTeam?: boolean;
+    /**
+     * Janela em que o handoff (passar para humano) é permitido. Ausente = padrão
+     * (seg-sex 9h-19h, Europe/Lisbon). enabled=false = sem restrição (sempre).
+     */
+    handoffHours?: {
+      enabled?: boolean;
+      /** Fuso IANA, ex.: "Europe/Lisbon". */
+      timezone?: string | null;
+      /** Dias liberados (0=domingo … 6=sábado). */
+      days?: number[];
+      /** Hora de abertura (0-23) e de fechamento (1-24). */
+      start?: number;
+      end?: number;
+    } | null;
   } | null;
   createdAt: Date;
   updatedAt: Date;

@@ -38,6 +38,13 @@ interface Detalhe {
       autoResolveMinutes: number;
       closeOnFinish: boolean;
       learnFromTeam: boolean;
+      handoffHours: {
+        enabled: boolean;
+        timezone: string;
+        days: number[];
+        start: number;
+        end: number;
+      };
     };
     assinaturaMensal: number;
     ultimaAtividade: string | null;
@@ -296,6 +303,7 @@ export default function EmpresaDetalhe({
         initialAutoResolveMinutes={e.bot.autoResolveMinutes}
         initialCloseOnFinish={e.bot.closeOnFinish}
         initialLearnFromTeam={e.bot.learnFromTeam}
+        initialHandoffHours={e.bot.handoffHours}
       />
 
       {/* Quinzena atual */}

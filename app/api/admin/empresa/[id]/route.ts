@@ -254,6 +254,14 @@ export async function GET(
         autoResolveMinutes: account.attendantBot?.autoResolveMinutes ?? 0,
         closeOnFinish: !!account.attendantBot?.closeOnFinish,
         learnFromTeam: !!account.attendantBot?.learnFromTeam,
+        handoffHours: {
+          enabled: !!account.attendantBot?.handoffHours?.enabled,
+          timezone:
+            account.attendantBot?.handoffHours?.timezone ?? "Europe/Lisbon",
+          days: account.attendantBot?.handoffHours?.days ?? [1, 2, 3, 4, 5],
+          start: account.attendantBot?.handoffHours?.start ?? 9,
+          end: account.attendantBot?.handoffHours?.end ?? 19,
+        },
       },
       assinaturaMensal,
       ultimaAtividade,
