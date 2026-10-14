@@ -289,6 +289,8 @@ export function LoopChatClient({
   // lateral não cabe); começa fechado pra não cobrir a conversa ao entrar.
   const [verContato, setVerContato] = useState(false);
   const [sidebarAberta, setSidebarAberta] = useState(true);
+  // No celular a barra de filtros abre como camada (menu); fechada por padrão.
+  const [filtrosMobile, setFiltrosMobile] = useState(false);
   const [janelaAberta, setJanelaAberta] = useState(true);
   const [texto, setTexto] = useState("");
   const [modoNota, setModoNota] = useState(false);
@@ -986,10 +988,12 @@ export function LoopChatClient({
 
   return (
     <div className="flex h-full overflow-x-hidden">
-      {/* Coluna 1: filtros */}
+      {/* Coluna 1: filtros (menu). No celular abre como camada (filtrosMobile). */}
       <aside
         className={`shrink-0 flex-col border-r border-[var(--loop-border)] bg-[var(--loop-bg)] ${
-          sidebarAberta ? "hidden w-56 lg:flex" : "hidden"
+          filtrosMobile ? "fixed inset-0 z-40 flex w-full" : "hidden"
+        } ${
+          sidebarAberta ? "lg:static lg:z-auto lg:flex lg:w-56" : "lg:hidden"
         }`}
       >
         <div className="flex items-start justify-between gap-2 border-b border-[var(--loop-border)] px-4 py-4">
@@ -999,6 +1003,15 @@ export function LoopChatClient({
               {isAdmin ? "Todas as empresas (admin)" : "Do seu número do WhatsApp"}
             </p>
           </div>
+          {/* Fechar o menu no celular */}
+          <button
+            type="button"
+            onClick={() => setFiltrosMobile(false)}
+            aria-label="Fechar filtros"
+            className="shrink-0 rounded-lg border border-[var(--loop-border)] px-3 py-1 text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)] lg:hidden"
+          >
+            Fechar
+          </button>
           <button
             type="button"
             onClick={() => setSidebarAberta(false)}
@@ -1029,7 +1042,10 @@ export function LoopChatClient({
             <button
               key={f.id}
               type="button"
-              onClick={() => setFiltro(f.id)}
+              onClick={() => {
+                setFiltro(f.id);
+                setFiltrosMobile(false);
+              }}
               className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors ${
                 filtro === f.id
                   ? "bg-[var(--loop-primary-muted)] font-medium text-[var(--loop-primary)]"
@@ -1351,6 +1367,28 @@ export function LoopChatClient({
         <div className="space-y-3 border-b border-[var(--loop-border)] px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
+              {/* Abrir o menu de filtros no celular/tablet. */}
+              <button
+                type="button"
+                onClick={() => setFiltrosMobile(true)}
+                aria-label="Abrir filtros"
+                title="Filtros e etiquetas"
+                className="shrink-0 rounded-md p-1 text-[var(--loop-text-muted)] hover:bg-[var(--loop-bg-alt)] hover:text-[var(--loop-text)] lg:hidden"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
               {!sidebarAberta && (
                 <button
                   type="button"
