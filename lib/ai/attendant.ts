@@ -13,6 +13,54 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 // Haiku: rápido e barato, suficiente para FAQ/objeções. Trocável se precisar.
 const MODEL = "claude-haiku-4-5-20251001";
 
+/**
+ * Testa a conexão com a IA (chave + modelo) com uma chamada mínima. Diz na hora
+ * se a chave está inválida, sem crédito, ou o modelo não existe — para
+ * diagnosticar "o bot parou de responder".
+ */
+export async function testAttendant(): Promise<{
+  ok: boolean;
+  model: string;
+  status?: number;
+  error?: string;
+}> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    return { ok: false, model: MODEL, error: "ANTHROPIC_API_KEY não configurada no ambiente." };
+  }
+  try {
+    const res = await fetch(ANTHROPIC_API, {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 1,
+        messages: [{ role: "user", content: "ping" }],
+      }),
+    });
+    if (res.ok) return { ok: true, model: MODEL, status: res.status };
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: { message?: string; type?: string };
+    };
+    return {
+      ok: false,
+      model: MODEL,
+      status: res.status,
+      error: data.error?.message || `HTTP ${res.status}`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      model: MODEL,
+      error: e instanceof Error ? e.message : "Falha ao conectar na IA.",
+    };
+  }
+}
+
 export interface AttendantTurn {
   role: "customer" | "assistant";
   text: string;

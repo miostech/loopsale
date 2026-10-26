@@ -62,6 +62,29 @@ export function BotConfigCard({
   const [hhEnd, setHhEnd] = useState(initialHandoffHours.end);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
+  // Teste da IA (chave + modelo).
+  const [testando, setTestando] = useState(false);
+  const [teste, setTeste] = useState<{ ok?: string; err?: string }>({});
+
+  async function testarIA() {
+    setTeste({});
+    setTestando(true);
+    try {
+      const res = await fetch("/api/admin/bot-test");
+      const d = await res.json().catch(() => ({}));
+      if (d.ok) setTeste({ ok: `IA respondendo ✓ (modelo ${d.model})` });
+      else
+        setTeste({
+          err: `Falha na IA${d.status ? ` [${d.status}]` : ""}: ${
+            d.error ?? "erro desconhecido"
+          }`,
+        });
+    } catch {
+      setTeste({ err: "Erro de rede ao testar a IA." });
+    } finally {
+      setTestando(false);
+    }
+  }
 
   async function salvar() {
     setMsg({});
@@ -333,9 +356,17 @@ export function BotConfigCard({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="cta" size="sm" disabled={saving} onClick={salvar}>
             {saving ? "Salvando…" : "Salvar"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={testando}
+            onClick={testarIA}
+          >
+            {testando ? "Testando…" : "Testar IA"}
           </Button>
           {msg.ok && (
             <span className="text-sm text-[var(--loop-success)]">{msg.ok}</span>
@@ -344,10 +375,21 @@ export function BotConfigCard({
             <span className="text-sm text-[var(--loop-error)]">{msg.err}</span>
           )}
         </div>
+        {teste.ok && (
+          <p className="rounded-md bg-[color-mix(in_srgb,var(--loop-success)_12%,transparent)] p-2 text-sm text-[var(--loop-success)]">
+            {teste.ok}
+          </p>
+        )}
+        {teste.err && (
+          <p className="rounded-md bg-[color-mix(in_srgb,var(--loop-error)_12%,transparent)] p-2 text-sm text-[var(--loop-error)]">
+            {teste.err}
+          </p>
+        )}
 
         <p className="rounded-md bg-[var(--loop-bg-alt)] p-2 text-xs text-[var(--loop-text-muted)]">
           Requer a chave de IA (ANTHROPIC_API_KEY) no ambiente. Sem ela, o robô
-          não responde e as conversas seguem para o time humano.
+          não responde e as conversas seguem para o time humano. Use "Testar IA"
+          para ver se a chave e o modelo estão respondendo.
         </p>
       </CardContent>
     </Card>

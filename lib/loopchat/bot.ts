@@ -69,7 +69,12 @@ export async function responderComBot(
     examples,
     history,
   });
-  if (out.error) return; // erro: deixa para o humano
+  if (out.error) {
+    // Erro da IA (chave/crédito/modelo): deixa para o humano, mas registra o
+    // motivo nos logs — senão o bot "para de responder" em silêncio.
+    console.error("bot IA erro:", accountId, out.error);
+    return;
+  }
 
   const now = new Date();
 
