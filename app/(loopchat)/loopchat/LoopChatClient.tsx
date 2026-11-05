@@ -795,6 +795,28 @@ export function LoopChatClient({
     await loadConversas();
   }
 
+  async function alternarBot() {
+    if (!ativo) return;
+    const pausar = !conversaAtiva?.botPaused;
+    setErro("");
+    const res = await fetch("/api/loopchat/conversations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contact: ativo,
+        channel: ativoCanal,
+        action: "pausar-bot",
+        paused: pausar,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setErro(data.error ?? "Não foi possível mudar o robô.");
+      return;
+    }
+    await loadConversas();
+  }
+
   async function alternarResolucao() {
     if (!ativo) return;
     const resolver = conversaAtiva?.status !== "resolved";
@@ -1653,6 +1675,22 @@ export function LoopChatClient({
                 </Badge>
               </div>
               <div className="relative flex shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={alternarBot}
+                  title={
+                    conversaAtiva?.botPaused
+                      ? "Robô pausado só nesta conversa — toque pra religar"
+                      : "Pausar o robô só nesta conversa (enquanto você responde)"
+                  }
+                  className={`mr-1 flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium ${
+                    conversaAtiva?.botPaused
+                      ? "border-amber-400 bg-amber-50 text-amber-700"
+                      : "border-[var(--loop-border)] text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                  }`}
+                >
+                  {conversaAtiva?.botPaused ? "🤖 IA pausada" : "🤖 IA ativa"}
+                </button>
                 <Button
                   variant={
                     conversaAtiva?.status === "open" ? "cta" : "secondary"

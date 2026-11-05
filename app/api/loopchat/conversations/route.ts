@@ -330,6 +330,7 @@ export async function PATCH(request: Request) {
       "priorizar",
       "pendente",
       "adiar",
+      "pausar-bot",
     ].includes(acao)
   ) {
     return NextResponse.json({ error: "Requisição inválida." }, { status: 400 });
@@ -368,6 +369,28 @@ export async function PATCH(request: Request) {
       status: adiar ? "snoozed" : "pending",
       snoozedUntil,
     });
+  }
+
+  if (acao === "pausar-bot") {
+    // Liga/desliga o robô só nesta conversa. Serve pra quando o humano está
+    // respondendo e não quer o bot respondendo junto, automaticamente.
+    const paused = body.paused !== false; // default: pausar
+    const convCol = await getCollection("conversations");
+    await convCol.updateOne(
+      { accountId: contaId, contact, phoneNumberId },
+      {
+        $set: { botPaused: paused, updatedAt: now },
+        $setOnInsert: {
+          accountId: contaId,
+          contact,
+          phoneNumberId,
+          status: "open",
+          createdAt: now,
+        },
+      },
+      { upsert: true }
+    );
+    return NextResponse.json({ ok: true, botPaused: paused });
   }
 
   if (acao === "priorizar") {
