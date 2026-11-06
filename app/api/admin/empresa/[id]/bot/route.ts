@@ -95,3 +95,30 @@ export async function PATCH(
     handoffHours,
   });
 }
+
+/**
+ * Reinicia o aprendizado da IA: apaga só os exemplos que ela guardou das
+ * conversas da equipe (coleção chatExamples). Não mexe no script (instructions)
+ * nem na base de conhecimento — assim a IA volta a usar só o que está escrito.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getServerSession(authOptions);
+  const email = (session?.user as SessionUser | undefined)?.email;
+  if (!isSuperAdmin(email)) {
+    return NextResponse.json({ error: "Acesso restrito" }, { status: 403 });
+  }
+  if (isDatabaseDisabled()) {
+    return NextResponse.json({ error: "Indisponível" }, { status: 503 });
+  }
+
+  const { id } = await params;
+  const oid = await routeObjectId(id);
+  if (!oid) return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+
+  const col = await getCollection("chatExamples");
+  const r = await col.deleteMany({ accountId: String(oid) });
+  return NextResponse.json({ ok: true, removidos: r.deletedCount ?? 0 });
+}

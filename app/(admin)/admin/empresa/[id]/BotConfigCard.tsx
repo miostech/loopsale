@@ -65,6 +65,33 @@ export function BotConfigCard({
   // Teste da IA (chave + modelo).
   const [testando, setTestando] = useState(false);
   const [teste, setTeste] = useState<{ ok?: string; err?: string }>({});
+  // Reiniciar aprendizado: apaga só os exemplos guardados (confirmação inline).
+  const [confirmarReset, setConfirmarReset] = useState(false);
+  const [resetando, setResetando] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ ok?: string; err?: string }>({});
+
+  async function reiniciarAprendizado() {
+    setResetMsg({});
+    setResetando(true);
+    try {
+      const res = await fetch(`/api/admin/empresa/${companyId}/bot`, {
+        method: "DELETE",
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResetMsg({ err: d.error ?? "Não foi possível reiniciar." });
+        return;
+      }
+      setResetMsg({
+        ok: `Aprendizado reiniciado — ${d.removidos ?? 0} exemplo(s) apagado(s). A IA volta a usar só o script e a base.`,
+      });
+      setConfirmarReset(false);
+    } catch {
+      setResetMsg({ err: "Erro de rede ao reiniciar." });
+    } finally {
+      setResetando(false);
+    }
+  }
 
   async function testarIA() {
     setTeste({});
@@ -257,6 +284,59 @@ export function BotConfigCard({
             Aprender com as respostas da equipe (o robô passa a imitar o que vocês
             respondem no modo humano)
           </label>
+
+          {/* Reiniciar aprendizado: apaga os exemplos guardados, sem tocar no
+              script nem na base de conhecimento. */}
+          <div className="rounded-lg border border-[var(--loop-border)] bg-[var(--loop-bg-alt)] p-3">
+            <p className="text-sm font-medium text-[var(--loop-text)]">
+              Reiniciar aprendizado
+            </p>
+            <p className="mt-1 text-xs text-[var(--loop-text-muted)]">
+              Apaga os exemplos que o robô guardou das conversas antigas. Não
+              mexe no script nem na base — depois disso a IA passa a usar só o
+              que está escrito aqui.
+            </p>
+            {!confirmarReset ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setResetMsg({});
+                  setConfirmarReset(true);
+                }}
+                className="mt-2 rounded-lg border border-[var(--loop-border)] px-3 py-1.5 text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+              >
+                Reiniciar aprendizado
+              </button>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[var(--loop-text)]">
+                  Apagar os exemplos aprendidos?
+                </span>
+                <button
+                  type="button"
+                  onClick={reiniciarAprendizado}
+                  disabled={resetando}
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  {resetando ? "Apagando…" : "Sim, apagar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmarReset(false)}
+                  disabled={resetando}
+                  className="rounded-lg border border-[var(--loop-border)] px-3 py-1.5 text-sm text-[var(--loop-text-muted)] hover:text-[var(--loop-text)]"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+            {resetMsg.ok && (
+              <p className="mt-2 text-xs text-green-600">{resetMsg.ok}</p>
+            )}
+            {resetMsg.err && (
+              <p className="mt-2 text-xs text-red-600">{resetMsg.err}</p>
+            )}
+          </div>
         </div>
 
         {/* Horário do atendimento humano (janela de handoff) */}
